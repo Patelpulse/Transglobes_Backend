@@ -1,0 +1,39 @@
+{
+    "project_info": {
+        "project_number": "1072284227316",
+        "project_id": "mera-ubar",
+        "storage_bucket": "mera-ubar.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:1072284227316:android:967e253fa09ff7e4cd30a1",
+                "android_client_info": {
+                    "package_name": "com.transglobe.app"
+                }
+            },
+            "oauth_client": [
+                {
+                    "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+                    "client_type": 3
+                }
+            ],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyBcc-cYJ-xfLYwo8Jyc6eZmgk918j0WL28"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": [
+                        {
+                            "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+                            "client_type": 3
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}
