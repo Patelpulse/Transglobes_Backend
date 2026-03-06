@@ -38,6 +38,8 @@ benchmarks/
 # Flutter/Dart related
 **/.dart_tool/
 **/build/
+!**/build/web/
+!**/build/web/**
 **/ios/Flutter/ephemeral/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
