@@ -1,6 +1,6 @@
 class AppConfig {
   static const String appName = 'Transglobal';
-  static const String apiBaseUrl = 'http://localhost:3000';
+  static const String apiBaseUrl = 'https://transglove-backend.onrender.com';
 
   // Google Maps API Key (Replace with your key)
   static const String googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';

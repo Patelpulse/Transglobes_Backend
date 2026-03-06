@@ -5,6 +5,9 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/id_generator.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 
 // Demo mode flag - set to false when you have real Firebase configured
 // Google Sign-In always uses real Firebase (bypasses demo mode)
@@ -227,4 +230,77 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_logged_in') ?? false;
   }
+
+  // ─── Custom Backend Auth ──────────────────────────────────────────────────
+  Future<Map<String, dynamic>> signUpCustom({
+    required String name,
+    required String email,
+    required String password,
+    required String aadharCard,
+    required String panCard,
+  }) async {
+    try {
+      final response = await _signUpApi(name, email, password, aadharCard, panCard);
+      if (response['success']) {
+        await _persistLoginState(true);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', response['token'] ?? '');
+      }
+      return response;
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> signInCustom(String email, String password) async {
+    try {
+      final response = await _signInApi(email, password);
+      if (response['success']) {
+        await _persistLoginState(true);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', response['token']);
+      }
+      return response;
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> _signUpApi(String name, String email, String password, String aadhar, String pan) async {
+    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000'}/api/driver/register');
+    final response = await _post(url, {
+      'name': name,
+      'email': email,
+      'password': password,
+      'aadharCard': aadhar,
+      'panCard': pan,
+    });
+    return response;
+  }
+
+  Future<Map<String, dynamic>> _signInApi(String email, String password) async {
+    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000'}/api/driver/login');
+    final response = await _post(url, {
+      'email': email,
+      'password': password,
+    });
+    return response;
+  }
+
+  Future<Map<String, dynamic>> _post(Uri url, Map<String, dynamic> body) async {
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(body),
+    );
+    final data = json.decode(response.body);
+    return {
+      'success': response.statusCode == 200 || response.statusCode == 201,
+      'message': data['message'],
+      'token': data['token'],
+      'user': data['driver'] ?? data['user'],
+    };
+  }
 }
+
+

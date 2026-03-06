@@ -237,4 +237,36 @@ class DatabaseService {
       rethrow;
     }
   }
+
+  Future<Map<String, dynamic>> registerDriver({
+    required String name,
+    required String email,
+    required String password,
+    required String aadharCard,
+    required String panCard,
+  }) async {
+    try {
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/register');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'name': name,
+          'email': email,
+          'password': password,
+          'aadharCard': aadharCard,
+          'panCard': panCard,
+        }),
+      );
+
+      final data = json.decode(response.body);
+      if (response.statusCode == 201) {
+        return {'success': true, 'message': data['message'], 'driver': data['driver']};
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Registration failed'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

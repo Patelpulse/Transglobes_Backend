@@ -1,6 +1,7 @@
 const Driver = require('../models/Driver');
 const imagekit = require('../config/imagekit');
 const nodemailer = require('nodemailer');
+const jwt = require('jsonwebtoken');
 
 const otpStore = {}; // Memory store: { email: { otp, expires } }
 
@@ -396,8 +397,84 @@ const verifyOTP = async (req, res) => {
     }
 };
 
+const register = async (req, res) => {
+    try {
+        const { name, email, password, aadharCard, panCard } = req.body;
+
+        // check if email already exists
+        const existingDriver = await Driver.findOne({ email });
+
+        if (existingDriver) {
+            return res.status(400).json({
+                message: "Email already registered"
+            });
+        }
+
+        const driver = new Driver({
+            name,
+            email,
+            password,
+            aadharCardNumber: aadharCard,
+            panCardNumber: panCard
+        });
+
+        await driver.save();
+
+        res.status(201).json({
+            message: "Driver registered successfully",
+            driver: {
+                id: driver._id,
+                name: driver.name,
+                email: driver.email
+            }
+        });
+
+    } catch (error) {
+        console.error('Driver Registration error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const login = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        const driver = await Driver.findOne({ email });
+        if (!driver) {
+            return res.status(401).json({ message: 'Invalid credentials.' });
+        }
+
+        const isMatch = await driver.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid credentials.' });
+        }
+
+        // Generate Token
+        const token = jwt.sign(
+            { id: driver._id, email: driver.email },
+            process.env.JWT_SECRET || 'your_secret_key',
+            { expiresIn: '7d' }
+        );
+
+        res.status(200).json({
+            message: 'Login successful.',
+            token,
+            driver: {
+                id: driver._id,
+                name: driver.name,
+                email: driver.email
+            }
+        });
+    } catch (error) {
+        console.error('Driver Login error:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
     syncDriverData,
+    register,
+    login,
     getDriverProfile,
     uploadDocuments,
     getDriverStatus,

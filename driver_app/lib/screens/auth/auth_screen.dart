@@ -18,6 +18,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   bool _showEmailForm = false; // toggle for "Continue with Email"
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _aadharController = TextEditingController();
+  final _panController = TextEditingController();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _isFacebookLoading = false;
@@ -27,6 +30,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _nameController.dispose();
+    _aadharController.dispose();
+    _panController.dispose();
     super.dispose();
   }
 
@@ -34,6 +40,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     if (email.isEmpty || password.isEmpty) return false;
+    
+    if (!_isLogin) {
+      final name = _nameController.text.trim();
+      final aadhar = _aadharController.text.trim();
+      final pan = _panController.text.trim();
+      if (name.isEmpty || aadhar.isEmpty || pan.isEmpty) return false;
+    }
+
     final isEmail = email.contains('@') && email.contains('.');
     return isEmail && password.length >= 6;
   }
@@ -53,35 +67,57 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
       
-      dynamic userCredential;
-      
       if (_isLogin) {
-        userCredential = await authService.signInWithEmail(email, password);
-      } else {
-        userCredential = await authService.signUpWithEmail(email, password);
-      }
-      
-      if (mounted) {
-        final user = userCredential.user ?? userCredential; // Handle mock user or UserCredential
-        if (user != null) {
-          // Save or sync driver to backend database
-          final isComplete = await dbService.saveDriverToBackend(user);
-
+        final response = await authService.signInCustom(email, password);
+        if (response['success']) {
+          final isComplete = await dbService.isOnboardingComplete(
+            response['user']['id'], 
+            response['token']
+          );
           if (mounted) {
             setState(() => _isLoading = false);
             if (isComplete) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Welcome back! 🎉'),
-                  backgroundColor: AppTheme.neonGreen,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
               Navigator.pushReplacementNamed(context, AppRouter.home);
             } else {
               Navigator.pushReplacementNamed(context, AppRouter.onboarding);
             }
           }
+        } else {
+          setState(() {
+            _errorMessage = response['message'];
+            _isLoading = false;
+          });
+        }
+      } else {
+        // Sign Up
+        final name = _nameController.text.trim();
+        final aadhar = _aadharController.text.trim();
+        final pan = _panController.text.trim().toUpperCase();
+
+        final response = await authService.signUpCustom(
+          name: name,
+          email: email,
+          password: password,
+          aadharCard: aadhar,
+          panCard: pan,
+        );
+
+        if (response['success']) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Registration successful! 🎉'),
+                backgroundColor: AppTheme.neonGreen,
+              ),
+            );
+            Navigator.pushReplacementNamed(context, AppRouter.onboarding);
+          }
+        } else {
+          setState(() {
+            _errorMessage = response['message'];
+            _isLoading = false;
+          });
         }
       }
     } catch (e) {
@@ -254,52 +290,115 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
               // ── Sign Up CTA (not login tab) ────────────────────────────────
               if (!_isLogin) ...[
-                Center(
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Join as a partner to start earning',
-                        style: TextStyle(
-                            color: AppTheme.darkTextPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: OutlinedButton(
-                          onPressed: _isGoogleLoading ? null : _signInWithGoogle,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppTheme.neonGreen, width: 1.5),
-                            backgroundColor: AppTheme.darkSurface,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: _isGoogleLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                      color: AppTheme.neonGreen, strokeWidth: 2))
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _googleIcon(),
-                                    const SizedBox(width: 12),
-                                    const Text(
-                                      'CONTINUE WITH GOOGLE',
-                                      style: TextStyle(
-                                          color: AppTheme.neonGreen,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 16),
-                                    ),
-                                  ],
-                                ),
+                Column(
+                  children: [
+                    _buildTextField(
+                      'Full Name',
+                      _nameController,
+                      Icons.person_outline,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'Email',
+                      _emailController,
+                      Icons.email_outlined,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'Aadhar Number',
+                      _aadharController,
+                      Icons.credit_card_outlined,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'PAN Card Number',
+                      _panController,
+                      Icons.badge_outlined,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'Password',
+                      _passwordController,
+                      Icons.lock_outline,
+                      isPassword: true,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading || !_isValid() ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.neonGreen,
+                          foregroundColor: AppTheme.darkBg,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          disabledBackgroundColor: AppTheme.darkDivider,
                         ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    color: AppTheme.darkBg, strokeWidth: 2))
+                            : const Text('CREATE ACCOUNT',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800, fontSize: 16)),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Row(
+                      children: [
+                        Expanded(child: Divider(color: AppTheme.darkDivider)),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('OR',
+                              style: TextStyle(
+                                  color: AppTheme.darkTextSecondary, fontSize: 12)),
+                        ),
+                        Expanded(child: Divider(color: AppTheme.darkDivider)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: _isGoogleLoading ? null : _signInWithGoogle,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppTheme.neonGreen, width: 1.5),
+                          backgroundColor: AppTheme.darkSurface,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: _isGoogleLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    color: AppTheme.neonGreen, strokeWidth: 2))
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _googleIcon(),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'CONTINUE WITH GOOGLE',
+                                    style: TextStyle(
+                                        color: AppTheme.neonGreen,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
 

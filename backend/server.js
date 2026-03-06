@@ -29,9 +29,11 @@ app.get('/', (req, res) => {
 const userRoutes = require('./routes/userRoutes');
 const driverRoutes = require('./routes/driverRoutes');
 const adminRoutes = require('./routes/routeAdmin');
+const rideRoutes = require('./routes/rideRoutes');
 app.use('/api/user', userRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/ride', rideRoutes);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

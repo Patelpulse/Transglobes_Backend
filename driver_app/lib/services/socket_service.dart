@@ -31,7 +31,7 @@ class SocketService {
     _socket = IO.io(
       baseUrl,
       IO.OptionBuilder()
-          .setTransports(['websocket'])
+          .setTransports(['websocket']) // Force websocket transport
           .disableAutoConnect()
           .build(),
     );

@@ -5,6 +5,8 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 
 // Public or User App Synced Route
 router.post('/sync', userController.syncUser);
+router.post('/register', userController.register);
+router.post('/login', userController.login);
 
 // Protected routes (requires user to be logged in via firebase)
 router.use(verifyToken);

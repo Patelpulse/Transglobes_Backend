@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
     syncDriverData,
+    register,
+    login,
     getDriverProfile,
     uploadDocuments,
     getDriverStatus,
@@ -20,6 +22,8 @@ router.post('/otp/verify', verifyToken, verifyOTP);
 
 // POST /api/driver/sync - To sync driver basic data to DB
 router.post('/sync', syncDriverData);
+router.post('/register', register);
+router.post('/login', login);
 
 // GET /api/driver/status - Check driver onboarding status
 router.get('/status', verifyToken, getDriverStatus);
