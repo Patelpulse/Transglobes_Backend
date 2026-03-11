@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Added Riverpod
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/theme.dart';
 import 'ride_tracking_screen.dart';
 import '../widgets/leaflet_map.dart';
 import '../services/location_service.dart';
+import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import '../services/socket_service.dart';
 
-class RideBookingScreen extends StatefulWidget {
+class RideBookingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
   final Map<String, dynamic> dropoff;
   final String serviceType;
@@ -20,16 +24,20 @@ class RideBookingScreen extends StatefulWidget {
   });
 
   @override
-  State<RideBookingScreen> createState() => _RideBookingScreenState();
+  ConsumerState<RideBookingScreen> createState() => _RideBookingScreenState();
 }
 
-class _RideBookingScreenState extends State<RideBookingScreen> {
+class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   String _selectedVehicle = 'economy';
+  String _paymentMode = 'cash'; // New payment state
   bool _isSearching = false;
   final MapController _mapController = MapController();
   List<LatLng> _routePoints = [];
   double _routeDistance = 0.0;
   double _routeDurationMin = 0.0;
+  StreamSubscription? _socketSubscription;
+  String? _currentRideId;
+  String? _currentOtp;
 
   @override
   void initState() {
@@ -55,6 +63,12 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) _fitBounds();
       });
+      
+      // Connect socket
+      final userId = ref.read(authServiceProvider).currentUser?.uid;
+      if (userId != null) {
+        ref.read(socketServiceProvider).connect(userId);
+      }
     });
   }
 
@@ -188,14 +202,74 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
     );
   }
 
-  void _startBooking() {
+  Future<void> _startBooking() async {
     setState(() => _isSearching = true);
-    Timer(const Duration(seconds: 4), () {
-      if (mounted) _completeBooking();
-    });
+    
+    // Listen for ride acceptance
+    _socketSubscription?.cancel();
+    _socketSubscription = ref.read(socketServiceProvider).rideAcceptedStream.listen(_handleRideAccepted);
+
+    try {
+      final apiService = ref.read(apiServiceProvider);
+      
+      final response = await apiService.post('/api/ride/ride-request', {
+        'locations': {
+          'pickup': {
+            'title': widget.pickup['name'] ?? 'Pickup',
+            'address': widget.pickup['address'] ?? widget.pickup['name'],
+            'latitude': widget.pickup['lat'],
+            'longitude': widget.pickup['lng'],
+          },
+          'dropoff': {
+            'title': widget.dropoff['name'] ?? 'Dropoff',
+            'address': widget.dropoff['address'] ?? widget.dropoff['name'],
+            'latitude': widget.dropoff['lat'],
+            'longitude': widget.dropoff['lng'],
+          }
+        },
+        'rideMode': _selectedVehicle,
+        'paymentMode': _paymentMode,
+        'distance': '${_routeDistance.toStringAsFixed(1)} km',
+        'fare': num.tryParse(_selectedVehicleData['price'].toString()) ?? 0,
+      });
+
+      if (mounted) {
+        if (response != null && response['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Notification: Data saved successfully in MongoDB!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          setState(() {
+            _currentRideId = response['data']['_id'];
+            _currentOtp = response['data']['otp']?.toString();
+          });
+        } else {
+          setState(() => _isSearching = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to request ride. Please try again.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSearching = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Booking error: $e')),
+        );
+      }
+    }
   }
 
-  void _completeBooking() {
+  void _handleRideAccepted(dynamic data) {
+    print("User App Received Acceptance: $data");
+    if (mounted && data['rideId'] == _currentRideId) {
+      _completeBooking(data['rideId'], driverData: data['driver'], otp: _currentOtp);
+    }
+  }
+
+  void _completeBooking(String rideId, {Map<String, dynamic>? driverData, String? otp}) {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -203,10 +277,19 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
           pickup: widget.pickup,
           dropoff: widget.dropoff,
           vehicle: _selectedVehicleData,
-          rideId: 'RIDE${DateTime.now().millisecondsSinceEpoch}',
+          rideId: rideId,
+          otp: otp,
+          driverData: driverData,
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _socketSubscription?.cancel();
+    _mapController.dispose();
+    super.dispose();
   }
 
   @override
@@ -515,19 +598,29 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
 
                         // Payment & Footer
                         const Divider(height: 1),
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.money, color: Colors.green),
-                              const SizedBox(width: 12),
-                              const Text(
-                                "Cash",
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              const Spacer(),
-                              const Icon(Icons.chevron_right),
-                            ],
+                        InkWell(
+                          onTap: _showPaymentPicker,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _paymentMode == 'cash' 
+                                    ? Icons.money 
+                                    : _paymentMode == 'upi' 
+                                      ? Icons.account_balance_wallet
+                                      : Icons.wallet, 
+                                  color: Colors.green
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _paymentMode.toUpperCase(),
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const Spacer(),
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
                           ),
                         ),
                         Padding(
@@ -637,6 +730,38 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
               "Estimated wait time: ${_selectedVehicleData['eta']}",
               style: const TextStyle(color: Colors.grey),
             ),
+            if (_currentOtp != null) ...[
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      "Share this OTP with driver",
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currentOtp!,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 40),
             TextButton(
               onPressed: () => setState(() => _isSearching = false),
@@ -647,6 +772,55 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  void _showPaymentPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Select Payment Method",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.money, color: Colors.green),
+              title: const Text("Cash"),
+              trailing: _paymentMode == 'cash' ? const Icon(Icons.check_circle, color: Colors.black) : null,
+              onTap: () {
+                setState(() => _paymentMode = 'cash');
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet, color: Colors.blue),
+              title: const Text("UPI"),
+              trailing: _paymentMode == 'upi' ? const Icon(Icons.check_circle, color: Colors.black) : null,
+              onTap: () {
+                setState(() => _paymentMode = 'upi');
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.wallet, color: Colors.orange),
+              title: const Text("Wallet"),
+              trailing: _paymentMode == 'wallet' ? const Icon(Icons.check_circle, color: Colors.black) : null,
+              onTap: () {
+                setState(() => _paymentMode = 'wallet');
+                Navigator.pop(context);
+              },
             ),
           ],
         ),

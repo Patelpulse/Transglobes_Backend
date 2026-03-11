@@ -24,6 +24,7 @@ void main() async {
       messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
       projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
       storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'],
+      databaseURL: dotenv.env['FIREBASE_DATABASE_URL'] ?? 'https://mera-ubar-default-rtdb.firebaseio.com',
     ),
   );
   

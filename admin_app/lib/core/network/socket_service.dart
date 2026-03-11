@@ -25,9 +25,8 @@ class SocketService {
       return;
     }
 
-    // Deployed URL (Note: Vercel requires moving the backend to a persistent host like Render for Sockets to work)
-    _socket = IO.io(
-      "https://transglove-backend.onrender.com",
+      // Deployed URL: "https://transglove-backend.onrender.com",
+      "http://localhost:8000",
       IO.OptionBuilder()
           .setTransports(['websocket']) // Force websocket transport
           .disableAutoConnect()

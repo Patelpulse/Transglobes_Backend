@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 // Demo mode flag - set to false when you have real Firebase configured
 const bool kDemoMode = false;
@@ -37,6 +38,10 @@ class AuthService {
 
   FirebaseAuth get auth {
     _auth ??= FirebaseAuth.instance;
+    // Enable reCAPTCHA bypass for testing in debug mode on Web
+    if (kIsWeb && kDebugMode) {
+      _auth!.setSettings(appVerificationDisabledForTesting: true);
+    }
     return _auth!;
   }
 

@@ -1,56 +1,139 @@
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Location = require('../models/Location');
 
-exports.syncUser = async (req, res) => {
+// Save specific location (Home, Office, Pin, etc.)
+exports.saveSavedLocation = async (req, res) => {
     try {
-        const { uid, email, name, mobileNumber, imageUrl } = req.body;
+        const { mobileNumber, title, address, latitude, longitude, type } = req.body;
 
-        if (!uid) {
-            return res.status(400).json({ message: 'uid is required' });
+        if (!mobileNumber || !address || !latitude || !longitude) {
+            return res.status(400).json({ message: 'mobileNumber, address, latitude, and longitude are required' });
         }
 
-        let user = await User.findOne({ uid });
-
+        // Find the user to get their ID
+        const user = await User.findOne({ mobileNumber });
         if (!user) {
-            // Check if email already exists, if provided
-            if (email) {
-                const existingEmail = await User.findOne({ email });
-                if (existingEmail) {
-                    return res.status(400).json({ message: 'Email already registered' });
-                }
-            }
-
-            user = new User({
-                uid,
-                email: email || `${uid}@guest.transglobal.com`,
-                name: name || mobileNumber || 'Guest User',
-                mobileNumber,
-                imageUrl: imageUrl || 'https://i.pravatar.cc/150?u=user'
-            });
-
-            await user.save();
-            return res.status(201).json({ message: 'User created successfully', user });
-        } else {
-            // Update existng user
-            user.email = email;
-            user.name = name;
-            if (mobileNumber) user.mobileNumber = mobileNumber;
-            if (imageUrl) user.imageUrl = imageUrl;
-            user.lastActive = Date.now();
-
-            await user.save();
-            return res.status(200).json({ message: 'User synced successfully', user });
+            return res.status(404).json({ message: 'User not found' });
         }
+
+        // Create new location entry
+        const locationEntry = new Location({
+            userId: user._id,
+            mobileNumber: user.mobileNumber,
+            title: title || address.split(',')[0], // Use first part of address if no title
+            address: address,
+            latitude: latitude,
+            longitude: longitude,
+            type: type || 'pickup'
+        });
+
+        await locationEntry.save();
+
+        res.status(201).json({
+            message: 'Location saved successfully',
+            location: locationEntry
+        });
     } catch (error) {
-        console.error('Error syncing user:', error);
+        console.error('Error saving search history:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 
+// Step 1: Save phone number to DB after OTP verification
+exports.registerPhone = async (req, res) => {
+    try {
+        let { mobileNumber } = req.body;
+
+        if (!mobileNumber) {
+            return res.status(400).json({ message: 'mobileNumber is required' });
+        }
+
+        mobileNumber = normalizeMobile(mobileNumber);
+
+        // Check if user already exists with this phone number
+        let user = await User.findOne({ mobileNumber });
+
+        if (user) {
+            // User already exists, update lastActive and return
+            user.lastActive = Date.now();
+            await user.save();
+            return res.status(200).json({
+                message: 'User already exists',
+                user: { id: user._id, name: user.name, mobileNumber: user.mobileNumber },
+                isNewUser: false
+            });
+        }
+
+        // Create new user with phone number only
+        user = new User({ mobileNumber });
+
+        await user.save();
+        return res.status(201).json({
+            message: 'Phone number registered successfully',
+            user: { id: user._id, name: user.name, mobileNumber: user.mobileNumber },
+            isNewUser: true
+        });
+    } catch (error) {
+        console.error('Error registering phone:', error);
+        if (error.code === 11000) {
+            // duplicate key, likely due to unique index on email or mobile
+            const field = Object.keys(error.keyPattern || {})[0];
+            return res.status(400).json({ message: `${field || 'Field'} already exists` });
+        }
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// Step 2: Save user name after OTP verification
+exports.saveName = async (req, res) => {
+    try {
+        let { mobileNumber, name } = req.body;
+
+        if (!mobileNumber || !name) {
+            return res.status(400).json({ message: 'mobileNumber and name are required' });
+        }
+
+        mobileNumber = normalizeMobile(mobileNumber);
+        const user = await User.findOne({ mobileNumber });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found. Please register phone first.' });
+        }
+
+        user.name = name;
+        user.lastActive = Date.now();
+        await user.save();
+
+        return res.status(200).json({
+            message: 'Name saved successfully',
+            user: { id: user._id, name: user.name, mobileNumber: user.mobileNumber }
+        });
+    } catch (error) {
+        console.error('Error saving name:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// helper to normalise mobile numbers (strip leading plus)
+function normalizeMobile(num) {
+    if (!num) return num;
+    num = num.trim();
+    if (num.startsWith(' ')) num = '+' + num.trim();
+    return num;
+}
+
+// Get user profile by phone number
 exports.getProfile = async (req, res) => {
     try {
-        const uid = req.user.uid;
-        const user = await User.findOne({ uid });
+        let { mobileNumber } = req.params;
+
+        if (!mobileNumber) {
+            return res.status(400).json({ message: 'mobileNumber is required' });
+        }
+
+        mobileNumber = normalizeMobile(mobileNumber);
+
+        const user = await User.findOne({ mobileNumber });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -63,103 +146,46 @@ exports.getProfile = async (req, res) => {
     }
 };
 
+// Update user profile by phone number
 exports.updateProfile = async (req, res) => {
     try {
-        const uid = req.user.uid;
-        const updates = req.body;
+        let { mobileNumber } = req.params;
+        const { name, mobileNumber: newMobile } = req.body;
 
-        // Disallow update of critical fields
-        delete updates.uid;
-        delete updates.isFraudulent;
-        delete updates.walletBalance;
+        if (!mobileNumber) {
+            return res.status(400).json({ message: 'mobileNumber is required' });
+        }
 
-        const user = await User.findOneAndUpdate(
-            { uid },
-            { $set: updates },
-            { new: true, runValidators: true }
-        );
+        mobileNumber = normalizeMobile(mobileNumber);
+
+        const user = await User.findOne({ mobileNumber });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        res.status(200).json({ message: 'Profile updated successfully', user });
+        // if a new mobile number is provided, ensure it's not taken
+        if (newMobile && newMobile !== user.mobileNumber) {
+            const normNew = normalizeMobile(newMobile);
+            const existing = await User.findOne({ mobileNumber: normNew });
+            if (existing) {
+                return res.status(400).json({ message: 'Mobile number already in use' });
+            }
+            user.mobileNumber = normNew;
+        }
+
+        if (name) user.name = name;
+        user.lastActive = Date.now();
+        await user.save();
+
+        res.status(200).json({
+            message: 'Profile updated successfully',
+            user: { id: user._id, name: user.name, mobileNumber: user.mobileNumber }
+        });
     } catch (error) {
         console.error('Error updating user profile:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 
-exports.register = async (req, res) => {
-    try {
-        const { name, email, password, aadharCard, panCard } = req.body;
 
-        // check if email already exists
-        const existingUser = await User.findOne({ email });
-
-        if (existingUser) {
-            return res.status(400).json({
-                message: "Email already registered"
-            });
-        }
-
-        const user = new User({
-            name,
-            email,
-            password,
-            aadharCard,
-            panCard
-        });
-
-        await user.save();
-
-        res.status(201).json({
-            message: "User registered successfully",
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email
-            }
-        });
-
-    } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).json({ error: error.message });
-    }
-};
-
-exports.login = async (req, res) => {
-    try {
-        const { email, password } = req.body;
-
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials.' });
-        }
-
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials.' });
-        }
-
-        // Generate Token
-        const token = jwt.sign(
-            { id: user._id, email: user.email },
-            process.env.JWT_SECRET || 'your_secret_key',
-            { expiresIn: '7d' }
-        );
-
-        res.status(200).json({
-            message: 'Login successful.',
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email
-            }
-        });
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
-};

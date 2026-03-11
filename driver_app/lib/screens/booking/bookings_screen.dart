@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
-import '../../providers/booking_provider.dart';
+import '../../models/booking_model.dart';
 import '../../providers/booking_provider.dart';
 import '../../services/driver_service.dart';
 import '../chat/chat_screen.dart';
 import 'booking_detail_screen.dart';
+import 'active_ride_screen.dart';
 
 class BookingsScreen extends ConsumerStatefulWidget {
   const BookingsScreen({super.key});
@@ -190,8 +192,8 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
                             context,
                             MaterialPageRoute(
                               builder: (context) => ChatScreen(
-                                receiverId: '69a022ae5b6a588bae493d9d', // Admin ID
-                                receiverName: 'Gaurav (Admin)',
+                                receiverId: b.userId ?? '',
+                                receiverName: b.userName,
                                 driverId: driverProfile.id,
                               ),
                             ),
@@ -281,8 +283,8 @@ class _ActiveBookingCard extends ConsumerWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => ChatScreen(
-                            receiverId: '69a022ae5b6a588bae493d9d', // Admin ID
-                            receiverName: 'Gaurav (Admin)',
+                            receiverId: b.userId ?? '',
+                            receiverName: b.userName,
                             driverId: driverProfile.id,
                           ),
                         ),
@@ -296,7 +298,7 @@ class _ActiveBookingCard extends ConsumerWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => _openMap(b),
                     style: OutlinedButton.styleFrom(foregroundColor: AppTheme.cabBlue, side: BorderSide(color: AppTheme.cabBlue.withValues(alpha: 0.4)), padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                     icon: const Icon(Icons.navigation, size: 18),
                     label: const Text('Navigate', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
@@ -305,7 +307,18 @@ class _ActiveBookingCard extends ConsumerWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _advanceStatus(ref, b),
+                    onPressed: () {
+                      if (b.status == 'arrived') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ActiveRideScreen(booking: b),
+                          ),
+                        );
+                      } else {
+                        _advanceStatus(ref, b);
+                      }
+                    },
                     style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0),
                     child: Text(_nextAction(b.status), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                   ),
@@ -318,17 +331,29 @@ class _ActiveBookingCard extends ConsumerWidget {
   }
 
   String _statusLabel(String s) {
-    const m = {'accepted': 'Accepted', 'on_the_way': 'On the Way', 'arrived': 'Arrived', 'started': 'In Progress'};
+    const m = {'accepted': 'Accepted', 'on_the_way': 'On the Way', 'arrived': 'Arrived', 'ongoing': 'In Progress'};
     return m[s] ?? s;
   }
 
   String _nextAction(String s) {
-    const m = {'accepted': 'On Way', 'on_the_way': 'Arrived', 'arrived': 'Start Trip', 'started': 'Complete'};
+    const m = {'accepted': 'On Way', 'on_the_way': 'Arrived', 'arrived': 'Start Trip', 'ongoing': 'Complete'};
     return m[s] ?? 'Update';
   }
 
+  void _openMap(BookingModel b) async {
+    final lat = (b.status == 'ongoing') ? b.dropLat : b.pickupLat;
+    final lng = (b.status == 'ongoing') ? b.dropLng : b.pickupLng;
+    
+    if (lat == null || lng == null) return;
+    
+    final Uri url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
   void _advanceStatus(WidgetRef ref, BookingModel b) {
-    const next = {'accepted': 'on_the_way', 'on_the_way': 'arrived', 'arrived': 'started', 'started': 'completed'};
+    const next = {'accepted': 'on_the_way', 'on_the_way': 'arrived', 'arrived': 'ongoing', 'ongoing': 'completed'};
     if (next.containsKey(b.status)) {
       ref.read(bookingProvider.notifier).updateStatus(b.id, next[b.status]!);
     }

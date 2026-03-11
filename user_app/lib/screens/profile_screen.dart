@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import '../providers/user_provider.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   bool _isLoading = false;
+  bool _isFetching = true;
   bool _isEditing = false;
+  String? _originalPhone; // keep track of the phone number used to load profile
 
   @override
   void initState() {
@@ -23,19 +27,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
-  void _loadUserData() {
+  Future<void> _loadUserData() async {
+    // Get phone number from Firebase auth
     final user = AuthService().currentUser;
-    if (user != null) {
-      _nameController.text = user.displayName ?? 'User';
-      _emailController.text = user.email ?? '';
-      _phoneController.text = user.phoneNumber ?? '';
+    final phoneNumber = user?.phoneNumber ?? '';
+    _phoneController.text = phoneNumber;
+    _originalPhone = phoneNumber;
+
+    // Fetch user profile from backend
+    if (phoneNumber.isNotEmpty) {
+      try {
+        final apiService = ref.read(apiServiceProvider);
+        final encodedPhone = Uri.encodeComponent(phoneNumber);
+        final response = await apiService.get('/api/user/profile/$encodedPhone');
+
+        if (response != null && response['user'] != null) {
+          final userData = response['user'];
+          _nameController.text = userData['name'] ?? '';
+        }
+      } catch (e) {
+        debugPrint('Failed to fetch profile: $e');
+        // Fallback to Firebase data
+        _nameController.text = user?.displayName ?? '';
+      }
+    } else {
+      _nameController.text = user?.displayName ?? '';
+    }
+
+    if (mounted) {
+      setState(() => _isFetching = false);
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
@@ -46,32 +72,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = AuthService().currentUser;
-      if (user is MockUser) {
-        user.displayName = _nameController.text;
-        user.email = _emailController.text;
-        user.phoneNumber = _phoneController.text;
-      } else {
-        await AuthService().currentUser?.updateDisplayName(
-          _nameController.text,
-        );
+      final apiService = ref.read(apiServiceProvider);
+      final phoneNumber = _phoneController.text;
+      // use originalPhone for identifying record, fallback to current
+      final encodedPhone = Uri.encodeComponent(_originalPhone ?? phoneNumber);
+
+      final body = {
+        'name': _nameController.text.trim(),
+      };
+      if (phoneNumber.isNotEmpty) {
+        body['mobileNumber'] = phoneNumber;
       }
 
+      await apiService.put('/api/user/profile/$encodedPhone', body);
+
       if (mounted) {
+        // Refresh the user profile provider so header updates
+        ref.read(userProfileProvider.notifier).refresh();
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                const Text('Profile updated successfully!'),
+              ],
+            ),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
           ),
         );
-        setState(() => _isEditing = false);
+        setState(() {
+          _isEditing = false;
+          _originalPhone = phoneNumber;
+        });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating profile: $e'),
-            backgroundColor: Colors.red,
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Error updating profile: $e')),
+              ],
+            ),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
@@ -108,136 +161,136 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // Profile Picture
-              Center(
-                child: Stack(
+      body: _isFetching
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
                   children: [
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppTheme.primaryGradient,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          _nameController.text.isNotEmpty
-                              ? _nameController.text[0].toUpperCase()
-                              : 'U',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (_isEditing)
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: context.theme.primaryColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: context.theme.scaffoldBackgroundColor,
-                              width: 2,
+                    // Profile Picture
+                    Center(
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: AppTheme.primaryGradient,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primaryColor.withOpacity(0.3),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                _nameController.text.isNotEmpty
+                                    ? _nameController.text[0].toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
+                          if (_isEditing)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: context.theme.primaryColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: context.theme.scaffoldBackgroundColor,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Name Field
+                    _buildTextField(
+                      controller: _nameController,
+                      label: 'Full Name',
+                      icon: Icons.person_outline,
+                      enabled: _isEditing,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter your name';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Phone Number Field (read-only)
+                    _buildTextField(
+                      controller: _phoneController,
+                      label: 'Phone Number',
+                      icon: Icons.phone_outlined,
+                      enabled: _isEditing, // allow editing when in edit mode
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter your phone number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Stats
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: context.theme.cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: context.theme.dividerColor.withOpacity(0.1),
+                        ),
+                        boxShadow: AppTheme.softShadow,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildStat('Total Rides', '24'),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: context.theme.dividerColor.withOpacity(0.1),
+                          ),
+                          _buildStat('Rating', '4.8'),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: context.theme.dividerColor.withOpacity(0.1),
+                          ),
+                          _buildStat('Member Since', '2024'),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-
-              // Form Fields
-              _buildTextField(
-                controller: _nameController,
-                label: 'Full Name',
-                icon: Icons.person_outline,
-                enabled: _isEditing,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              _buildTextField(
-                controller: _emailController,
-                label: 'Email',
-                icon: Icons.email_outlined,
-                enabled: _isEditing,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-
-              _buildTextField(
-                controller: _phoneController,
-                label: 'Phone Number',
-                icon: Icons.phone_outlined,
-                enabled: _isEditing,
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 32),
-
-              // Stats
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: context.theme.cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: context.theme.dividerColor.withOpacity(0.1),
-                  ),
-                  boxShadow: AppTheme.softShadow,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildStat('Total Rides', '24'),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: context.theme.dividerColor.withOpacity(0.1),
-                    ),
-                    _buildStat('Rating', '4.8'),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: context.theme.dividerColor.withOpacity(0.1),
-                    ),
-                    _buildStat('Member Since', '2024'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 

@@ -2,6 +2,7 @@ const Driver = require('../models/Driver');
 const imagekit = require('../config/imagekit');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const History = require('../models/History');
 
 const otpStore = {}; // Memory store: { email: { otp, expires } }
 
@@ -401,6 +402,10 @@ const register = async (req, res) => {
     try {
         const { name, email, password, aadharCard, panCard } = req.body;
 
+        if (!password) {
+            return res.status(400).json({ message: "Password is required" });
+        }
+
         // check if email already exists
         const existingDriver = await Driver.findOne({ email });
 
@@ -471,6 +476,58 @@ const login = async (req, res) => {
     }
 };
 
+const updateStatus = async (req, res) => {
+    try {
+        const { status, isOnline } = req.body;
+        const driver = await Driver.findOneAndUpdate(
+            { uid: req.user.uid },
+            { $set: { status: status || 'offline', isOnline: isOnline ?? false } },
+            { new: true }
+        );
+        if (!driver) return res.status(404).json({ message: 'Driver not found' });
+        res.json({ success: true, status: driver.status, isOnline: driver.isOnline });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateLocation = async (req, res) => {
+    try {
+        const { latitude, longitude } = req.body;
+        const driver = await Driver.findOneAndUpdate(
+            { uid: req.user.uid },
+            {
+                $set: {
+                    location: {
+                        type: 'Point',
+                        coordinates: [longitude, latitude]
+                    }
+                }
+            },
+            { new: true }
+        );
+        if (!driver) return res.status(404).json({ message: 'Driver not found' });
+
+        // If driver is on an active ride, notify the user
+        const activeRide = await History.findOne({
+            'driverId': driver._id,
+            status: { $in: ['accepted', 'on_the_way', 'arrived', 'started'] }
+        });
+
+        if (activeRide && req.io) {
+            req.io.to(activeRide.userId.toString()).emit("driver_location_update", {
+                rideId: activeRide._id,
+                latitude,
+                longitude
+            });
+        }
+
+        res.json({ success: true, location: driver.location });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     syncDriverData,
     register,
@@ -479,6 +536,8 @@ module.exports = {
     uploadDocuments,
     getDriverStatus,
     updateDriverProfile,
+    updateStatus,
+    updateLocation,
     sendOTP,
     verifyOTP
 };

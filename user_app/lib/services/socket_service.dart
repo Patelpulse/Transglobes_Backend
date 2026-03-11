@@ -11,15 +11,17 @@ class SocketService {
   IO.Socket? _socket;
   final _messageController = StreamController<Map<String, dynamic>>.broadcast();
   final _historyController = StreamController<List<dynamic>>.broadcast();
-  final _newRideController = StreamController<Map<String, dynamic>>.broadcast();
-  final _rideAssignedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _rideAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _rideStatusController = StreamController<Map<String, dynamic>>.broadcast();
+  final _driverLocationController = StreamController<Map<String, dynamic>>.broadcast();
 
   IO.Socket? get socket => _socket;
 
   Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
   Stream<List<dynamic>> get historyStream => _historyController.stream;
-  Stream<Map<String, dynamic>> get newRideStream => _newRideController.stream;
-  Stream<Map<String, dynamic>> get rideAssignedStream => _rideAssignedController.stream;
+  Stream<Map<String, dynamic>> get rideAcceptedStream => _rideAcceptedController.stream;
+  Stream<Map<String, dynamic>> get rideStatusStream => _rideStatusController.stream;
+  Stream<Map<String, dynamic>> get driverLocationStream => _driverLocationController.stream;
 
   void connect(String userId) {
     if (_socket != null) {
@@ -36,7 +38,7 @@ class SocketService {
     _socket = IO.io(
       baseUrl,
       IO.OptionBuilder()
-          .setTransports(['websocket']) // Force websocket transport
+          .setTransports(['websocket'])
           .disableAutoConnect()
           .build(),
     );
@@ -44,33 +46,36 @@ class SocketService {
     _socket?.connect();
 
     _socket?.onConnect((_) {
-      print("Socket Connected Successfully: $userId");
+      print("User Socket Connected: $userId");
       _socket?.emit("register", userId);
     });
 
+    _socket?.on("ride_accepted", (data) {
+      print("Ride Accepted Received: $data");
+      _rideAcceptedController.add(Map<String, dynamic>.from(data));
+    });
+
+    _socket?.on("ride_status_update", (data) {
+      print("Ride Status Update Received: $data");
+      _rideStatusController.add(Map<String, dynamic>.from(data));
+    });
+
+    _socket?.on("driver_location_update", (data) {
+      _driverLocationController.add(Map<String, dynamic>.from(data));
+    });
+
     _socket?.on("receive_message", (data) {
-      print("Socket Message Received: $data");
-      _messageController.add(data);
+      _messageController.add(Map<String, dynamic>.from(data));
     });
 
     _socket?.on("chat_history", (data) {
-      _historyController.add(data);
+      _historyController.add(List<dynamic>.from(data));
     });
 
-    _socket?.on("new_ride", (data) {
-      print("New Ride Received via Socket: $data");
-      _newRideController.add(data);
-    });
-
-    _socket?.on("ride_assigned", (data) {
-      print("Ride Assigned (Taken by another driver): $data");
-      _rideAssignedController.add(Map<String, dynamic>.from(data));
-    });
-
-    _socket?.onDisconnect((_) => print("Socket Disconnected"));
+    _socket?.onDisconnect((_) => print("User Socket Disconnected"));
   }
 
-  void sendMessage(String senderId, String receiverId, String message, {String senderRole = 'driver', String? senderName}) {
+  void sendMessage(String senderId, String receiverId, String message, {String senderRole = 'user', String? senderName}) {
     _socket?.emit("send_message", {
       "senderId": senderId,
       "receiverId": receiverId,
@@ -90,7 +95,8 @@ class SocketService {
   void dispose() {
     _socket?.dispose();
     _messageController.close();
-    _historyController.close();
-    _newRideController.close();
+    _rideAcceptedController.close();
+    _rideStatusController.close();
+    _driverLocationController.close();
   }
 }

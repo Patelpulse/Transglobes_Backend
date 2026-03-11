@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import '../providers/user_provider.dart';
 import 'location_search_screen.dart';
 import 'ride_booking_screen.dart';
 import 'wallet_screen.dart';
@@ -978,19 +980,14 @@ class _ActivityTabState extends State<ActivityTab>
   }
 }
 
-class AccountTab extends StatefulWidget {
+class AccountTab extends ConsumerWidget {
   final Function(int)? onTabChange;
   const AccountTab({super.key, this.onTabChange});
 
   @override
-  State<AccountTab> createState() => _AccountTabState();
-}
-
-class _AccountTabState extends State<AccountTab> {
-  @override
-  Widget build(BuildContext context) {
-    final user = AuthService().currentUser;
-    final userName = user?.displayName ?? "Transglobal User";
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authServiceProvider).currentUser;
+    final userProfileAsync = ref.watch(userProfileProvider);
     final userPhone = user?.phoneNumber ?? "+91 98765 43210";
 
     return Scaffold(
@@ -1008,12 +1005,27 @@ class _AccountTabState extends State<AccountTab> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        userName,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: context.colors.textPrimary,
+                      userProfileAsync.when(
+                        data: (userName) => Text(
+                          userName,
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: context.colors.textPrimary,
+                          ),
+                        ),
+                        loading: () => const SizedBox(
+                          height: 28,
+                          width: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        error: (err, stack) => Text(
+                          user?.displayName ?? "Transglobal User",
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: context.colors.textPrimary,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1174,6 +1186,94 @@ class _AccountTabState extends State<AccountTab> {
 
               const SizedBox(height: 32),
 
+              // Rewards Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.forestGradient,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.forestGreen.withOpacity(0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Transglobal Rewards",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            "Platinum",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      "You have earned 1,250 points this month!",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: TextButton(
+                        onPressed: () {},
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppTheme.forestGreen,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                        child: const Text(
+                          "View Rewards",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
               // Interactive Grid for Quick Actions
               GridView.count(
                 shrinkWrap: true,
@@ -1184,6 +1284,7 @@ class _AccountTabState extends State<AccountTab> {
                 padding: EdgeInsets.zero,
                 children: [
                   _buildGridItem(
+                    context,
                     Icons.help_center_outlined,
                     "Help",
                     () => Navigator.push(
@@ -1194,14 +1295,16 @@ class _AccountTabState extends State<AccountTab> {
                     ),
                   ),
                   _buildGridItem(
+                    context,
                     Icons.account_balance_wallet_outlined,
                     "Wallet",
-                    () => widget.onTabChange?.call(2),
+                    () => onTabChange?.call(2),
                   ),
                   _buildGridItem(
+                    context,
                     Icons.history_outlined,
                     "Activity",
-                    () => widget.onTabChange?.call(1),
+                    () => onTabChange?.call(1),
                   ),
                 ],
               ),
@@ -1209,8 +1312,9 @@ class _AccountTabState extends State<AccountTab> {
               const SizedBox(height: 32),
 
               // Account Options
-              _buildMenuSection("Account Settings", [
+              _buildMenuSection(context, "Account Settings", [
                 _buildMenuRow(
+                  context,
                   Icons.person_outline,
                   "Personal Information",
                   () => Navigator.push(
@@ -1221,6 +1325,7 @@ class _AccountTabState extends State<AccountTab> {
                   ),
                 ),
                 _buildMenuRow(
+                  context,
                   Icons.payment_outlined,
                   "Payment Methods",
                   () => Navigator.push(
@@ -1231,6 +1336,7 @@ class _AccountTabState extends State<AccountTab> {
                   ),
                 ),
                 _buildMenuRow(
+                  context,
                   Icons.local_offer_outlined,
                   "Promos & Offers",
                   () => Navigator.push(
@@ -1349,8 +1455,9 @@ class _AccountTabState extends State<AccountTab> {
 
               const SizedBox(height: 24),
 
-              _buildMenuSection("More Info", [
+              _buildMenuSection(context, "More Info", [
                 _buildMenuRow(
+                  context,
                   Icons.settings_outlined,
                   "App Settings",
                   () => Navigator.push(
@@ -1361,6 +1468,7 @@ class _AccountTabState extends State<AccountTab> {
                   ),
                 ),
                 _buildMenuRow(
+                  context,
                   Icons.info_outline,
                   "About Transglobal",
                   () => Navigator.push(
@@ -1371,6 +1479,7 @@ class _AccountTabState extends State<AccountTab> {
                   ),
                 ),
                 _buildMenuRow(
+                  context,
                   Icons.logout,
                   "Logout",
                   () => AuthService().signOut(),
@@ -1396,7 +1505,12 @@ class _AccountTabState extends State<AccountTab> {
     );
   }
 
-  Widget _buildGridItem(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildGridItem(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1433,7 +1547,11 @@ class _AccountTabState extends State<AccountTab> {
     );
   }
 
-  Widget _buildMenuSection(String title, List<Widget> items) {
+  Widget _buildMenuSection(
+    BuildContext context,
+    String title,
+    List<Widget> items,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1462,6 +1580,7 @@ class _AccountTabState extends State<AccountTab> {
   }
 
   Widget _buildMenuRow(
+    BuildContext context,
     IconData icon,
     String title,
     VoidCallback onTap, {

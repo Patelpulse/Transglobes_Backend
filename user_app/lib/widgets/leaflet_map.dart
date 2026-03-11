@@ -132,7 +132,11 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
           retinaMode: true,
         ),
         if (widget.polylines != null)
-          PolylineLayer(polylines: widget.polylines!),
+          PolylineLayer(
+            polylines: widget.polylines!
+                .where((p) => p.points.isNotEmpty)
+                .toList(),
+          ),
         MarkerLayer(
           markers: [
             if (widget.location != null)

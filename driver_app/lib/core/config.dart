@@ -2,7 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
   static String get appName => dotenv.env['APP_NAME'] ?? 'RideShare';
-  static String get apiBaseUrl => dotenv.env['API_BASE_URL'] ?? 'https://transglove-backend.onrender.com';
+  static String get apiBaseUrl => dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
   
   // Google Maps API Key
   static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';

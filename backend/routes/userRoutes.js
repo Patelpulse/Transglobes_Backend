@@ -1,16 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const { verifyToken } = require('../middlewares/authMiddleware');
 
-// Public or User App Synced Route
-router.post('/sync', userController.syncUser);
-router.post('/register', userController.register);
-router.post('/login', userController.login);
+// Public routes for OTP-based registration
+router.post('/register-phone', userController.registerPhone);
+router.post('/save-name', userController.saveName);
+router.post('/location', userController.saveSavedLocation);
 
-// Protected routes (requires user to be logged in via firebase)
-router.use(verifyToken);
-router.get('/profile', userController.getProfile);
-router.put('/profile', userController.updateProfile);
+// Profile routes (by phone number)
+router.get('/profile/:mobileNumber', userController.getProfile);
+router.put('/profile/:mobileNumber', userController.updateProfile);
 
 module.exports = router;

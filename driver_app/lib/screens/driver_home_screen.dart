@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -6,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:driver_app/core/theme.dart';
 import 'package:driver_app/core/app_router.dart';
 import 'package:driver_app/services/driver_service.dart';
+import 'package:driver_app/models/booking_model.dart';
 
 import 'package:driver_app/providers/vehicle_type_provider.dart';
 import 'package:driver_app/widgets/vehicle_type_selector.dart';
@@ -14,7 +16,11 @@ import 'package:driver_app/widgets/ride_request_card.dart';
 
 import 'package:driver_app/widgets/status_chip.dart';
 import 'package:driver_app/widgets/delay_reason_sheet.dart';
+import 'package:driver_app/screens/booking/booking_detail_screen.dart';
 import 'package:driver_app/screens/chat/chat_screen.dart';
+import 'package:driver_app/services/socket_service.dart';
+import 'package:driver_app/providers/booking_provider.dart';
+import 'package:flutter/foundation.dart';
 
 // ── Providers ──
 class DriverStatusNotifier extends Notifier<DriverStatus> {
@@ -38,6 +44,16 @@ final showRequestProvider = NotifierProvider<ShowRequestNotifier, bool>(
   ShowRequestNotifier.new,
 );
 
+class CurrentRideRequestNotifier extends Notifier<Map<String, dynamic>?> {
+  @override
+  Map<String, dynamic>? build() => null;
+  void setRide(Map<String, dynamic>? data) => state = data;
+}
+
+final currentRideRequestProvider = NotifierProvider<CurrentRideRequestNotifier, Map<String, dynamic>?>(
+  CurrentRideRequestNotifier.new,
+);
+
 // ── Main Screen ──
 class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
@@ -59,6 +75,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   late Animation<double> _glowAnim;
   late Animation<Offset> _bannerSlide;
   late Animation<double> _bannerFade;
+  StreamSubscription? _newRideSub;
+  StreamSubscription? _rideAssignedSub;
 
   @override
   void initState() {
@@ -95,10 +113,73 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     _bannerFade = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _onlineBannerController, curve: Curves.easeIn),
     );
+
+    // Socket listeners for live ride requests
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final socketService = ref.read(socketServiceProvider);
+      final driverProfile = ref.read(driverProfileProvider).value;
+      
+      if (driverProfile != null) {
+        socketService.connect(driverProfile.id);
+      }
+
+      _newRideSub?.cancel();
+      _newRideSub = socketService.newRideStream.listen((data) {
+        print("Driver App Received New Ride Request: $data");
+        // Only show if driver is Online/Available
+        if (ref.read(driverStatusProvider) == DriverStatus.available) {
+           ref.read(currentRideRequestProvider.notifier).setRide(data);
+           ref.read(showRequestProvider.notifier).show();
+           
+           // Map socket data to BookingModel
+           String vType = 'cab';
+           final mode = data['rideMode']?.toString().toLowerCase();
+           if (['pickup', 'mini_truck', 'container', 'flatbed'].contains(mode)) {
+             vType = 'truck';
+           } else if (['mini_bus', 'standard', 'luxury', 'sleeper'].contains(mode)) {
+             vType = 'bus';
+           }
+
+           final newBooking = BookingModel(
+             id: data['id'],
+             userName: data['userName'] ?? 'Customer',
+             userPhone: data['phone'] ?? '',
+             pickupAddress: data['pick'] ?? '',
+             dropAddress: data['drop'] ?? '',
+             fare: (data['fare'] as num?)?.toDouble() ?? 0.0,
+             distanceKm: double.tryParse(data['distance']?.toString().replaceAll(' km', '') ?? '0') ?? 0.0,
+             etaMinutes: 2, // 2 mins away in UI
+             vehicleType: vType,
+             subType: data['rideMode']?.toString().toUpperCase() ?? 'ECONOMY',
+             status: data['status'] ?? 'pending',
+             createdAt: DateTime.now(),
+             otp: data['otp']?.toString(),
+             pickupLat: (data['pickupLat'] as num?)?.toDouble(),
+             pickupLng: (data['pickupLng'] as num?)?.toDouble(),
+             dropLat: (data['dropLat'] as num?)?.toDouble(),
+             dropLng: (data['dropLng'] as num?)?.toDouble(),
+           );
+
+           ref.read(bookingProvider.notifier).addBooking(newBooking);
+        }
+      });
+
+      _rideAssignedSub?.cancel();
+      _rideAssignedSub = socketService.rideAssignedStream.listen((data) {
+        final currentRide = ref.read(currentRideRequestProvider);
+        if (currentRide != null && currentRide['id'] == data['rideId']) {
+          print("Hiding ride request card as it was assigned to another driver");
+          ref.read(showRequestProvider.notifier).hide();
+          ref.read(currentRideRequestProvider.notifier).setRide(null);
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
+    _newRideSub?.cancel();
+    _rideAssignedSub?.cancel();
     _mapController.dispose();
     _pulseController.dispose();
     _glowController.dispose();
@@ -335,24 +416,39 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
                 left: 0,
                 right: 0,
                 child: RideRequestCard(
+                  rideData: ref.watch(currentRideRequestProvider),
                   adminId: '69a022ae5b6a588bae493d9d', // Default Admin Gaurav
                   adminName: 'Gaurav (Admin)',
-                  onAccept: () {
+                  onAccept: () async {
                     final driverProfile = ref.read(driverProfileProvider).value;
                     if (driverProfile == null) return;
 
-                    ref.read(showRequestProvider.notifier).hide();
-                    
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatScreen(
-                          receiverId: '69a022ae5b6a588bae493d9d',
-                          receiverName: 'Gaurav (Admin)',
-                          driverId: driverProfile.id,
-                        ),
-                      ),
-                    );
+                    final rideData = ref.read(currentRideRequestProvider);
+                    if (rideData != null) {
+                      try {
+                        // Call backend to accept the ride
+                        await ref.read(driverServiceProvider).acceptRide(rideData['id']);
+                        // Update local state
+                        ref.read(bookingProvider.notifier).acceptBooking(rideData['id']);
+                        
+                        // Hide request and navigate to detail
+                        ref.read(showRequestProvider.notifier).hide();
+                        
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BookingDetailScreen(
+                              bookingId: rideData['id'],
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        debugPrint("Error accepting ride: $e");
+                        // Optionally show snackbar
+                        return;
+                      }
+                    }
                   },
                   onDecline: () {
                     ref.read(showRequestProvider.notifier).hide();

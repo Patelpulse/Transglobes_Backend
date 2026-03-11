@@ -8,6 +8,7 @@ class RideRequestCard extends ConsumerStatefulWidget {
   final VoidCallback? onDecline;
   final String? adminId;
   final String? adminName;
+  final Map<String, dynamic>? rideData;
 
   const RideRequestCard({
     super.key,
@@ -15,6 +16,7 @@ class RideRequestCard extends ConsumerStatefulWidget {
     this.onDecline,
     this.adminId,
     this.adminName,
+    this.rideData,
   });
 
   @override
@@ -109,9 +111,9 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
-                          '2 min ago • 4.2 km away',
-                          style: TextStyle(
+                        Text(
+                          '${widget.rideData?['rideMode'] ?? 'economy'} • ${widget.rideData?['distance'] ?? '0 km'} away',
+                          style: const TextStyle(
                             color: AppTheme.darkTextSecondary,
                             fontSize: 11,
                           ),
@@ -129,7 +131,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _getFareText(vehicleType),
+                      '₹${widget.rideData?['fare'] ?? '0'}',
                       style: const TextStyle(
                         color: AppTheme.earningsAmber,
                         fontSize: 16,
@@ -169,11 +171,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            vehicleType == VehicleType.cab
-                                ? 'Gaur City 2, Sector 16C'
-                                : vehicleType == VehicleType.truck
-                                    ? 'Industrial Area, Phase 2'
-                                    : 'Central Bus Terminal',
+                            widget.rideData?['pick'] ?? 'Pick up location',
                             style: const TextStyle(
                               color: AppTheme.darkTextPrimary,
                               fontSize: 13,
@@ -214,11 +212,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            vehicleType == VehicleType.cab
-                                ? 'Pari Chowk, Greater Noida'
-                                : vehicleType == VehicleType.truck
-                                    ? 'Warehouse Complex, NH-48'
-                                    : 'Railway Station, Platform 3',
+                            widget.rideData?['drop'] ?? 'Drop location',
                             style: const TextStyle(
                               color: AppTheme.darkTextPrimary,
                               fontSize: 13,
@@ -236,11 +230,11 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
               // Distance + Time chips
               Row(
                 children: [
-                  _buildChip(Icons.route, '4.2 km', vehicleType.accentColor),
+                   _buildChip(Icons.route, widget.rideData?['distance'] ?? '0 km', vehicleType.accentColor),
                   const SizedBox(width: 8),
-                  _buildChip(Icons.access_time, '12 min', AppTheme.darkTextSecondary),
+                  _buildChip(Icons.access_time, 'Live', AppTheme.darkTextSecondary),
                   const SizedBox(width: 8),
-                  _buildChip(Icons.star, '4.8', AppTheme.earningsAmber),
+                  _buildChip(Icons.person, widget.rideData?['userName'] ?? 'User', AppTheme.earningsAmber),
                 ],
               ),
               const SizedBox(height: 16),

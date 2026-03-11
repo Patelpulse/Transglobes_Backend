@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/socket_service.dart';
+import 'dart:async';
 import '../core/theme.dart';
 import 'rating_screen.dart';
+import 'chat_screen.dart';
 import '../widgets/leaflet_map.dart';
 import '../services/location_service.dart';
+import '../services/auth_service.dart';
 
-class RideTrackingScreen extends StatefulWidget {
+class RideTrackingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
   final Map<String, dynamic> dropoff;
   final Map<String, dynamic> vehicle;
   final String rideId;
+  final String? otp;
+
+  final Map<String, dynamic>? driverData;
 
   const RideTrackingScreen({
     super.key,
@@ -18,37 +27,96 @@ class RideTrackingScreen extends StatefulWidget {
     required this.dropoff,
     required this.vehicle,
     required this.rideId,
+    this.otp,
+    this.driverData,
   });
 
   @override
-  State<RideTrackingScreen> createState() => _RideTrackingScreenState();
+  ConsumerState<RideTrackingScreen> createState() => _RideTrackingScreenState();
 }
 
-class _RideTrackingScreenState extends State<RideTrackingScreen> {
+class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
   final MapController _mapController = MapController();
   String _rideStatus = 'On the way';
   String _driverETA = '2 mins away';
   List<LatLng> _routePoints = [];
+  StreamSubscription? _statusSubscription;
+  StreamSubscription? _locationSubscription;
+  LatLng? _driverPos;
 
-  final Map<String, dynamic> _driver = {
-    'name': 'John Doe',
-    'rating': '4.9',
-    'vehicle': 'Toyota Camry',
-    'plate': 'ABC-1234',
-    'otp': '4821',
-    'image':
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuDJYv3F4UhjvGfqNIe7wYrpy9Ne1IGp-py8rBlt8GJVbtIXq4uVXkw9bHzbJd394nwKIe4kvfAtLnA4q9Wuw-QrfIB-8yv6ofEe3900dLT2ExAaejywLyI2ACN37lR55Uwtcd2MVshT8__Zsk8fhbdkPS8DDjUTnTbe6ceI1A7MxcAVpJeEAFEUarUO4YeS-Y8UEAjuLFTRBquUUl7MaLK15bVUMCldIvY4eCUYAodELV-MX_LcV95tjVS9OPqlQ59JVav9i-DHZJ4',
-  };
+  late Map<String, dynamic> _driver;
+
+  bool _hasNavigatedToRating = false;
 
   @override
   void initState() {
     super.initState();
+    
+    // Initialize driver data
+    _driver = {
+      'name': widget.driverData?['name'] ?? 'John Doe',
+      'rating': '4.9',
+      'vehicle': widget.vehicle['name'] ?? 'Toyota Camry',
+      'plate': widget.driverData?['vichle_number'] ?? 'ABC-1234',
+      'phone': widget.driverData?['phone'] ?? '',
+      'otp': widget.otp ?? '----',
+      'image':
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuDJYv3F4UhjvGfqNIe7wYrpy9Ne1IGp-py8rBlt8GJVbtIXq4uVXkw9bHzbJd394nwKIe4kvfAtLnA4q9Wuw-QrfIB-8yv6ofEe3900dLT2ExAaejywLyI2ACN37lR55Uwtcd2MVshT8__Zsk8fhbdkPS8DDjUTnTbe6ceI1A7MxcAVpJeEAFEUarUO4YeS-Y8UEAjuLFTRBquUUl7MaLK15bVUMCldIvY4eCUYAodELV-MX_LcV95tjVS9OPqlQ59JVav9i-DHZJ4',
+    };
+
     _loadRoute();
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) _fitBounds();
       });
+
+      // Listen for status updates
+      _statusSubscription = ref.read(socketServiceProvider).rideStatusStream.listen((data) {
+        if (data['rideId'] == widget.rideId) {
+          final newStatus = data['status'] ?? _rideStatus;
+          setState(() {
+            _rideStatus = newStatus;
+            if (data['driver'] != null) {
+              _driver['name'] = data['driver']['name'] ?? _driver['name'];
+              _driver['plate'] = data['driver']['vichle_number'] ?? _driver['plate'];
+              _driver['phone'] = data['driver']['phone'] ?? _driver['phone'];
+            }
+          });
+
+          // Auto-navigate to rating if completed
+          if (newStatus == 'completed' && !_hasNavigatedToRating) {
+            _hasNavigatedToRating = true;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => RatingScreen(driver: _driver),
+              ),
+            );
+          }
+        }
+      });
+
+      // Listen for driver location updates
+      _locationSubscription = ref.read(socketServiceProvider).driverLocationStream.listen((data) {
+        if (data['rideId'] == widget.rideId) {
+          setState(() {
+            _driverPos = LatLng(
+              (data['latitude'] as num).toDouble(),
+              (data['longitude'] as num).toDouble(),
+            );
+          });
+        }
+      });
     });
+  }
+
+  @override
+  void dispose() {
+    _statusSubscription?.cancel();
+    _locationSubscription?.cancel();
+    _mapController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRoute() async {
@@ -61,29 +129,56 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
       (widget.dropoff['lng'] as num).toDouble(),
     );
 
-    final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
-    if (mounted) {
-      setState(() {
-        _routePoints = routeData['points'];
-      });
-      _fitBounds();
+    try {
+      final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
+      if (mounted) {
+        setState(() {
+          _routePoints = routeData['points'] ?? [];
+        });
+        _fitBounds();
+      }
+    } catch (e) {
+      if (mounted) _fitBounds(); // Fallback to direct bounds
     }
   }
 
   void _fitBounds() {
-    if (_routePoints.isEmpty) return;
-    final bounds = LatLngBounds.fromPoints(_routePoints);
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.only(
-          top: 150,
-          bottom: 450,
-          left: 50,
-          right: 50,
+    if (!mounted) return;
+    
+    List<LatLng> boundsPoints = _routePoints;
+    
+    // Fallback bounds if route is empty
+    if (boundsPoints.isEmpty || boundsPoints.length < 2) {
+      boundsPoints = [
+        LatLng((widget.pickup['lat'] as num).toDouble(), (widget.pickup['lng'] as num).toDouble()),
+        LatLng((widget.dropoff['lat'] as num).toDouble(), (widget.dropoff['lng'] as num).toDouble()),
+      ];
+    }
+    
+    try {
+      final bounds = LatLngBounds.fromPoints(boundsPoints);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.only(
+            top: 150,
+            bottom: 450,
+            left: 50,
+            right: 50,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint("Could not fit bounds: $e");
+    }
+  }
+
+  Future<void> _makeCall(String phone) async {
+    if (phone.isEmpty) return;
+    final Uri url = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    }
   }
 
   @override
@@ -139,6 +234,17 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                     ),
                   ),
                 ),
+                if (_driverPos != null)
+                  Marker(
+                    point: _driverPos!,
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.directions_car,
+                      color: context.theme.primaryColor,
+                      size: 30,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -470,14 +576,33 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                 // Action Buttons
                 Row(
                   children: [
-                    Expanded(
-                      child: _buildBottomActionButton(
+                                          child: _buildBottomActionButton(
                         label: "Message",
                         icon: Icons.chat_bubble_outline,
                         color: context.theme.cardColor,
                         textColor: context.colors.textPrimary ?? Colors.white,
+                        onTap: () {
+                          // In a real app, widget.driverData?['uid'] or similar would be needed.
+                          // Based on previous fixes, some drivers have 'id' (ObjectId) or 'uid' (Firebase).
+                          // Here _driver is local and we'll use whatever ID we can find.
+                          final driverId = widget.driverData?['uid'] ?? widget.driverData?['_id'] ?? widget.driverData?['driver_id'];
+                          if (driverId != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  receiverId: driverId.toString(),
+                                  receiverName: _driver['name'],
+                                ),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Driver information not available for chat')),
+                            );
+                          }
+                        },
                       ),
-                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _buildBottomActionButton(
@@ -486,6 +611,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                         color: context.theme.primaryColor,
                         textColor: Colors.white,
                         isPrimary: true,
+                        onTap: () => _makeCall(_driver['phone']),
                       ),
                     ),
                   ],
@@ -549,37 +675,41 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     required Color color,
     required Color textColor,
     bool isPrimary = false,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: isPrimary
-            ? [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withOpacity(0.25),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isPrimary
+              ? [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withOpacity(0.25),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: textColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
-              ]
-            : null,
-      ),
-      child: Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: textColor, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

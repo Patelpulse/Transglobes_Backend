@@ -96,7 +96,7 @@ class RideModel {
         return 'Driver assigned';
       case 'on_the_way':
         return 'Driver is on the way';
-      case 'started':
+      case 'ongoing':
         return 'Ride in progress';
       case 'completed':
         return 'Ride completed';

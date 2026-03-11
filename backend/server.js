@@ -17,6 +17,12 @@ const io = initSocket(server);
 app.use(cors());
 app.use(express.json());
 
+// Attach io to req object
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
+
 // Connect to MongoDB
 connectDB();
 
@@ -30,10 +36,12 @@ const userRoutes = require('./routes/userRoutes');
 const driverRoutes = require('./routes/driverRoutes');
 const adminRoutes = require('./routes/routeAdmin');
 const rideRoutes = require('./routes/rideRoutes');
+const mapsRoutes = require('./routes/mapsRoutes');
 app.use('/api/user', userRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ride', rideRoutes);
+app.use('/api/maps', mapsRoutes);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
@@ -41,6 +49,6 @@ app.use((err, req, res, next) => {
     res.status(500).send({ message: 'Internal Server Error' });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = 8000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`)); // Server is active and listening..
 

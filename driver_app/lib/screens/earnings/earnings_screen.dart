@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../providers/wallet_provider.dart';
 import '../../providers/booking_provider.dart';
+import '../../models/booking_model.dart';
 
 class EarningsScreen extends ConsumerStatefulWidget {
   const EarningsScreen({super.key});

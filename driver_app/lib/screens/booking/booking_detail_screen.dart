@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../models/booking_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../providers/booking_provider.dart';
 import '../../widgets/delay_reason_sheet.dart';
+import '../navigation/navigation_screen.dart';
+import 'package:latlong2/latlong.dart';
 
 class BookingDetailScreen extends ConsumerWidget {
   final String bookingId;
@@ -123,8 +126,33 @@ class BookingDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          IconButton(icon: const Icon(Icons.phone, color: AppTheme.neonGreen), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.chat_bubble_outline, color: AppTheme.cabBlue), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.phone, color: AppTheme.neonGreen),
+            onPressed: () async {
+              final Uri url = Uri(scheme: 'tel', path: booking.userPhone);
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url);
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline, color: AppTheme.cabBlue),
+            onPressed: () {
+              final driverProfile = ref.read(driverProfileProvider).value;
+              if (driverProfile != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatScreen(
+                      receiverId: booking.userId ?? '',
+                      receiverName: booking.userName,
+                      driverId: driverProfile.id,
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
         ],
       ),
     );
@@ -227,7 +255,9 @@ class BookingDetailScreen extends ConsumerWidget {
               else if (booking.status == 'arrived') nextStatus = 'started';
               else if (booking.status == 'started') nextStatus = 'completed';
               
-              if (nextStatus.isNotEmpty) {
+              if (nextStatus == 'completed') {
+                _showCompleteTripDialog(context, ref, booking);
+              } else if (nextStatus.isNotEmpty) {
                 ref.read(bookingProvider.notifier).updateStatus(booking.id, nextStatus);
               }
             },
@@ -268,7 +298,28 @@ class BookingDetailScreen extends ConsumerWidget {
             const SizedBox(width: 16),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () {},
+                onPressed: () {
+                  LatLng? dest;
+                  String destName = '';
+
+                  if (['accepted', 'on_the_way'].contains(booking.status)) {
+                    dest = LatLng(booking.pickupLat ?? 26.8467, booking.pickupLng ?? 80.9462);
+                    destName = 'Pickup: ${booking.pickupAddress}';
+                  } else {
+                    dest = LatLng(booking.dropLat ?? 26.8467, booking.dropLng ?? 80.9462);
+                    destName = 'Drop: ${booking.dropAddress}';
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NavigationScreen(
+                        destination: dest!,
+                        destinationName: destName,
+                      ),
+                    ),
+                  );
+                },
                 icon: const Icon(Icons.navigation_outlined, size: 20),
                 label: const Text('NAVIGATE'),
                 style: OutlinedButton.styleFrom(
@@ -293,5 +344,51 @@ class BookingDetailScreen extends ConsumerWidget {
       case 'started': return 'COMPLETE TRIP';
       default: return 'CONTINUE';
     }
+  }
+
+  void _showCompleteTripDialog(BuildContext context, WidgetRef ref, BookingModel booking) {
+    final controller = TextEditingController(text: booking.fare.toStringAsFixed(0));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.darkSurface,
+        title: const Text('Complete Trip', style: TextStyle(color: AppTheme.darkTextPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Confirm final fare amount:', style: TextStyle(color: AppTheme.darkTextSecondary)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: AppTheme.neonGreen),
+              decoration: const InputDecoration(
+                prefixText: '₹ ',
+                prefixStyle: TextStyle(color: AppTheme.neonGreen),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.darkDivider)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.neonGreen)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: AppTheme.darkTextSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final fare = double.tryParse(controller.text) ?? booking.fare;
+              ref.read(bookingProvider.notifier).completeTrip(booking.id, fare);
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Back to Home
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: AppTheme.darkBg),
+            child: const Text('COMPLETE'),
+          ),
+        ],
+      ),
+    );
   }
 }

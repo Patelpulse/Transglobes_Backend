@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/booking_provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../models/driver_model.dart';
+import '../models/booking_model.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
 import 'database_service.dart';
@@ -16,177 +19,120 @@ final driverServiceProvider = Provider<DriverService>((ref) {
 final driverProfileProvider = FutureProvider<DriverModel?>((ref) async {
   final authService = ref.watch(authServiceProvider);
   final dbService = ref.watch(databaseServiceProvider);
-  final user = authService.currentUser;
-  
-  if (user != null) {
-    final token = await authService.getIdToken();
-    if (token != null) {
-      return await dbService.getDriverProfile(user.uid, token);
-    }
-  }
-  return null;
-});
-
-final isOnboardingCompleteProvider = FutureProvider<bool>((ref) async {
-  final authService = ref.watch(authServiceProvider);
-  final dbService = ref.watch(databaseServiceProvider);
-  final user = authService.currentUser;
-  
-  if (user != null) {
-    final token = await authService.getIdToken();
-    if (token != null) {
-      return await dbService.isOnboardingComplete(user.uid, token);
-    }
-  }
-  return false;
+  final driverId = authService.currentUser?.uid;
+  if (driverId == null) return null;
+  final token = await authService.getIdToken();
+  if (token == null) return null;
+  return await dbService.getDriverProfile(driverId, token);
 });
 
 class DriverService {
-  final ApiService _apiService;
-  final AuthService _authService;
-  final DatabaseReference _rtdb = FirebaseDatabase.instance.ref();
+  final ApiService _api;
+  final AuthService _auth;
+  late final DatabaseReference _locationRef;
+  StreamSubscription<Position>? _positionSub;
 
-  StreamSubscription<Position>? _locationSubscription;
-  Timer? _locationTimer;
-  bool _isOnline = false;
+  DriverService(this._api, this._auth) {
+    _locationRef = FirebaseDatabase.instance.ref("drivers");
+  }
 
-  DriverService(this._apiService, this._authService);
+  // --- Location Streaming ---
+  Future<void> setOnline(bool online) async {
+    final driverId = _auth.currentUser?.uid;
+    if (driverId == null) return;
 
-  Future<DriverModel?> getMyProfile() async {
-    try {
-      final response = await _apiService.get('/drivers/me');
-      return response != null ? DriverModel.fromJson(response) : null;
-    } catch (e) {
-      return null;
+    if (online) {
+      await _locationRef.child(driverId).update({'status': 'online'});
+      _startLocationStream(driverId);
+    } else {
+      await _locationRef.child(driverId).update({'status': 'offline'});
+      _stopLocationStream();
     }
   }
 
-  Future<DriverModel> createProfile({
-    required String name,
-    required String vehicleId,
-  }) async {
-    final response = await _apiService.post('/drivers', {
-      'name': name,
-      'vehicleId': vehicleId,
-    });
-    return DriverModel.fromJson(response);
-  }
-
-  Future<void> goOnline() async {
-    _isOnline = true;
-
-    // Update status in backend
-    await _apiService.put('/drivers/me/status', {
-      'status': 'available',
-      'isOnline': true,
-    });
-
-    // Start streaming location to Firebase Realtime Database
-    await _startLocationStream();
-  }
-
-  Future<void> goOffline() async {
-    _isOnline = false;
-
-    // Update status in backend
-    await _apiService.put('/drivers/me/status', {
-      'status': 'offline',
-      'isOnline': false,
-    });
-
-    // Stop location streaming
+  void _startLocationStream(String driverId) {
     _stopLocationStream();
-
-    // Remove from Firebase RTDB
-    final userId = _authService.currentUser?.uid;
-    if (userId != null) {
-      await _rtdb.child('drivers/$userId').remove();
-    }
-  }
-
-  Future<void> _startLocationStream() async {
-    final userId = _authService.currentUser?.uid;
-    if (userId == null) return;
-
-    // Request location permission
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    // Start periodic location updates
-    _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
-      if (!_isOnline) {
-        timer.cancel();
-        return;
-      }
-
-      try {
-        final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
-
-        // Update location in Firebase Realtime Database
-        await _rtdb.child('drivers/$userId').set({
-          'location': {'lat': position.latitude, 'lng': position.longitude},
-          'status': 'available',
-          'updatedAt': ServerValue.timestamp,
-        });
-
-        // Also update in MongoDB for geospatial queries
-        await _apiService.put('/drivers/me/location', {
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-        });
-      } catch (e) {
-        print('Error updating location: $e');
-      }
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+    ).listen((pos) {
+      _locationRef.child(driverId).update({
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'heading': pos.heading,
+        'lastUpdate': DateTime.now().toIso8601String(),
+      });
     });
   }
 
   void _stopLocationStream() {
-    _locationSubscription?.cancel();
-    _locationTimer?.cancel();
-    _locationSubscription = null;
-    _locationTimer = null;
+    _positionSub?.cancel();
+    _positionSub = null;
   }
 
-  Future<void> updateStatus(String status) async {
-    await _apiService.put('/drivers/me/status', {
+  // --- Ride Status Management ---
+  Future<void> updateRideStatus(String rideId, String status) async {
+    await _api.put('/api/ride/rides/$rideId/status', {
       'status': status,
-      'isOnline': status != 'offline',
+      'driverId': _auth.currentUser?.uid,
     });
   }
 
-  Future<List<dynamic>> getPendingRideRequests() async {
-    return await _apiService.get('/rides/pending') ?? [];
+  Future<void> acceptRide(String rideId) async {
+    final driverId = _auth.currentUser?.uid;
+    await _api.put('/api/ride/rides/$rideId/assign', {'driverId': driverId});
   }
 
-  Future<DriverModel> acceptRide(String rideId) async {
-    final response = await _apiService.put('/rides/$rideId/assign', {});
-    await updateStatus('busy');
-    return DriverModel.fromJson(response);
-  }
-
-  Future<void> updateRideStatus(
-    String rideId,
-    String status, {
-    String? delayReason,
-  }) async {
-    await _apiService.put('/rides/$rideId/status', {
-      'status': status,
-      if (delayReason != null) 'delayReason': delayReason,
-    });
+  Future<void> rejectRide(String rideId) async {
+    final driverId = _auth.currentUser?.uid;
+    await _api.put('/api/ride/rides/$rideId/reject', {'driverId': driverId});
   }
 
   Future<void> completeRide(String rideId, double actualFare) async {
-    await _apiService.put('/rides/$rideId/complete', {
+    await _api.put('/api/ride/rides/$rideId/complete', {
+      'status': 'completed',
       'actualFare': actualFare,
+      'driverId': _auth.currentUser?.uid,
     });
-    await updateStatus('available');
   }
 
-  void dispose() {
-    _stopLocationStream();
+  // --- Statistics ---
+  Future<Map<String, dynamic>> getDriverStats() async {
+    final res = await _api.get('/api/driver/stats');
+    return res.data;
+  }
+
+  // --- Fetch Bookings ---
+  Future<List<BookingModel>> getDriverBookings() async {
+    try {
+      final res = await _api.get('/api/ride/driver-bookings');
+      if (res != null) {
+        final List bookings = res['bookings'] ?? [];
+        return bookings.map((e) => BookingModel.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching driver bookings: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateStatus(String id, String status) async {
+    try {
+      await updateRideStatus(id, status);
+    } catch (e) {
+      debugPrint('Error updating ride status: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> verifyOtp(String rideId, String otp) async {
+    try {
+      await _api.put('/api/ride/rides/$rideId/verify-otp', {
+        'otp': otp,
+      });
+    } catch (e) {
+      debugPrint('Error verifying OTP: $e');
+      rethrow;
+    }
   }
 }

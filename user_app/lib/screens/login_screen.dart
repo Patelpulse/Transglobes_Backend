@@ -9,6 +9,7 @@ import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 import '../providers/app_providers.dart';
 import 'home_screen.dart';
+import 'name_input_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -121,22 +122,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (mounted) {
         if (kDemoMode) {
           ref.read(demoUserProvider.notifier).login();
-        } else if (userCredential?.user != null) {
-          // Sync with backend MongoDB
-          try {
-            final apiService = ref.read(apiServiceProvider);
-            final user = userCredential!.user!;
-            await apiService.post('/api/user/sync', {
-              'uid': user.uid,
-              'mobileNumber': user.phoneNumber,
-              'email': user.email,
-              'name': user.displayName ?? 'Guest User',
-            });
-          } catch (syncError) {
-            debugPrint('Failed to sync user with backend: $syncError');
-          }
         }
-        
+
+        // Save phone number to DB after OTP verification
+        try {
+          final apiService = ref.read(apiServiceProvider);
+          final mobileNumber = '+91${_phoneController.text}';
+
+          final response = await apiService.post('/api/user/register-phone', {
+            'mobileNumber': mobileNumber,
+          });
+
+          final isNewUser = response['isNewUser'] == true;
+          final existingName = response['user']?['name'] ?? '';
+
+          if (isNewUser || existingName.isEmpty) {
+            // First time user — navigate to Name Input Screen (mandatory)
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => NameInputScreen(mobileNumber: mobileNumber),
+                ),
+              );
+            }
+            return;
+          }
+        } catch (syncError) {
+          debugPrint('Failed to register phone with backend: $syncError');
+        }
+
+        // Existing user with name — go directly to home
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
@@ -159,7 +174,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               color: Colors.white,
             ),
             const SizedBox(width: 12),
-            Text(message),
+            Expanded(child: Text(message)),
           ],
         ),
         backgroundColor: isSuccess ? AppTheme.success : AppTheme.error,
@@ -252,9 +267,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             color: context.theme.cardColor,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: context.theme.dividerColor.withOpacity(
-                                0.1,
-                              ),
+                              color: context.theme.dividerColor.withOpacity(0.1),
                             ),
                           ),
                           child: Row(
@@ -338,7 +351,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                         const SizedBox(height: 16),
 
-                        // Resend OTP
+                        // Change phone number
                         Center(
                           child: TextButton(
                             onPressed: () {
@@ -359,7 +372,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                       const SizedBox(height: 32),
 
-                      // Continue Button
+                      // Continue / Verify Button
                       SizedBox(
                         width: double.infinity,
                         height: 56,
@@ -395,9 +408,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         ),
                       ),
 
-                      const SizedBox(height: 16),
-
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 36),
                       Center(
                         child: Text(
                           'Need help?',
@@ -422,7 +433,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Widget _buildOtpInput() {
     return Column(
       children: [
-        // Actual input field
         Container(
           decoration: BoxDecoration(
             color: context.theme.cardColor,

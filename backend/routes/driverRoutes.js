@@ -8,6 +8,8 @@ const {
     uploadDocuments,
     getDriverStatus,
     updateDriverProfile,
+    updateStatus,
+    updateLocation,
     sendOTP,
     verifyOTP
 } = require('../controllers/driverController');
@@ -33,6 +35,12 @@ router.get('/profile', verifyToken, getDriverProfile);
 
 // PUT /api/driver/profile/update - Updates driver profile
 router.put('/profile/update', verifyToken, updateDriverProfile);
+
+// PUT /api/driver/status - Updates driver online/offline status
+router.put('/status', verifyToken, updateStatus);
+
+// PUT /api/driver/location - Updates driver GPS location
+router.put('/location', verifyToken, updateLocation);
 
 // POST /api/driver/upload - Uploads driver documents
 router.post('/upload', verifyToken, upload.fields([

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,6 +9,8 @@ import '../utils/id_generator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+
+import 'database_service.dart';
 
 // Demo mode flag - set to false when you have real Firebase configured
 // Google Sign-In always uses real Firebase (bypasses demo mode)
@@ -18,6 +21,17 @@ final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final authStateProvider = StreamProvider<dynamic>((ref) {
   return ref.watch(authServiceProvider).authStateChanges;
 });
+
+final isOnboardingCompleteProvider = FutureProvider<bool>((ref) async {
+  final authService = ref.watch(authServiceProvider);
+  final dbService = ref.watch(databaseServiceProvider);
+  final user = authService.currentUser;
+  if (user == null) return false;
+  final token = await authService.getIdToken();
+  if (token == null) return false;
+  return await dbService.isOnboardingComplete(user.uid, token);
+});
+
 
 class MockUser {
   final String uid;
@@ -43,6 +57,10 @@ class AuthService {
 
   FirebaseAuth get auth {
     _auth ??= FirebaseAuth.instance;
+    // Enable reCAPTCHA bypass for testing in debug mode on Web
+    if (kIsWeb && kDebugMode) {
+      _auth!.setSettings(appVerificationDisabledForTesting: true);
+    }
     return _auth!;
   }
 
