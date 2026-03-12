@@ -15,10 +15,17 @@ const initSocket = (server) => {
         console.log("A user connected:", socket.id);
 
         // Join personal room based on userId for targeted messaging
-        socket.on("register", (userId) => {
+        socket.on("register", (data) => {
+            const userId = typeof data === 'string' ? data : data.userId;
+            const name = typeof data === 'object' ? data.name : "User";
             if (userId) {
                 socket.join(userId);
-                console.log(`User ${userId} registered and joined room`);
+                console.log(`User ${userId} (${name}) registered and joined room`);
+                socket.emit("connection_success", { 
+                    message: `Welcome ${name}, Socket connected successfully!`,
+                    userId,
+                    name
+                });
             }
         });
 
@@ -103,6 +110,19 @@ const initSocket = (server) => {
             } catch (error) {
                 console.error("Error fetching history:", error);
             }
+        });
+
+        // Driver Location Updates
+        socket.on("update_location", (data) => {
+            const { rideId, userId, latitude, longitude, heading } = data;
+            // Emit to the user's room
+            io.to(userId).emit("driver_location_update", {
+                rideId,
+                latitude,
+                longitude,
+                heading,
+                timestamp: new Date()
+            });
         });
 
         socket.on("disconnect", () => {

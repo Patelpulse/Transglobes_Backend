@@ -13,6 +13,7 @@ class SocketService {
   final _historyController = StreamController<List<dynamic>>.broadcast();
   final _newRideController = StreamController<Map<String, dynamic>>.broadcast();
   final _rideAssignedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
 
   IO.Socket? get socket => _socket;
 
@@ -20,13 +21,14 @@ class SocketService {
   Stream<List<dynamic>> get historyStream => _historyController.stream;
   Stream<Map<String, dynamic>> get newRideStream => _newRideController.stream;
   Stream<Map<String, dynamic>> get rideAssignedStream => _rideAssignedController.stream;
+  Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
 
-  void connect(String userId) {
+  void connect(String userId, {String? name}) {
     if (_socket != null) {
       if (!(_socket!.connected)) {
         _socket!.connect();
       } else {
-        _socket!.emit("register", userId);
+        _socket!.emit("register", {"userId": userId, "name": name ?? "Driver"});
       }
       return;
     }
@@ -45,7 +47,11 @@ class SocketService {
 
     _socket?.onConnect((_) {
       print("Socket Connected Successfully: $userId");
-      _socket?.emit("register", userId);
+      _socket?.emit("register", {"userId": userId, "name": name ?? "Driver"});
+    });
+
+    _socket?.on("connection_success", (data) {
+      print("Socket Connection Success Event: $data");
     });
 
     _socket?.on("receive_message", (data) {
@@ -84,6 +90,22 @@ class SocketService {
     _socket?.emit("fetch_history", {
       "userId1": userId1,
       "userId2": userId2
+    });
+  }
+
+  void updateLocation({
+    required String rideId,
+    required String userId,
+    required double latitude,
+    required double longitude,
+    double? heading,
+  }) {
+    _socket?.emit("update_location", {
+      "rideId": rideId,
+      "userId": userId,
+      "latitude": latitude,
+      "longitude": longitude,
+      "heading": heading,
     });
   }
 

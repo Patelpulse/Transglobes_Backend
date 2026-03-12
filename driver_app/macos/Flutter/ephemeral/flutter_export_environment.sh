@@ -1,7 +1,7 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=C:\Users\Admin\Downloads\flutter"
-export "FLUTTER_APPLICATION_PATH=C:\Users\Admin\Desktop\ola\Ola_Uber\driver_app"
+export "FLUTTER_ROOT=/opt/homebrew/share/flutter"
+export "FLUTTER_APPLICATION_PATH=/Users/yogeshthaku/Desktop/Ola/Transglobe/driver_app"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_BUILD_DIR=build"
 export "FLUTTER_BUILD_NAME=1.0.0"

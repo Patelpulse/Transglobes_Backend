@@ -97,19 +97,20 @@ class AppTheme {
         onSurface: lightTextPrimary,
         error: error,
       ),
-      textTheme: GoogleFonts.poppinsTextTheme().copyWith(
-        displayLarge: GoogleFonts.poppins(
+      textTheme: GoogleFonts.notoSansTextTheme().copyWith(
+        displayLarge: GoogleFonts.lexend(
           color: lightTextPrimary,
           fontWeight: FontWeight.bold,
         ),
-        displayMedium: GoogleFonts.poppins(
+        displayMedium: GoogleFonts.lexend(
           color: lightTextPrimary,
           fontWeight: FontWeight.bold,
         ),
-        bodyLarge: GoogleFonts.poppins(color: lightTextPrimary),
-        bodyMedium: GoogleFonts.poppins(color: lightTextSecondary),
-        bodySmall: GoogleFonts.poppins(color: lightTextSecondary),
+        bodyLarge: GoogleFonts.notoSans(color: lightTextPrimary),
+        bodyMedium: GoogleFonts.notoSans(color: lightTextSecondary),
+        bodySmall: GoogleFonts.notoSans(color: lightTextSecondary),
       ),
+
       appBarTheme: const AppBarTheme(
         backgroundColor: lightWhite,
         foregroundColor: lightTextPrimary,
@@ -167,19 +168,20 @@ class AppTheme {
         onSurface: darkTextPrimary,
         error: error,
       ),
-      textTheme: GoogleFonts.poppinsTextTheme().copyWith(
-        displayLarge: GoogleFonts.poppins(
+      textTheme: GoogleFonts.notoSansTextTheme().copyWith(
+        displayLarge: GoogleFonts.lexend(
           color: darkTextPrimary,
           fontWeight: FontWeight.bold,
         ),
-        displayMedium: GoogleFonts.poppins(
+        displayMedium: GoogleFonts.lexend(
           color: darkTextPrimary,
           fontWeight: FontWeight.bold,
         ),
-        bodyLarge: GoogleFonts.poppins(color: darkTextPrimary),
-        bodyMedium: GoogleFonts.poppins(color: darkTextSecondary),
-        bodySmall: GoogleFonts.poppins(color: darkTextSecondary),
+        bodyLarge: GoogleFonts.notoSans(color: darkTextPrimary),
+        bodyMedium: GoogleFonts.notoSans(color: darkTextSecondary),
+        bodySmall: GoogleFonts.notoSans(color: darkTextSecondary),
       ),
+
       appBarTheme: const AppBarTheme(
         backgroundColor: darkNavy,
         foregroundColor: darkTextPrimary,

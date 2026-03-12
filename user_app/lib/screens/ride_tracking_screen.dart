@@ -4,13 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/socket_service.dart';
+import '../services/auth_service.dart';
+import '../providers/user_provider.dart';
 import 'dart:async';
 import '../core/theme.dart';
 import 'rating_screen.dart';
 import 'chat_screen.dart';
 import '../widgets/leaflet_map.dart';
 import '../services/location_service.dart';
-import '../services/auth_service.dart';
 
 class RideTrackingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -18,6 +19,7 @@ class RideTrackingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> vehicle;
   final String rideId;
   final String? otp;
+  final String? distance;
 
   final Map<String, dynamic>? driverData;
 
@@ -29,6 +31,7 @@ class RideTrackingScreen extends ConsumerStatefulWidget {
     required this.rideId,
     this.otp,
     this.driverData,
+    this.distance,
   });
 
   @override
@@ -43,6 +46,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
   StreamSubscription? _statusSubscription;
   StreamSubscription? _locationSubscription;
   LatLng? _driverPos;
+  double _driverHeading = 0.0;
 
   late Map<String, dynamic> _driver;
 
@@ -54,9 +58,9 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
     
     // Initialize driver data
     _driver = {
-      'name': widget.driverData?['name'] ?? 'John Doe',
+      'name': widget.driverData?['name'] ?? 'Driver',
       'rating': '4.9',
-      'vehicle': widget.vehicle['name'] ?? 'Toyota Camry',
+      'vehicle': widget.driverData?['vehicle_name'] ?? widget.vehicle['name'] ?? 'Car',
       'plate': widget.driverData?['vichle_number'] ?? 'ABC-1234',
       'phone': widget.driverData?['phone'] ?? '',
       'otp': widget.otp ?? '----',
@@ -67,6 +71,20 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
     _loadRoute();
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userProfile = ref.read(fullUserProfileProvider).value;
+      final userId = userProfile?.id; // This is the MongoDB _id
+      final userName = userProfile?.name;
+      
+      if (userId != null && userId.isNotEmpty) {
+        ref.read(socketServiceProvider).connect(userId, name: userName);
+      } else {
+        // Fallback to Firebase UID if MongoDB ID is not available yet
+        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+        if (firebaseId != null) {
+          ref.read(socketServiceProvider).connect(firebaseId, name: userName);
+        }
+      }
+
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) _fitBounds();
       });
@@ -81,6 +99,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
               _driver['name'] = data['driver']['name'] ?? _driver['name'];
               _driver['plate'] = data['driver']['vichle_number'] ?? _driver['plate'];
               _driver['phone'] = data['driver']['phone'] ?? _driver['phone'];
+              _driver['vehicle'] = data['driver']['vehicle_name'] ?? _driver['vehicle'];
             }
           });
 
@@ -105,6 +124,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
               (data['latitude'] as num).toDouble(),
               (data['longitude'] as num).toDouble(),
             );
+            _driverHeading = (data['heading'] as num?)?.toDouble() ?? 0.0;
           });
         }
       });
@@ -156,7 +176,14 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
     }
     
     try {
-      final bounds = LatLngBounds.fromPoints(boundsPoints);
+      final validPoints = boundsPoints.where((p) => 
+        p.latitude >= -90 && p.latitude <= 90 && 
+        p.longitude >= -180 && p.longitude <= 180
+      ).toList();
+
+      if (validPoints.length < 2) return;
+
+      final bounds = LatLngBounds.fromPoints(validPoints);
       _mapController.fitCamera(
         CameraFit.bounds(
           bounds: bounds,
@@ -237,12 +264,28 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
                 if (_driverPos != null)
                   Marker(
                     point: _driverPos!,
-                    width: 40,
-                    height: 40,
-                    child: Icon(
-                      Icons.directions_car,
-                      color: context.theme.primaryColor,
-                      size: 30,
+                    width: 50,
+                    height: 50,
+                    child: Transform.rotate(
+                      angle: (_driverHeading * (3.14159 / 180)),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 35,
+                            height: 35,
+                            decoration: BoxDecoration(
+                              color: context.theme.primaryColor.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Icon(
+                            Icons.navigation,
+                            color: context.theme.primaryColor,
+                            size: 30,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -538,45 +581,76 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: context.theme.primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            "START OTP",
-                            style: TextStyle(
-                              color: context.theme.primaryColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            _driver['otp'],
-                            style: TextStyle(
-                              color: context.theme.primaryColor,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    _buildCallButton(_driver['phone']),
                   ],
                 ),
 
+                const SizedBox(height: 16),
+                
+                // New OTP Section (Prominent at "bottom" of info)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: context.theme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: context.theme.primaryColor.withValues(alpha: 0.2)),
+                  ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          "SHARE OTP WITH DRIVER",
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _driver['otp'],
+                          style: TextStyle(
+                            color: context.theme.primaryColor,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 8,
+                          ),
+                        ),
+                        const Divider(height: 32),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              "FARE: ",
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              "₹${widget.vehicle['price']}",
+                              style: TextStyle(
+                                color: context.colors.textPrimary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 24),
+
 
                 // Action Buttons
                 Row(
                   children: [
-                                          child: _buildBottomActionButton(
+                    Expanded(
+                      child: _buildBottomActionButton(
                         label: "Message",
                         icon: Icons.chat_bubble_outline,
                         color: context.theme.cardColor,
@@ -603,6 +677,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
                           }
                         },
                       ),
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _buildBottomActionButton(
@@ -665,6 +740,20 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCallButton(String phone) {
+    return GestureDetector(
+      onTap: () => _makeCall(phone),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: context.theme.primaryColor.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Icons.phone, color: context.theme.primaryColor, size: 24),
       ),
     );
   }

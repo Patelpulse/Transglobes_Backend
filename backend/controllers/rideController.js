@@ -21,10 +21,23 @@ exports.getRideTypes = async (req, res) => {
 
 exports.getDriverBookings = async (req, res) => {
     try {
-        // Find all rides that are not cancelled
-        const bookings = await History.find({
+        const Driver = require("../models/Driver");
+        let currentDriver;
+        if (req.user && req.user.uid) {
+            currentDriver = await Driver.findOne({ uid: req.user.uid });
+        }
+
+
+        // Find all rides that are not cancelled and not rejected by me
+        const query = {
             status: { $ne: 'cancelled' }
-        }).populate('userId', 'name').sort({ createdAt: -1 });
+        };
+
+        if (currentDriver) {
+            query.rejectedBy = { $ne: currentDriver._id };
+        }
+
+        const bookings = await History.find(query).populate('userId', 'name').sort({ createdAt: -1 });
 
         res.json({
             success: true,
@@ -47,6 +60,7 @@ exports.getDriverBookings = async (req, res) => {
                 dropLng: b.locations[1]?.longitude,
             }))
         });
+
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -259,12 +273,13 @@ exports.getPendingRides = async (req, res) => {
 exports.assignRide = async (req, res) => {
     try {
         const { rideId } = req.params;
-        const { driverId } = req.body;
+        const { driverId, fare } = req.body;
         const ride = await History.findById(rideId);
         if (!ride) return res.status(404).json({ message: 'Ride not found' });
 
         ride.status = 'accepted';
         ride.driverActionAt = new Date();
+        if (fare) ride.fare = fare;
 
         // populate snapshot if we know driverId
         if (driverId) {
@@ -282,7 +297,8 @@ exports.assignRide = async (req, res) => {
                     driver_id: driver._id,
                     name: driver.name,
                     phone: driver.mobileNumber,
-                    vichle_number: driver.vehicleNumberPlate || ''
+                    vichle_number: driver.vehicleNumberPlate || '',
+                    vehicle_name: driver.vehicleModel || ''
                 };
             }
         }
@@ -293,7 +309,8 @@ exports.assignRide = async (req, res) => {
             req.io.to(ride.userId.toString()).emit("ride_accepted", {
                 rideId: ride._id,
                 status: ride.status,
-                driver: ride.driverSnapshot
+                driver: ride.driverSnapshot,
+                fare: ride.fare
             });
             // Also notify other drivers that this ride is taken
             req.io.emit("ride_assigned", { rideId: ride._id });
@@ -313,7 +330,6 @@ exports.rejectRide = async (req, res) => {
         const ride = await History.findById(rideId);
         if (!ride) return res.status(404).json({ message: 'Ride not found' });
 
-        ride.status = 'rejected';
         ride.driverActionAt = new Date();
 
         if (driverId) {
@@ -321,19 +337,18 @@ exports.rejectRide = async (req, res) => {
             const mongoose = require('mongoose');
             let driver;
             if (mongoose.Types.ObjectId.isValid(driverId)) {
-                driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate _id');
+                driver = await Driver.findById(driverId).select('_id');
             } else {
-                driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate _id');
+                driver = await Driver.findOne({ uid: driverId }).select('_id');
             }
             if (driver) {
-                ride.driverSnapshot = {
-                    driver_id: driver._id,
-                    name: driver.name,
-                    phone: driver.mobileNumber,
-                    vichle_number: driver.vehicleNumberPlate || ''
-                };
+                if (!ride.rejectedBy) ride.rejectedBy = [];
+                if (!ride.rejectedBy.includes(driver._id)) {
+                    ride.rejectedBy.push(driver._id);
+                }
             }
         }
+
 
         await ride.save();
         res.json({ success: true, message: 'Ride rejected', ride });
@@ -371,7 +386,8 @@ exports.updateRideStatus = async (req, res) => {
                     driver_id: driver._id,
                     name: driver.name,
                     phone: driver.mobileNumber,
-                    vichle_number: driver.vehicleNumberPlate || ''
+                    vichle_number: driver.vehicleNumberPlate || '',
+                    vehicle_name: driver.vehicleModel || ''
                 };
             }
         }

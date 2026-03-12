@@ -46,7 +46,7 @@ const historySchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ["pending", "accepted", "ongoing", "completed", "cancelled", "rejected", "arrived"],
+        enum: ["pending", "accepted", "on_the_way", "ongoing", "completed", "cancelled", "rejected", "arrived"],
         default: "pending"
     },
     otp: {
@@ -67,7 +67,12 @@ const historySchema = new mongoose.Schema({
     },
     driverActionAt: {
         type: Date
-    }
+    },
+    rejectedBy: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Driver"
+    }]
 }, { timestamps: true });
+
 
 module.exports = mongoose.model("History", historySchema);

@@ -81,10 +81,19 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> with SingleTick
           ),
           SliverList(
             delegate: SliverChildBuilderDelegate(
-              (_, i) => _buildTripRow(history[i % history.length]),
-              childCount: history.isEmpty ? 1 : 6,
+              (_, i) {
+                if (history.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No trips yet', style: TextStyle(color: AppTheme.darkTextSecondary))),
+                  );
+                }
+                return _buildTripRow(history[i % history.length]);
+              },
+              childCount: history.isEmpty ? 1 : (history.length > 6 ? 6 : history.length),
             ),
           ),
+
         ],
       ),
     );

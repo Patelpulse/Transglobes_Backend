@@ -14,6 +14,7 @@ class SocketService {
   final _rideAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
   final _rideStatusController = StreamController<Map<String, dynamic>>.broadcast();
   final _driverLocationController = StreamController<Map<String, dynamic>>.broadcast();
+  final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
 
   IO.Socket? get socket => _socket;
 
@@ -22,13 +23,14 @@ class SocketService {
   Stream<Map<String, dynamic>> get rideAcceptedStream => _rideAcceptedController.stream;
   Stream<Map<String, dynamic>> get rideStatusStream => _rideStatusController.stream;
   Stream<Map<String, dynamic>> get driverLocationStream => _driverLocationController.stream;
+  Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
 
-  void connect(String userId) {
+  void connect(String userId, {String? name}) {
     if (_socket != null) {
       if (!(_socket!.connected)) {
         _socket!.connect();
       } else {
-        _socket!.emit("register", userId);
+        _socket!.emit("register", {"userId": userId, "name": name ?? "User"});
       }
       return;
     }
@@ -47,7 +49,11 @@ class SocketService {
 
     _socket?.onConnect((_) {
       print("User Socket Connected: $userId");
-      _socket?.emit("register", userId);
+      _socket?.emit("register", {"userId": userId, "name": name ?? "User"});
+    });
+
+    _socket?.on("connection_success", (data) {
+      print("User Socket Connection Success: $data");
     });
 
     _socket?.on("ride_accepted", (data) {

@@ -35,9 +35,11 @@ class LocationService {
     try {
       final apiKey = AppConfig.googleMapsApiKey;
       final baseUrl = AppConfig.apiBaseUrl;
-      final url = Uri.parse(
-        '$baseUrl/api/maps/geocode?latlng=$lat,$lng&key=$apiKey',
-      );
+      
+      final url = kIsWeb
+          ? Uri.parse('$baseUrl/api/maps/geocode?latlng=$lat,$lng&key=$apiKey')
+          : Uri.parse('https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey');
+          
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -63,27 +65,32 @@ class LocationService {
     try {
       final apiKey = AppConfig.googleMapsApiKey;
       final baseUrl = AppConfig.apiBaseUrl;
-      final url = Uri.parse(
-        '$baseUrl/api/maps/directions?origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&key=$apiKey',
-      );
+      
+      final origin = "${start.latitude},${start.longitude}";
+      final dest = "${end.latitude},${end.longitude}";
+      
+      final url = kIsWeb
+          ? Uri.parse('$baseUrl/api/maps/directions?origin=$origin&destination=$dest&key=$apiKey')
+          : Uri.parse('https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$dest&key=$apiKey');
+          
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['routes'] != null && data['routes'].isNotEmpty) {
+        if (data['status'] == 'OK' && data['routes'] != null && data['routes'].isNotEmpty) {
           final route = data['routes'][0];
           final leg = route['legs'][0];
           
-          // Decode polyline (this is simple but for high fidelity you'd use a polyline decoder)
-          // For now, we'll just use the overview_polyline points or stick to start/end if decoding is too complex
-          // but Google Directions returns overview_polyline which is encoded.
-          // Let's use a simple approach for now or stick to start/end if we don't have a decoder.
+          String encodedPolyline = route['overview_polyline']['points'];
+          final List<LatLng> points = decodePolyline(encodedPolyline);
           
           return {
-            'points': [start, end], // Fallback to direct line if decoding isn't implemented
+            'points': points,
             'distance': (leg['distance']['value'] as num).toDouble() / 1000,
             'duration': (leg['duration']['value'] as num).toDouble() / 60,
           };
+        } else {
+          debugPrint('Directions API Status: ${data['status']}');
         }
       }
     } catch (e) {
@@ -94,5 +101,44 @@ class LocationService {
       'distance': 0.0,
       'duration': 0.0,
     };
+  }
+
+  // Consolidated Polyline decoder with strict safety
+  static List<LatLng> decodePolyline(String encoded) {
+    List<LatLng> polyline = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0; result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      double latVal = lat / 100000.0;
+      double lngVal = lng / 100000.0;
+      
+      // Strict clamping to valid geographic ranges
+      if (latVal > 90.0) latVal = 90.0;
+      if (latVal < -90.0) latVal = -90.0;
+      if (lngVal > 180.0) lngVal = 180.0;
+      if (lngVal < -180.0) lngVal = -180.0;
+
+      polyline.add(LatLng(latVal, lngVal));
+    }
+    return polyline;
   }
 }

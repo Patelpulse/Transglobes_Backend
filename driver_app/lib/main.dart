@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,27 +7,30 @@ import 'core/theme.dart';
 import 'core/theme_provider.dart';
 import 'core/app_router.dart';
 import 'services/auth_service.dart';
-import 'screens/driver_home_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'widgets/main_shell.dart';
-import 'services/driver_service.dart';
 import 'screens/auth/auth_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: "assets/.env");
   
-  // Initialize Firebase with options for Web
-  await Firebase.initializeApp(
-    options: FirebaseOptions(
-      apiKey: dotenv.env['FIREBASE_API_KEY'] ?? '',
-      appId: dotenv.env['FIREBASE_APP_ID'] ?? '',
-      messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
-      projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
-      storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'],
-      databaseURL: dotenv.env['FIREBASE_DATABASE_URL'] ?? 'https://mera-ubar-default-rtdb.firebaseio.com',
-    ),
-  );
+  // Initialize Firebase
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: FirebaseOptions(
+        apiKey: dotenv.env['FIREBASE_API_KEY'] ?? '',
+        appId: dotenv.env['FIREBASE_APP_ID'] ?? '',
+        messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
+        projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
+        storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'],
+        databaseURL: dotenv.env['FIREBASE_DATABASE_URL'] ?? 'https://mera-ubar-default-rtdb.firebaseio.com',
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
+
   
   runApp(const ProviderScope(child: DriverApp()));
 }

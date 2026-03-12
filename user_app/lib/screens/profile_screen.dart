@@ -88,7 +88,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       if (mounted) {
         // Refresh the user profile provider so header updates
-        ref.read(userProfileProvider.notifier).refresh();
+        ref.read(fullUserProfileProvider.notifier).refresh();
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

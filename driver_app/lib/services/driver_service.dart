@@ -9,11 +9,13 @@ import '../models/booking_model.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
 import 'database_service.dart';
+import 'socket_service.dart';
 
 final driverServiceProvider = Provider<DriverService>((ref) {
   final apiService = ref.watch(apiServiceProvider);
   final authService = ref.watch(authServiceProvider);
-  return DriverService(apiService, authService);
+  final socketService = ref.watch(socketServiceProvider);
+  return DriverService(apiService, authService, socketService, ref);
 });
 
 final driverProfileProvider = FutureProvider<DriverModel?>((ref) async {
@@ -29,10 +31,12 @@ final driverProfileProvider = FutureProvider<DriverModel?>((ref) async {
 class DriverService {
   final ApiService _api;
   final AuthService _auth;
+  final SocketService _socket;
+  final Ref _ref;
   late final DatabaseReference _locationRef;
   StreamSubscription<Position>? _positionSub;
 
-  DriverService(this._api, this._auth) {
+  DriverService(this._api, this._auth, this._socket, this._ref) {
     _locationRef = FirebaseDatabase.instance.ref("drivers");
   }
 
@@ -55,12 +59,30 @@ class DriverService {
     _positionSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
     ).listen((pos) {
+      // 1. Update Firebase RD (Already there)
       _locationRef.child(driverId).update({
         'lat': pos.latitude,
         'lng': pos.longitude,
         'heading': pos.heading,
         'lastUpdate': DateTime.now().toIso8601String(),
       });
+
+      // 2. Update via Socket.io if there's an active booking
+      try {
+        final activeBooking = _ref.read(currentActiveBookingProvider);
+        if (activeBooking != null && 
+            ['on_the_way', 'arrived', 'ongoing'].contains(activeBooking.status)) {
+          _socket.updateLocation(
+            rideId: activeBooking.id,
+            userId: activeBooking.userId ?? '',
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            heading: pos.heading,
+          );
+        }
+      } catch (e) {
+        debugPrint("Error sending socket location update: $e");
+      }
     });
   }
 
@@ -77,9 +99,12 @@ class DriverService {
     });
   }
 
-  Future<void> acceptRide(String rideId) async {
+  Future<void> acceptRide(String rideId, {double? fare}) async {
     final driverId = _auth.currentUser?.uid;
-    await _api.put('/api/ride/rides/$rideId/assign', {'driverId': driverId});
+    await _api.put('/api/ride/rides/$rideId/assign', {
+      'driverId': driverId,
+      if (fare != null) 'fare': fare,
+    });
   }
 
   Future<void> rejectRide(String rideId) async {

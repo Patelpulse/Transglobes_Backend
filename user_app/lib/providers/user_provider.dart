@@ -3,19 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
-/// Notifier to manage the User Profile name reactively.
-/// Using [AsyncNotifier] for Riverpod 3.x compatibility.
-class UserProfileNotifier extends AsyncNotifier<String> {
+import '../models/user_model.dart';
+
+/// Notifier to manage the User Profile reactively.
+class UserProfileNotifier extends AsyncNotifier<UserModel?> {
   @override
-  FutureOr<String> build() async {
+  FutureOr<UserModel?> build() async {
     return _fetchProfile();
   }
 
   /// Fetches the profile from the backend API.
-  Future<String> _fetchProfile() async {
+  Future<UserModel?> _fetchProfile() async {
     try {
       final authService = ref.read(authServiceProvider);
       final user = authService.currentUser;
+      final userId = user?.uid;
       final phoneNumber = user?.phoneNumber ?? '';
 
       if (phoneNumber.isNotEmpty) {
@@ -24,19 +26,27 @@ class UserProfileNotifier extends AsyncNotifier<String> {
         final response = await apiService.get('/api/user/profile/$encodedPhone');
 
         if (response != null && response['user'] != null) {
-          final name = response['user']['name'] ?? '';
-          if (name.toString().trim().isNotEmpty) {
-            return name.toString();
+          final userData = Map<String, dynamic>.from(response['user']);
+          // Ensure firebaseId is set from current user if missing
+          if (userData['firebaseId'] == null && userId != null) {
+            userData['firebaseId'] = userId;
           }
+          return UserModel.fromJson(userData);
         }
       }
       
-      // Fallback to Firebase profile name or default placeholder
-      return user?.displayName ?? 'Transglobal User';
+      if (user != null) {
+        return UserModel(
+          id: '', 
+          firebaseId: user.uid,
+          email: user.email ?? '',
+          name: user.displayName,
+          phoneNumber: user.phoneNumber,
+        );
+      }
+      return null;
     } catch (e) {
-      // In case of error (e.g. network down), fallback silently to keep UI stable
-      final user = ref.read(authServiceProvider).currentUser;
-      return user?.displayName ?? 'Transglobal User';
+      return null;
     }
   }
 
@@ -45,15 +55,15 @@ class UserProfileNotifier extends AsyncNotifier<String> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _fetchProfile());
   }
-
-  /// Optimistically update the UI after a successful name save.
-  void updateNameLocally(String newName) {
-    state = AsyncValue.data(newName);
-  }
 }
 
-/// A global provider for the user's display name.
-/// We use the [.autoDispose] modifier to clean up when not in use.
-final userProfileProvider = AsyncNotifierProvider.autoDispose<UserProfileNotifier, String>(() {
+/// A global provider for the full user profile.
+final fullUserProfileProvider = AsyncNotifierProvider.autoDispose<UserProfileNotifier, UserModel?>(() {
   return UserProfileNotifier();
+});
+
+/// A compatibility provider for the user's display name.
+final userProfileProvider = Provider.autoDispose<AsyncValue<String>>((ref) {
+  final fullProfile = ref.watch(fullUserProfileProvider);
+  return fullProfile.whenData((user) => user?.name ?? 'Transglobal User');
 });

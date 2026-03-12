@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../models/booking_model.dart';
+import 'package:driver_app/models/booking_model.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:driver_app/screens/chat/chat_screen.dart';
+import 'package:driver_app/services/driver_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../providers/booking_provider.dart';
@@ -38,7 +41,7 @@ class BookingDetailScreen extends ConsumerWidget {
           children: [
             _buildStatusHeader(booking),
             const SizedBox(height: 24),
-            _buildPassengerCard(booking),
+            _buildPassengerCard(context, ref, booking),
             const SizedBox(height: 24),
             _buildRouteCard(booking),
             const SizedBox(height: 24),
@@ -84,19 +87,12 @@ class BookingDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          if (booking.otp != null)
-            Column(
-              children: [
-                const Text('OTP', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12)),
-                Text(booking.otp!, style: const TextStyle(color: AppTheme.earningsAmber, fontSize: 24, fontWeight: FontWeight.w900)),
-              ],
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildPassengerCard(BookingModel booking) {
+  Widget _buildPassengerCard(BuildContext context, WidgetRef ref, BookingModel booking) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -143,7 +139,7 @@ class BookingDetailScreen extends ConsumerWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ChatScreen(
+                    builder: (_) => ChatScreen(
                       receiverId: booking.userId ?? '',
                       receiverName: booking.userName,
                       driverId: driverProfile.id,
@@ -249,16 +245,19 @@ class BookingDetailScreen extends ConsumerWidget {
           child: ElevatedButton(
             onPressed: () {
               // Logic to advance status
-              String nextStatus = '';
-              if (booking.status == 'accepted') nextStatus = 'on_the_way';
-              else if (booking.status == 'on_the_way') nextStatus = 'arrived';
-              else if (booking.status == 'arrived') nextStatus = 'started';
-              else if (booking.status == 'started') nextStatus = 'completed';
-              
-              if (nextStatus == 'completed') {
-                _showCompleteTripDialog(context, ref, booking);
-              } else if (nextStatus.isNotEmpty) {
-                ref.read(bookingProvider.notifier).updateStatus(booking.id, nextStatus);
+              if (booking.status == 'arrived') {
+                _showOTPDialog(context, ref, booking);
+              } else {
+                String nextStatus = '';
+                if (booking.status == 'accepted') nextStatus = 'on_the_way';
+                else if (booking.status == 'on_the_way') nextStatus = 'arrived';
+                else if (booking.status == 'ongoing') nextStatus = 'completed';
+                
+                if (nextStatus == 'completed') {
+                  _showCompleteTripDialog(context, ref, booking);
+                } else if (nextStatus.isNotEmpty) {
+                  ref.read(bookingProvider.notifier).updateStatus(booking.id, nextStatus);
+                }
               }
             },
             style: ElevatedButton.styleFrom(
@@ -340,10 +339,66 @@ class BookingDetailScreen extends ConsumerWidget {
     switch (status) {
       case 'accepted': return 'ON THE WAY';
       case 'on_the_way': return 'I HAVE ARRIVED';
-      case 'arrived': return 'START TRIP';
-      case 'started': return 'COMPLETE TRIP';
+      case 'arrived': return 'VERIFY OTP';
+      case 'ongoing': return 'COMPLETE TRIP';
       default: return 'CONTINUE';
     }
+  }
+
+  void _showOTPDialog(BuildContext context, WidgetRef ref, BookingModel booking) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.darkSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Verify User OTP', style: TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter the 4-digit code provided by the passenger:', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 13)),
+            const SizedBox(height: 20),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.neonGreen, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 20),
+              decoration: InputDecoration(
+                counterText: '',
+                fillColor: AppTheme.darkBg,
+                filled: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.neonGreen)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: AppTheme.darkTextSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await ref.read(bookingProvider.notifier).verifyOtp(booking.id, controller.text);
+                if (context.mounted) Navigator.pop(context);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Invalid OTP. Please try again.'), backgroundColor: AppTheme.offlineRed),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: AppTheme.darkBg),
+            child: const Text('VERIFY & START'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCompleteTripDialog(BuildContext context, WidgetRef ref, BookingModel booking) {
@@ -352,7 +407,8 @@ class BookingDetailScreen extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.darkSurface,
-        title: const Text('Complete Trip', style: TextStyle(color: AppTheme.darkTextPrimary)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Complete Trip', style: TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,10 +418,10 @@ class BookingDetailScreen extends ConsumerWidget {
             TextField(
               controller: controller,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppTheme.neonGreen),
+              style: const TextStyle(color: AppTheme.neonGreen, fontSize: 24, fontWeight: FontWeight.bold),
               decoration: const InputDecoration(
                 prefixText: '₹ ',
-                prefixStyle: TextStyle(color: AppTheme.neonGreen),
+                prefixStyle: TextStyle(color: AppTheme.neonGreen, fontSize: 24),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.darkDivider)),
                 focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.neonGreen)),
               ),

@@ -4,8 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
-import 'dart:ui_web' as ui;
-import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 import '../providers/app_providers.dart';
 import 'home_screen.dart';

@@ -72,7 +72,7 @@ class _NameInputScreenState extends ConsumerState<NameInputScreen>
 
       if (mounted) {
         // Refresh the user profile provider so header updates
-        ref.read(userProfileProvider.notifier).refresh();
+        ref.read(fullUserProfileProvider.notifier).refresh();
 
         _showSnackBar('Welcome, $name! 🎉', isSuccess: true);
 

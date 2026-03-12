@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/chat_provider.dart';
+import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
 import '../core/theme.dart';
 
@@ -26,9 +27,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userId = ref.read(authServiceProvider).currentUser?.uid;
-      if (userId != null) {
+      final userProfile = ref.read(fullUserProfileProvider).value;
+      final userId = userProfile?.id; // This is the MongoDB _id
+      
+      if (userId != null && userId.isNotEmpty) {
         ref.read(chatProvider.notifier).initChat(widget.receiverId, userId);
+      } else {
+        // Fallback to Firebase UID
+        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+        if (firebaseId != null) {
+          ref.read(chatProvider.notifier).initChat(widget.receiverId, firebaseId);
+        }
       }
     });
   }

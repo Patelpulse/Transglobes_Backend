@@ -81,7 +81,8 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
     _currentReceiverId = receiverId;
     final socketService = ref.read(socketServiceProvider);
     
-    socketService.connect(userId);
+    final userName = ref.read(userProfileProvider).value;
+    socketService.connect(userId, name: userName);
     socketService.fetchHistory(userId, receiverId);
 
     _messageSubscription?.cancel();
@@ -122,14 +123,20 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
 
   void sendMessage(String text) {
     if (_currentReceiverId == null) return;
-    final userId = ref.read(authServiceProvider).currentUser?.uid;
-    if (userId == null) return;
+    
+    final userProfile = ref.read(fullUserProfileProvider).value;
+    final userId = userProfile?.id; // This is the MongoDB _id
+    final userName = userProfile?.name ?? 'User';
+    
+    // Fallback to Firebase if MongoDB ID is missing
+    final effectiveUserId = (userId != null && userId.isNotEmpty) 
+        ? userId 
+        : ref.read(authServiceProvider).currentUser?.uid;
 
-    // Try to get user name from userProfileProvider
-    final userName = ref.read(userProfileProvider).value ?? 'User';
+    if (effectiveUserId == null) return;
 
     ref.read(socketServiceProvider).sendMessage(
-      userId,
+      effectiveUserId,
       _currentReceiverId!,
       text,
       senderName: userName,
@@ -141,7 +148,7 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
       text: text,
       isUser: true,
       time: DateTime.now(),
-      senderId: userId,
+      senderId: effectiveUserId,
       receiverId: _currentReceiverId,
     );
     state = [...state, msg];

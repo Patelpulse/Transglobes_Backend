@@ -20,6 +20,7 @@ class BookingModel {
   final double? dropLat;
   final double? dropLng;
   final String? userId;
+  final double? actualFare;
 
   const BookingModel({
     required this.id,

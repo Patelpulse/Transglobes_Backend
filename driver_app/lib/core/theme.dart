@@ -156,31 +156,32 @@ class AppTheme {
         onBackground: darkTextPrimary,
       ),
       scaffoldBackgroundColor: darkBg,
-      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme).copyWith(
-        displayLarge: GoogleFonts.inter(
+      textTheme: GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme).copyWith(
+        displayLarge: GoogleFonts.lexend(
           fontSize: 32,
           fontWeight: FontWeight.bold,
           color: darkTextPrimary,
         ),
-        headlineLarge: GoogleFonts.inter(
+        headlineLarge: GoogleFonts.lexend(
           fontSize: 24,
           fontWeight: FontWeight.w600,
           color: darkTextPrimary,
         ),
-        headlineMedium: GoogleFonts.inter(
+        headlineMedium: GoogleFonts.lexend(
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: darkTextPrimary,
         ),
-        titleLarge: GoogleFonts.inter(
+        titleLarge: GoogleFonts.lexend(
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: darkTextPrimary,
         ),
-        bodyLarge: GoogleFonts.inter(fontSize: 16, color: darkTextPrimary),
-        bodyMedium: GoogleFonts.inter(fontSize: 14, color: darkTextSecondary),
-        bodySmall: GoogleFonts.inter(fontSize: 12, color: darkTextSecondary),
+        bodyLarge: GoogleFonts.notoSans(fontSize: 16, color: darkTextPrimary),
+        bodyMedium: GoogleFonts.notoSans(fontSize: 14, color: darkTextSecondary),
+        bodySmall: GoogleFonts.notoSans(fontSize: 12, color: darkTextSecondary),
       ),
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: neonGreen,

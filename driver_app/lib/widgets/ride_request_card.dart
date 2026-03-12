@@ -4,7 +4,7 @@ import '../core/theme.dart';
 import '../providers/vehicle_type_provider.dart';
 
 class RideRequestCard extends ConsumerStatefulWidget {
-  final VoidCallback? onAccept;
+  final Function(double)? onAccept;
   final VoidCallback? onDecline;
   final String? adminId;
   final String? adminName;
@@ -228,28 +228,41 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
               const SizedBox(height: 14),
 
               // Distance + Time chips
-              Row(
-                children: [
-                   _buildChip(Icons.route, widget.rideData?['distance'] ?? '0 km', vehicleType.accentColor),
-                  const SizedBox(width: 8),
-                  _buildChip(Icons.access_time, 'Live', AppTheme.darkTextSecondary),
-                  const SizedBox(width: 8),
-                  _buildChip(Icons.person, widget.rideData?['userName'] ?? 'User', AppTheme.earningsAmber),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildChip(Icons.route, widget.rideData?['distance'] ?? '0 km', vehicleType.accentColor),
+                    const SizedBox(width: 8),
+                    _buildChip(Icons.access_time, 'Live', AppTheme.darkTextSecondary),
+                    const SizedBox(width: 8),
+                    _buildChip(Icons.person, widget.rideData?['userName'] ?? 'User', AppTheme.earningsAmber),
+                    const SizedBox(width: 8),
+                    _buildChip(Icons.phone, widget.rideData?['phone'] ?? '', Colors.blue),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
 
               // Negotiation Info
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    const Text('Negotiate Fare:', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 12),
-                    _negotiationButton(10),
-                    const SizedBox(width: 8),
-                    _negotiationButton(20),
-                  ],
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      const Text('Negotiate Fare:', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 12),
+                      _negotiationButton(10),
+                      const SizedBox(width: 8),
+                      _negotiationButton(20),
+                      const SizedBox(width: 8),
+                      _negotiationButton(50),
+                      const SizedBox(width: 8),
+                      _negotiationButton(100),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -282,7 +295,8 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                     child: ElevatedButton(
                       onPressed: () {
                         if (widget.onAccept != null) {
-                          widget.onAccept!();
+                          final baseFare = (widget.rideData?['fare'] as num?)?.toDouble() ?? 0.0;
+                          widget.onAccept!(baseFare + _additionalFare);
                         }
                       },
                       style: ElevatedButton.styleFrom(

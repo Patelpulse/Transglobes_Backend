@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // Added Riverpod
 import 'package:flutter_map/flutter_map.dart';
@@ -10,6 +11,8 @@ import '../services/location_service.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/socket_service.dart';
+import '../providers/user_provider.dart';
+import 'searching_ride_screen.dart';
 
 class RideBookingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -36,6 +39,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   double _routeDistance = 0.0;
   double _routeDurationMin = 0.0;
   StreamSubscription? _socketSubscription;
+  StreamSubscription? _connectionSub;
   String? _currentRideId;
   String? _currentOtp;
 
@@ -65,10 +69,34 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
       });
       
       // Connect socket
-      final userId = ref.read(authServiceProvider).currentUser?.uid;
-      if (userId != null) {
-        ref.read(socketServiceProvider).connect(userId);
+      final socketService = ref.read(socketServiceProvider);
+      final userProfile = ref.read(fullUserProfileProvider).value;
+      final userId = userProfile?.id; // This is the MongoDB _id
+      final userName = userProfile?.name;
+      
+      if (userId != null && userId.isNotEmpty) {
+        socketService.connect(userId, name: userName);
+      } else {
+        // Fallback to Firebase UID if MongoDB ID is not available yet
+        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+        if (firebaseId != null) {
+          socketService.connect(firebaseId, name: userName);
+        }
       }
+
+      _connectionSub?.cancel();
+      _connectionSub = socketService.connectionSuccessStream.listen((data) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? 'Connected successfully!'),
+              backgroundColor: Colors.blueAccent,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      });
     });
   }
 
@@ -97,19 +125,34 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   void _fitBounds() {
     if (_routePoints.isEmpty) return;
 
-    final bounds = LatLngBounds.fromPoints(_routePoints);
+    try {
+      // Validate points before creating bounds to prevent crash if coordinates are invalid
+      final validPoints = _routePoints.where((p) => 
+        p.latitude >= -90 && p.latitude <= 90 && 
+        p.longitude >= -180 && p.longitude <= 180
+      ).toList();
 
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.only(
-          top: 60,
-          bottom: 300, // Balanced padding to allow more zoom while clearing UI
-          left: 30,
-          right: 30,
+      if (validPoints.length < 2) {
+        debugPrint("Not enough valid points to fit bounds");
+        return;
+      }
+
+      final bounds = LatLngBounds.fromPoints(validPoints);
+
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.only(
+            top: 60,
+            bottom: 300, 
+            left: 30,
+            right: 30,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint("Could not fit bounds: $e");
+    }
   }
 
   List<Map<String, dynamic>> get _vehicles {
@@ -244,7 +287,27 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
           setState(() {
             _currentRideId = response['data']['_id'];
             _currentOtp = response['data']['otp']?.toString();
+            _isSearching = false;
           });
+
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SearchingRideScreen(
+                  pickup: widget.pickup,
+                  dropoff: widget.dropoff,
+                  distance: '${_routeDistance.toStringAsFixed(1)} km',
+                  rideMode: _selectedVehicleData['name'],
+                  price: "₹${_selectedVehicleData['price']}",
+                  otp: _currentOtp,
+                  rideId: _currentRideId!,
+                  vehicle: _selectedVehicleData,
+                ),
+              ),
+            );
+          }
+
         } else {
           setState(() => _isSearching = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -265,18 +328,26 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   void _handleRideAccepted(dynamic data) {
     print("User App Received Acceptance: $data");
     if (mounted && data['rideId'] == _currentRideId) {
-      _completeBooking(data['rideId'], driverData: data['driver'], otp: _currentOtp);
+      final negotiatedFare = data['fare'];
+      Map<String, dynamic> finalVehicle = _selectedVehicleData;
+      
+      if (negotiatedFare != null) {
+        finalVehicle = Map<String, dynamic>.from(_selectedVehicleData);
+        finalVehicle['price'] = negotiatedFare;
+      }
+
+      _completeBooking(data['rideId'], driverData: data['driver'], otp: _currentOtp, vehicleOverride: finalVehicle);
     }
   }
 
-  void _completeBooking(String rideId, {Map<String, dynamic>? driverData, String? otp}) {
+  void _completeBooking(String rideId, {Map<String, dynamic>? driverData, String? otp, Map<String, dynamic>? vehicleOverride}) {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => RideTrackingScreen(
           pickup: widget.pickup,
           dropoff: widget.dropoff,
-          vehicle: _selectedVehicleData,
+          vehicle: vehicleOverride ?? _selectedVehicleData,
           rideId: rideId,
           otp: otp,
           driverData: driverData,
@@ -288,6 +359,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   @override
   void dispose() {
     _socketSubscription?.cancel();
+    _connectionSub?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -650,7 +722,8 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                     ),
                   ),
                 ),
-                if (_isSearching) _buildSearchingOverlay(),
+                // Removed the embedded _buildSearchingOverlay since we now push a separate page
+
               ],
             ),
           ),
@@ -708,76 +781,6 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
     );
   }
 
-  Widget _buildSearchingOverlay() {
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black.withOpacity(0.8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: context.theme.primaryColor),
-            const SizedBox(height: 24),
-            const Text(
-              "Searching for nearby drivers...",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Estimated wait time: ${_selectedVehicleData['eta']}",
-              style: const TextStyle(color: Colors.grey),
-            ),
-            if (_currentOtp != null) ...[
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      "Share this OTP with driver",
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _currentOtp!,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 40),
-            TextButton(
-              onPressed: () => setState(() => _isSearching = false),
-              child: const Text(
-                "CANCEL",
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
   void _showPaymentPicker() {
     showModalBottomSheet(
       context: context,

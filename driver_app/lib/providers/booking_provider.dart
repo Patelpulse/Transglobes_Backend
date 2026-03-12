@@ -50,7 +50,20 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
 
   // Convenience helpers
   void acceptBooking(String id) => updateStatus(id, 'accepted');
-  void rejectBooking(String id) => updateStatus(id, 'cancelled');
+  
+  void rejectBooking(String id) async {
+    // Call backend to reject
+    try {
+      final service = ref.read(driverServiceProvider);
+      await service.rejectRide(id);
+    } catch (e) {
+      print('❗️ Error rejecting ride: $e');
+    }
+    
+    // Remove from local state so it disappears immediately
+    state = state.where((b) => b.id != id).toList();
+  }
+
   void startTrip(String id) => updateStatus(id, 'ongoing');
   void completeTrip(String id, double fare) =>
       updateStatus(id, 'completed', actualFare: fare);
@@ -96,4 +109,9 @@ final activeBookingsProvider = Provider<List<BookingModel>>((ref) {
 final historyBookingsProvider = Provider<List<BookingModel>>((ref) {
   return ref.watch(bookingProvider).where((b) =>
       ['completed', 'cancelled'].contains(b.status)).toList();
+});
+
+final currentActiveBookingProvider = Provider<BookingModel?>((ref) {
+  final active = ref.watch(activeBookingsProvider);
+  return active.isNotEmpty ? active.first : null;
 });

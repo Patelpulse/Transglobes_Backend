@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../core/theme.dart';
-import '../../models/booking_model.dart';
-import '../../providers/booking_provider.dart';
-import '../../services/driver_service.dart';
-import '../chat/chat_screen.dart';
-import 'booking_detail_screen.dart';
-import 'active_ride_screen.dart';
+import 'package:driver_app/core/theme.dart';
+import 'package:driver_app/models/booking_model.dart';
+import 'package:driver_app/providers/booking_provider.dart';
+import 'package:driver_app/services/driver_service.dart';
+import 'package:driver_app/screens/chat/chat_screen.dart';
+import 'package:driver_app/screens/booking/booking_detail_screen.dart';
+import 'package:driver_app/screens/booking/active_ride_screen.dart';
 
 class BookingsScreen extends ConsumerStatefulWidget {
   const BookingsScreen({super.key});
@@ -159,14 +159,20 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
               const SizedBox(height: 14),
               _RouteRow(b.pickupAddress, b.dropAddress),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  _InfoChip(Icons.route, '${b.distanceKm} km'),
-                  const SizedBox(width: 8),
-                  _InfoChip(Icons.access_time, '${b.etaMinutes} min'),
-                  const SizedBox(width: 8),
-                  _InfoChip(Icons.person, b.userName),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _InfoChip(Icons.route, '${b.distanceKm} km'),
+                    const SizedBox(width: 8),
+                    _InfoChip(Icons.access_time, '${b.etaMinutes} min'),
+                    const SizedBox(width: 8),
+                    _InfoChip(Icons.person, b.userName),
+                    const SizedBox(width: 8),
+                    _InfoChip(Icons.phone, b.userPhone),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               Row(
@@ -191,7 +197,7 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ChatScreen(
+                              builder: (_) => ChatScreen(
                                 receiverId: b.userId ?? '',
                                 receiverName: b.userName,
                                 driverId: driverProfile.id,
@@ -247,83 +253,74 @@ class _ActiveBookingCard extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          // OTP card
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: AppTheme.darkSurface, borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              children: [
-                const Icon(Icons.lock, color: AppTheme.earningsAmber, size: 18),
-                const SizedBox(width: 8),
-                const Text('Trip OTP:', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 13)),
-                const SizedBox(width: 8),
-                Text(b.otp ?? '----', style: const TextStyle(color: AppTheme.earningsAmber, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 4)),
-                const Spacer(),
-                Text('₹${b.fare.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.earningsAmber, fontSize: 16, fontWeight: FontWeight.w800)),
-              ],
-            ),
-          ),
           const SizedBox(height: 12),
+
           _RouteRow(b.pickupAddress, b.dropAddress),
           const SizedBox(height: 14),
           // Progress steps
           _buildProgressBar(statusIdx),
           const SizedBox(height: 14),
           // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      final driverProfile = ref.read(driverProfileProvider).value;
-                      if (driverProfile == null) return;
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatScreen(
-                            receiverId: b.userId ?? '',
-                            receiverName: b.userName,
-                            driverId: driverProfile.id,
-                          ),
-                        ),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(foregroundColor: AppTheme.neonGreen, side: BorderSide(color: AppTheme.neonGreen.withValues(alpha: 0.4)), padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                    label: const Text('Chat', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openMap(b),
-                    style: OutlinedButton.styleFrom(foregroundColor: AppTheme.cabBlue, side: BorderSide(color: AppTheme.cabBlue.withValues(alpha: 0.4)), padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                    icon: const Icon(Icons.navigation, size: 18),
-                    label: const Text('Navigate', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (b.status == 'arrived') {
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        final driverProfile = ref.read(driverProfileProvider).value;
+                        if (driverProfile == null) return;
+            
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ActiveRideScreen(booking: b),
+                            builder: (_) => ChatScreen(
+                              receiverId: b.userId ?? '',
+                              receiverName: b.userName,
+                              driverId: driverProfile.id,
+                            ),
                           ),
                         );
-                      } else {
-                        _advanceStatus(ref, b);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0),
-                    child: Text(_nextAction(b.status), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      },
+                      style: OutlinedButton.styleFrom(foregroundColor: AppTheme.neonGreen, side: BorderSide(color: AppTheme.neonGreen.withValues(alpha: 0.4)), padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                      label: const Text('Chat', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 110,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openMap(b),
+                      style: OutlinedButton.styleFrom(foregroundColor: AppTheme.cabBlue, side: BorderSide(color: AppTheme.cabBlue.withValues(alpha: 0.4)), padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                      icon: const Icon(Icons.navigation, size: 18),
+                      label: const Text('Nav', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 110,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (b.status == 'arrived') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ActiveRideScreen(booking: b),
+                            ),
+                          );
+                        } else {
+                          _advanceStatus(ref, b);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0),
+                      child: Text(_nextAction(b.status), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),

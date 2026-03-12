@@ -92,7 +92,8 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
     _currentReceiverId = receiverId;
     final socketService = ref.read(socketServiceProvider);
     
-    socketService.connect(driverId);
+    final driverName = ref.read(driverProfileProvider).value?.name;
+    socketService.connect(driverId, name: driverName);
     socketService.fetchHistory(driverId, receiverId);
 
     _messageSubscription?.cancel();

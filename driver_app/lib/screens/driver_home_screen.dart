@@ -5,7 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:driver_app/core/theme.dart';
-import 'package:driver_app/core/app_router.dart';
 import 'package:driver_app/services/driver_service.dart';
 import 'package:driver_app/models/booking_model.dart';
 
@@ -15,9 +14,7 @@ import 'package:driver_app/widgets/earnings_dashboard.dart';
 import 'package:driver_app/widgets/ride_request_card.dart';
 
 import 'package:driver_app/widgets/status_chip.dart';
-import 'package:driver_app/widgets/delay_reason_sheet.dart';
 import 'package:driver_app/screens/booking/booking_detail_screen.dart';
-import 'package:driver_app/screens/chat/chat_screen.dart';
 import 'package:driver_app/services/socket_service.dart';
 import 'package:driver_app/providers/booking_provider.dart';
 import 'package:flutter/foundation.dart';
@@ -77,6 +74,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   late Animation<double> _bannerFade;
   StreamSubscription? _newRideSub;
   StreamSubscription? _rideAssignedSub;
+  StreamSubscription? _connectionSub;
+  StreamSubscription<Position>? _positionSub;
 
   @override
   void initState() {
@@ -120,8 +119,22 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       final driverProfile = ref.read(driverProfileProvider).value;
       
       if (driverProfile != null) {
-        socketService.connect(driverProfile.id);
+        socketService.connect(driverProfile.id, name: driverProfile.name);
       }
+
+      _connectionSub?.cancel();
+      _connectionSub = socketService.connectionSuccessStream.listen((data) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? 'Connected successfully!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      });
 
       _newRideSub?.cancel();
       _newRideSub = socketService.newRideStream.listen((data) {
@@ -158,6 +171,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
              pickupLng: (data['pickupLng'] as num?)?.toDouble(),
              dropLat: (data['dropLat'] as num?)?.toDouble(),
              dropLng: (data['dropLng'] as num?)?.toDouble(),
+             userId: data['userId']?.toString(),
            );
 
            ref.read(bookingProvider.notifier).addBooking(newBooking);
@@ -180,10 +194,12 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   void dispose() {
     _newRideSub?.cancel();
     _rideAssignedSub?.cancel();
+    _connectionSub?.cancel();
     _mapController.dispose();
     _pulseController.dispose();
     _glowController.dispose();
     _onlineBannerController.dispose();
+    _positionSub?.cancel();
     super.dispose();
   }
 
@@ -207,6 +223,38 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+    _startPositionUpdates();
+  }
+
+  void _startPositionUpdates() {
+    _positionSub?.cancel();
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((position) {
+      if (mounted) {
+        setState(() => _currentPosition = position);
+        
+        // Update user app via socket if there's an active booking
+        final status = ref.read(driverStatusProvider);
+        if (status != DriverStatus.offline) {
+          final activeBooking = ref.read(currentActiveBookingProvider);
+          final driverProfile = ref.read(driverProfileProvider).value;
+          
+          if (activeBooking != null && driverProfile != null) {
+            ref.read(socketServiceProvider).updateLocation(
+              rideId: activeBooking.id,
+              userId: driverProfile.id,
+              latitude: position.latitude,
+              longitude: position.longitude,
+              heading: position.heading,
+            );
+          }
+        }
+      }
+    });
   }
 
   Future<void> _toggleOnlineStatus() async {
@@ -419,7 +467,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
                   rideData: ref.watch(currentRideRequestProvider),
                   adminId: '69a022ae5b6a588bae493d9d', // Default Admin Gaurav
                   adminName: 'Gaurav (Admin)',
-                  onAccept: () async {
+                  onAccept: (fare) async {
                     final driverProfile = ref.read(driverProfileProvider).value;
                     if (driverProfile == null) return;
 
@@ -427,7 +475,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
                     if (rideData != null) {
                       try {
                         // Call backend to accept the ride
-                        await ref.read(driverServiceProvider).acceptRide(rideData['id']);
+                        await ref.read(driverServiceProvider).acceptRide(rideData['id'], fare: fare);
                         // Update local state
                         ref.read(bookingProvider.notifier).acceptBooking(rideData['id']);
                         

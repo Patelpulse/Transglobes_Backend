@@ -42,10 +42,18 @@ router.get('/details', (req, res) => {
 });
 
 router.get('/geocode', (req, res) => {
-    const { latlng, key } = req.query;
-    if (!latlng || !key) return res.status(400).json({ error: 'Missing latlng or key' });
+    const { latlng, address, key } = req.query;
+    if (!key) return res.status(400).json({ error: 'Missing key' });
+    if (!latlng && !address) return res.status(400).json({ error: 'Missing latlng or address' });
 
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latlng}&key=${key}`;
+    let url;
+    if (address) {
+        // Forward geocoding (address -> coordinates)
+        url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}`;
+    } else {
+        // Reverse geocoding (coordinates -> address)
+        url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latlng}&key=${key}`;
+    }
     proxyRequest(url, res);
 });
 
@@ -53,7 +61,7 @@ router.get('/directions', (req, res) => {
     const { origin, destination, key } = req.query;
     if (!origin || !destination || !key) return res.status(400).json({ error: 'Missing origin, destination, or key' });
 
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&key=${key}`;
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&key=${key}`;
     proxyRequest(url, res);
 });
 
