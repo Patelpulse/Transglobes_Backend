@@ -22,7 +22,7 @@ class LogisticsProvider with ChangeNotifier {
   ];
   bool _isLoading = false;
   
-  static const String googleApiKey = 'AIzaSyAJZ0z6ayXWTRsQzslL21I6CtYgW2X3sfQ';
+  static const String googleApiKey = 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I';
   
   // Web needs backend proxy to avoid CORS. Android/iOS can call Google directly.
   static String get _geocodeBaseUrl {

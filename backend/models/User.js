@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema({
     isFraudulent: {
         type: Boolean,
         default: false
+    },
+    fcmToken: {
+        type: String,
+        default: ''
     }
 }, { timestamps: true });
 

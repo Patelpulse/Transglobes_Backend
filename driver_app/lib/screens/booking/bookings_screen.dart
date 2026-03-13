@@ -420,20 +420,52 @@ class _HistoryBookingCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppTheme.darkCard, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppTheme.darkDivider.withValues(alpha: 0.4))),
+      decoration: BoxDecoration(
+        color: AppTheme.darkCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.darkDivider.withValues(alpha: 0.4)),
+      ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: isCompleted ? AppTheme.neonGreen.withValues(alpha: 0.1) : AppTheme.offlineRed.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
-            child: Icon(isCompleted ? Icons.check_circle : Icons.cancel, color: isCompleted ? AppTheme.neonGreen : AppTheme.offlineRed, size: 24),
+            decoration: BoxDecoration(
+              color: isCompleted ? AppTheme.neonGreen.withValues(alpha: 0.1) : AppTheme.offlineRed.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              isCompleted ? Icons.check_circle : Icons.cancel,
+              color: isCompleted ? AppTheme.neonGreen : AppTheme.offlineRed,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(b.userName, style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
+                Row(
+                  children: [
+                    Text(b.userName, style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (isCompleted ? AppTheme.neonGreen : AppTheme.offlineRed).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        b.status.toUpperCase(),
+                        style: TextStyle(
+                          color: isCompleted ? AppTheme.neonGreen : AppTheme.offlineRed,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text('${b.pickupAddress.split(',').first} → ${b.dropAddress.split(',').first}', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),

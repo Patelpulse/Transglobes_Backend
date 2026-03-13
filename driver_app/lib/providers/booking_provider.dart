@@ -50,18 +50,19 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
 
   // Convenience helpers
   void acceptBooking(String id) => updateStatus(id, 'accepted');
-  
+
   void rejectBooking(String id) async {
-    // Call backend to reject
+    // Optimistic UI: Mark as rejected locally so it moves to history tab
+    state = state
+        .map((b) => b.id == id ? b.copyWith(status: 'rejected') : b)
+        .toList();
+
     try {
       final service = ref.read(driverServiceProvider);
       await service.rejectRide(id);
     } catch (e) {
       print('❗️ Error rejecting ride: $e');
     }
-    
-    // Remove from local state so it disappears immediately
-    state = state.where((b) => b.id != id).toList();
   }
 
   void startTrip(String id) => updateStatus(id, 'ongoing');
@@ -74,6 +75,12 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
   void addBooking(BookingModel booking) {
     if (state.any((b) => b.id == booking.id)) return;
     state = [booking, ...state];
+  }
+
+  void updateBookingFare(String id, double newFare) {
+    state = state
+        .map((b) => b.id == id ? b.copyWith(fare: newFare) : b)
+        .toList();
   }
 
   Future<void> verifyOtp(String id, String otp) async {
@@ -108,7 +115,7 @@ final activeBookingsProvider = Provider<List<BookingModel>>((ref) {
 
 final historyBookingsProvider = Provider<List<BookingModel>>((ref) {
   return ref.watch(bookingProvider).where((b) =>
-      ['completed', 'cancelled'].contains(b.status)).toList();
+      ['completed', 'cancelled', 'rejected'].contains(b.status)).toList();
 });
 
 final currentActiveBookingProvider = Provider<BookingModel?>((ref) {

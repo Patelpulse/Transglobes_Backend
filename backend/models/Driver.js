@@ -104,6 +104,14 @@ const driverSchema = new mongoose.Schema({
     },
     lastWarningDate: {
         type: Date
+    },
+    fcmToken: {
+        type: String,
+        default: ''
+    },
+    isOnline: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });
 

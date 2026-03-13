@@ -1,6 +1,7 @@
 const RideType = require("../models/RideType");
 const History = require("../models/History");
 const User = require("../models/User"); // used for populating name
+const { notifyAllDrivers } = require('../utils/notificationService');
 
 exports.getRideTypes = async (req, res) => {
     try {
@@ -28,37 +29,52 @@ exports.getDriverBookings = async (req, res) => {
         }
 
 
-        // Find all rides that are not cancelled and not rejected by me
-        const query = {
-            status: { $ne: 'cancelled' }
-        };
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        if (currentDriver) {
-            query.rejectedBy = { $ne: currentDriver._id };
-        }
+        // Global filter: Only show rides from the last 24 hours
+        // to keep the UI clean from old/stuck requests.
+        const query = {
+            createdAt: { $gte: oneDayAgo },
+            $or: [
+                { driverId: currentDriver?._id },
+                { "driverSnapshot.driver_id": currentDriver?._id },
+                { rejectedBy: currentDriver?._id },
+                {
+                    status: 'pending',
+                    rejectedBy: { $ne: currentDriver?._id }
+                }
+            ]
+        };
 
         const bookings = await History.find(query).populate('userId', 'name').sort({ createdAt: -1 });
 
         res.json({
             success: true,
-            bookings: bookings.map(b => ({
-                _id: b._id,
-                userName: b.userId?.name || 'Customer',
-                userPhone: b.mobileNumber,
-                pickupAddress: b.locations[0]?.address || '',
-                dropAddress: b.locations[1]?.address || '',
-                fare: b.fare,
-                distanceKm: parseFloat(b.distance) || 0,
-                status: b.status,
-                otp: b.otp,
-                rideMode: b.rideMode,
-                createdAt: b.createdAt,
-                userId: b.userId?._id || b.userId,
-                pickupLat: b.locations[0]?.latitude,
-                pickupLng: b.locations[0]?.longitude,
-                dropLat: b.locations[1]?.latitude,
-                dropLng: b.locations[1]?.longitude,
-            }))
+            bookings: bookings.map(b => {
+                let displayStatus = b.status;
+                // If I rejected it, show as 'rejected' for my personal history list
+                if (currentDriver && b.rejectedBy && b.rejectedBy.includes(currentDriver._id)) {
+                    displayStatus = 'rejected';
+                }
+
+                return {
+                    _id: b._id,
+                    userName: b.userId?.name || 'Customer',
+                    userPhone: b.mobileNumber,
+                    pickupAddress: b.locations[0]?.address || '',
+                    dropAddress: b.locations[1]?.address || '',
+                    fare: b.fare,
+                    distanceKm: parseFloat(b.distance) || 0,
+                    status: displayStatus,
+                    rideMode: b.rideMode,
+                    createdAt: b.createdAt,
+                    userId: b.userId?._id || b.userId,
+                    pickupLat: b.locations[0]?.latitude,
+                    pickupLng: b.locations[0]?.longitude,
+                    dropLat: b.locations[1]?.latitude,
+                    dropLng: b.locations[1]?.longitude,
+                };
+            })
         });
 
     } catch (error) {
@@ -177,7 +193,7 @@ exports.createRideRequest = async (req, res) => {
         // Notify all drivers via Socket.io
         if (req.io) {
             req.io.emit("new_ride", {
-                id: newRide._id,
+                id: newRide._id.toString(),
                 userName: user.name || 'Customer',
                 phone: user.mobileNumber,
                 pick: newRide.locations[0]?.address || '',
@@ -191,11 +207,20 @@ exports.createRideRequest = async (req, res) => {
                 paymentMode: newRide.paymentMode,
                 rideMode: newRide.rideMode,
                 status: newRide.status,
-                otp: newRide.otp,
-                userId: newRide.userId
+                userId: newRide.userId?.toString()
             });
             console.log(`Socket emitted: new_ride for ${newRide._id}`);
         }
+
+        // Push Notification to all online drivers
+        notifyAllDrivers({
+            title: "New Ride Request",
+            body: `New ${rideMode} ride available. Fare: ₹${fare}`,
+            data: {
+                rideId: newRide._id.toString(),
+                type: 'NEW_RIDE'
+            }
+        });
 
     } catch (error) {
         res.status(500).json({
@@ -287,18 +312,19 @@ exports.assignRide = async (req, res) => {
             const mongoose = require('mongoose');
             let driver;
             if (mongoose.Types.ObjectId.isValid(driverId)) {
-                driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate _id');
+                driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
             } else {
-                driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate _id');
+                driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
             }
             if (driver) {
                 ride.driverId = driver._id;
                 ride.driverSnapshot = {
-                    driver_id: driver._id,
-                    name: driver.name,
-                    phone: driver.mobileNumber,
-                    vichle_number: driver.vehicleNumberPlate || '',
-                    vehicle_name: driver.vehicleModel || ''
+                    driver_id: driver._id.toString(),
+                    name: driver.name || 'Driver',
+                    phone: driver.mobileNumber || '',
+                    vehicle_number: driver.vehicleNumberPlate || 'N/A',
+                    vehicle_name: driver.vehicleModel || 'Vehicle',
+                    photo: driver.photo || ''
                 };
             }
         }
@@ -306,15 +332,26 @@ exports.assignRide = async (req, res) => {
         await ride.save();
 
         if (req.io) {
-            req.io.to(ride.userId.toString()).emit("ride_accepted", {
-                rideId: ride._id,
+            // Emit to user's personal room AND the specific ride room
+            req.io.to(ride.userId.toString()).to(ride._id.toString()).emit("ride_accepted", {
+                rideId: ride._id.toString(),
                 status: ride.status,
                 driver: ride.driverSnapshot,
                 fare: ride.fare
             });
             // Also notify other drivers that this ride is taken
-            req.io.emit("ride_assigned", { rideId: ride._id });
+            req.io.emit("ride_assigned", { rideId: ride._id.toString() });
         }
+
+        const { notifyUser } = require('../utils/notificationService');
+        notifyUser(ride.userId, {
+            title: "Ride Accepted",
+            body: `Your ride has been accepted by ${ride.driverSnapshot?.name || 'a driver'}.`,
+            data: {
+                rideId: ride._id.toString(),
+                type: 'RIDE_ACCEPTED'
+            }
+        });
 
         res.json({ success: true, ride });
     } catch (err) {
@@ -376,18 +413,19 @@ exports.updateRideStatus = async (req, res) => {
             const mongoose = require('mongoose');
             let driver;
             if (mongoose.Types.ObjectId.isValid(driverId)) {
-                driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate _id');
+                driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
             } else {
-                driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate _id');
+                driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
             }
             if (driver) {
                 ride.driverId = driver._id;              // ensure link
                 ride.driverSnapshot = {
-                    driver_id: driver._id,
-                    name: driver.name,
-                    phone: driver.mobileNumber,
-                    vichle_number: driver.vehicleNumberPlate || '',
-                    vehicle_name: driver.vehicleModel || ''
+                    driver_id: driver._id.toString(),
+                    name: driver.name || 'Driver',
+                    phone: driver.mobileNumber || '',
+                    vehicle_number: driver.vehicleNumberPlate || 'N/A',
+                    vehicle_name: driver.vehicleModel || 'Vehicle',
+                    photo: driver.photo || ''
                 };
             }
         }
@@ -395,8 +433,9 @@ exports.updateRideStatus = async (req, res) => {
         await ride.save();
 
         if (req.io) {
-            req.io.to(ride.userId.toString()).emit("ride_status_update", {
-                rideId: ride._id,
+            // Emit to user's personal room AND the specific ride room
+            req.io.to(ride.userId.toString()).to(ride._id.toString()).emit("ride_status_update", {
+                rideId: ride._id.toString(),
                 status: ride.status,
                 driver: ride.driverSnapshot
             });
@@ -415,26 +454,63 @@ exports.verifyRideOtp = async (req, res) => {
 
         const ride = await History.findById(rideId);
         if (!ride) {
-            return res.status(404).json({ success: false, message: 'Ride not found' });
+            return res.status(404).json({ success: false, message: "Ride not found" });
         }
 
-        if (String(ride.otp) !== String(otp)) {
-            return res.status(400).json({ success: false, message: 'Invalid OTP' });
+        if (ride.otp !== otp) {
+            return res.status(400).json({ success: false, message: "Invalid OTP" });
         }
 
-        ride.status = 'ongoing';
+        ride.status = "ongoing";
         await ride.save();
 
+        res.json({ success: true, message: "OTP verified correctly. Ride started." });
+
+        // Socket notification to user
         if (req.io) {
-            req.io.to(ride.userId.toString()).emit("ride_status_update", {
+            req.io.to(ride.userId.toString()).to(ride._id.toString()).emit("ride_status_update", {
+                rideId: ride._id.toString(),
+                status: "ongoing"
+            });
+        }
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.updateFare = async (req, res) => {
+    try {
+        const { rideId, extraFare } = req.body;
+        const ride = await History.findById(rideId);
+        if (!ride) {
+            return res.status(404).json({ success: false, message: "Ride not found" });
+        }
+
+        ride.fare += extraFare;
+        await ride.save();
+
+        res.json({ success: true, message: "Fare updated", fare: ride.fare });
+
+        // Emit socket event to drivers
+        if (req.io) {
+            req.io.emit("fare_updated", {
                 rideId: ride._id,
-                status: ride.status,
-                driver: ride.driverSnapshot
+                newFare: ride.fare
             });
         }
 
-        res.json({ success: true, message: 'Ride started successfully', ride });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        // Push notification to drivers
+        const { notifyAllDrivers } = require('../utils/notificationService');
+        notifyAllDrivers({
+            title: "Fare Increased!",
+            body: `Fare for ${ride.rideMode} ride increased to ₹${ride.fare}`,
+            data: {
+                rideId: ride._id.toString(),
+                type: 'FARE_UPDATED'
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 };

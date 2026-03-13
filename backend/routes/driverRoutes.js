@@ -50,4 +50,10 @@ router.post('/upload', verifyToken, upload.fields([
     { name: 'signature', maxCount: 1 }
 ]), uploadDocuments);
 
+// POST /api/driver/fcm-token - Update FCM token
+router.post('/fcm-token', verifyToken, (req, res, next) => {
+    const { updateFCMToken } = require('../controllers/driverController');
+    updateFCMToken(req, res, next);
+});
+
 module.exports = router;

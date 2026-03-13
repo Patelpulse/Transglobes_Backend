@@ -539,5 +539,18 @@ module.exports = {
     updateStatus,
     updateLocation,
     sendOTP,
-    verifyOTP
+    verifyOTP,
+    updateFCMToken: async (req, res) => {
+        try {
+            const { uid, fcmToken } = req.body;
+            if (!uid || !fcmToken) {
+                return res.status(400).json({ message: 'uid and fcmToken are required' });
+            }
+            await Driver.findOneAndUpdate({ uid }, { fcmToken });
+            res.status(200).json({ success: true, message: 'FCM Token updated successfully' });
+        } catch (error) {
+            console.error('Error updating Driver FCM Token:', error);
+            res.status(500).json({ message: 'Server error', error: error.message });
+        }
+    }
 };

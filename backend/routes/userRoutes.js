@@ -10,5 +10,6 @@ router.post('/location', userController.saveSavedLocation);
 // Profile routes (by phone number)
 router.get('/profile/:mobileNumber', userController.getProfile);
 router.put('/profile/:mobileNumber', userController.updateProfile);
+router.post('/fcm-token', userController.updateFCMToken);
 
 module.exports = router;

@@ -8,6 +8,7 @@ router.get("/ride-types", rideController.getRideTypes);
 
 // Route for saving user's input/booking
 router.post("/ride-request", verifyToken, rideController.createRideRequest);
+router.put("/update-fare", verifyToken, rideController.updateFare);
 
 // DRIVER APIs
 // fetch full list (optionally filter)

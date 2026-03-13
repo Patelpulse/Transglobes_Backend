@@ -25,10 +25,10 @@ class SocketService {
       return;
     }
 
-      // Deployed URL: "https://transglove-backend.onrender.com",
+    _socket = IO.io(
       "http://localhost:8000",
       IO.OptionBuilder()
-          .setTransports(['websocket']) // Force websocket transport
+          .setTransports(['websocket'])
           .disableAutoConnect()
           .build(),
     );

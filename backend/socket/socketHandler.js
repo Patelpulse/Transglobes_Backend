@@ -29,6 +29,14 @@ const initSocket = (server) => {
             }
         });
 
+        // Join specific ride room
+        socket.on("join_ride", (rideId) => {
+            if (rideId) {
+                socket.join(rideId);
+                console.log(`Socket ${socket.id} joined ride room: ${rideId}`);
+            }
+        });
+
         // Send and Persist Message
         socket.on("send_message", async (data) => {
             const { senderId, receiverId, message, senderRole, senderName } = data;
@@ -115,8 +123,8 @@ const initSocket = (server) => {
         // Driver Location Updates
         socket.on("update_location", (data) => {
             const { rideId, userId, latitude, longitude, heading } = data;
-            // Emit to the user's room
-            io.to(userId).emit("driver_location_update", {
+            // Emit to the ride-specific room so all participants (user/driver) get it
+            io.to(rideId).emit("driver_location_update", {
                 rideId,
                 latitude,
                 longitude,
