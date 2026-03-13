@@ -38,9 +38,10 @@ class RideTrackingScreen extends ConsumerStatefulWidget {
   ConsumerState<RideTrackingScreen> createState() => _RideTrackingScreenState();
 }
 
-class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
+class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   String _rideStatus = 'On the way';
+  String _rawStatus = 'accepted';
   String _driverETA = '2 mins away';
   List<LatLng> _routePoints = [];
   StreamSubscription? _statusSubscription;
@@ -61,12 +62,16 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
       'name': widget.driverData?['name'] ?? 'Driver',
       'rating': '4.9',
       'vehicle': widget.driverData?['vehicle_name'] ?? widget.vehicle['name'] ?? 'Car',
-      'plate': widget.driverData?['vichle_number'] ?? 'ABC-1234',
+      'plate': widget.driverData?['vehicle_number'] ?? widget.driverData?['vichle_number'] ?? 'N/A',
       'phone': widget.driverData?['phone'] ?? '',
       'otp': widget.otp ?? '----',
-      'image':
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDJYv3F4UhjvGfqNIe7wYrpy9Ne1IGp-py8rBlt8GJVbtIXq4uVXkw9bHzbJd394nwKIe4kvfAtLnA4q9Wuw-QrfIB-8yv6ofEe3900dLT2ExAaejywLyI2ACN37lR55Uwtcd2MVshT8__Zsk8fhbdkPS8DDjUTnTbe6ceI1A7MxcAVpJeEAFEUarUO4YeS-Y8UEAjuLFTRBquUUl7MaLK15bVUMCldIvY4eCUYAodELV-MX_LcV95tjVS9OPqlQ59JVav9i-DHZJ4',
+      'image': widget.driverData?['photo'] != null && widget.driverData!['photo'].toString().isNotEmpty
+          ? widget.driverData!['photo']
+          : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png', // Premium avatar
     };
+
+    _rawStatus = widget.driverData?['status']?.toString().toLowerCase() ?? 'accepted';
+    _rideStatus = _mapStatusLabel(_rawStatus);
 
     _loadRoute();
     
@@ -85,23 +90,38 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
         }
       }
 
+      // Join the specific ride room
+      ref.read(socketServiceProvider).joinRide(widget.rideId);
+
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) _fitBounds();
       });
 
       // Listen for status updates
       _statusSubscription = ref.read(socketServiceProvider).rideStatusStream.listen((data) {
-        if (data['rideId'] == widget.rideId) {
-          final newStatus = data['status'] ?? _rideStatus;
-          setState(() {
-            _rideStatus = newStatus;
-            if (data['driver'] != null) {
-              _driver['name'] = data['driver']['name'] ?? _driver['name'];
-              _driver['plate'] = data['driver']['vichle_number'] ?? _driver['plate'];
-              _driver['phone'] = data['driver']['phone'] ?? _driver['phone'];
-              _driver['vehicle'] = data['driver']['vehicle_name'] ?? _driver['vehicle'];
-            }
-          });
+        if (data['rideId'].toString() == widget.rideId.toString()) {
+          final newStatus = data['status']?.toString();
+          if (newStatus != null) {
+            setState(() {
+              _rawStatus = newStatus.toLowerCase();
+              _rideStatus = _mapStatusLabel(_rawStatus);
+              if (data['driver'] != null) {
+                _driver['name'] = data['driver']['name'] ?? _driver['name'];
+                _driver['plate'] = data['driver']['vehicle_number'] ?? data['driver']['vichle_number'] ?? _driver['plate'];
+                _driver['phone'] = data['driver']['phone'] ?? _driver['phone'];
+                _driver['vehicle'] = data['driver']['vehicle_name'] ?? _driver['vehicle'];
+                if (data['driver']['photo'] != null && data['driver']['photo'].toString().isNotEmpty) {
+                   _driver['image'] = data['driver']['photo'];
+                }
+              }
+              // Update OTP visibility based on raw status
+              if (['accepted', 'on_the_way', 'arrived'].contains(_rawStatus)) {
+                _driver['otp'] = widget.otp ?? '----';
+              } else {
+                _driver['otp'] = '----'; 
+              }
+            });
+          }
 
           // Auto-navigate to rating if completed
           if (newStatus == 'completed' && !_hasNavigatedToRating) {
@@ -118,13 +138,25 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
 
       // Listen for driver location updates
       _locationSubscription = ref.read(socketServiceProvider).driverLocationStream.listen((data) {
-        if (data['rideId'] == widget.rideId) {
+        if (data['rideId'].toString() == widget.rideId.toString()) {
           setState(() {
             _driverPos = LatLng(
               (data['latitude'] as num).toDouble(),
               (data['longitude'] as num).toDouble(),
             );
             _driverHeading = (data['heading'] as num?)?.toDouble() ?? 0.0;
+            
+            // Calculate dynamic ETA
+            final pLat = (widget.pickup['lat'] as num).toDouble();
+            final pLng = (widget.pickup['lng'] as num).toDouble();
+            final dLat = (widget.dropoff['lat'] as num).toDouble();
+            final dLng = (widget.dropoff['lng'] as num).toDouble();
+
+            final destination = ['accepted', 'on_the_way', 'arrived'].contains(_rawStatus) 
+                ? LatLng(pLat, pLng) 
+                : LatLng(dLat, dLng);
+            
+            _driverETA = _calculateEstimatedTime(_driverPos!, destination);
           });
         }
       });
@@ -162,8 +194,13 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
     }
   }
 
-  void _fitBounds() {
+  void _fitBounds({bool centerOnDriver = false}) {
     if (!mounted) return;
+
+    if (centerOnDriver && _driverPos != null) {
+      _animatedMapMove(_driverPos!, 16.0);
+      return;
+    }
     
     List<LatLng> boundsPoints = _routePoints;
     
@@ -200,6 +237,82 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
     }
   }
 
+  void _animatedMapMove(LatLng destLocation, double destZoom) {
+    if (!_mapController.camera.center.latitude.isFinite) return;
+
+    final latTween = Tween<double>(
+      begin: _mapController.camera.center.latitude,
+      end: destLocation.latitude,
+    );
+    final lngTween = Tween<double>(
+      begin: _mapController.camera.center.longitude,
+      end: destLocation.longitude,
+    );
+    final zoomTween = Tween<double>(
+      begin: _mapController.camera.zoom,
+      end: destZoom,
+    );
+
+    final controller = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    final Animation<double> animation = CurvedAnimation(
+      parent: controller,
+      curve: Curves.fastOutSlowIn,
+    );
+
+    controller.addListener(() {
+      if (mounted) {
+        _mapController.move(
+          LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+          zoomTween.evaluate(animation),
+        );
+      }
+    });
+
+    animation.addStatusListener((status) {
+      if (status == AnimationStatus.completed ||
+          status == AnimationStatus.dismissed) {
+        controller.dispose();
+      }
+    });
+
+    controller.forward();
+  }
+
+  String _mapStatusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        return 'Driver Accepted';
+      case 'on_the_way':
+        return 'Driver on the way';
+      case 'arrived':
+        return 'Driver has arrived';
+      case 'ongoing':
+        return 'Trip in progress';
+      case 'completed':
+        return 'Trip Completed';
+      case 'cancelled':
+        return 'Ride Cancelled';
+      default:
+        return status.replaceAll('_', ' ');
+    }
+  }
+
+  String _calculateEstimatedTime(LatLng start, LatLng end) {
+    final distanceInMeters = const Distance().as(LengthUnit.Meter, start, end);
+    // Assume average speed of 30 km/h in city traffic (500 meters per minute)
+    final minutes = (distanceInMeters / 500).ceil();
+    
+    if (minutes <= 1) {
+      if (distanceInMeters < 100) return "Arriving now";
+      return "1 min away";
+    }
+    return "$minutes mins away";
+  }
+
   Future<void> _makeCall(String phone) async {
     if (phone.isEmpty) return;
     final Uri url = Uri(scheme: 'tel', path: phone);
@@ -227,7 +340,9 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
           Positioned.fill(
             child: LeafletMap(
               mapController: _mapController,
-              location: {'lat': pickupPos.latitude, 'lng': pickupPos.longitude},
+              location: _driverPos != null 
+                  ? {'lat': _driverPos!.latitude, 'lng': _driverPos!.longitude}
+                  : {'lat': pickupPos.latitude, 'lng': pickupPos.longitude},
               polylines: [
                 Polyline(
                   points: _routePoints,
@@ -393,22 +508,25 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
               ],
             ),
           ),
+          if (['accepted', 'on_the_way', 'arrived'].contains(_rawStatus))
           Flexible(
             child: TextButton(
-              onPressed: () {},
+              onPressed: () => _fitBounds(centerOnDriver: true),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    "View Route",
+                    "Center on Driver",
                     style: TextStyle(
                       color: context.theme.primaryColor,
                       fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
+                  const SizedBox(width: 4),
                   Icon(
-                    Icons.arrow_forward,
-                    size: 16,
+                    Icons.my_location,
+                    size: 14,
                     color: context.theme.primaryColor,
                   ),
                 ],
@@ -587,61 +705,80 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> {
 
                 const SizedBox(height: 16),
                 
-                // New OTP Section (Prominent at "bottom" of info)
+                if (['accepted', 'on_the_way', 'arrived'].contains(_rawStatus))
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  margin: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
                   decoration: BoxDecoration(
                     color: context.theme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: context.theme.primaryColor.withValues(alpha: 0.2)),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: context.theme.primaryColor.withValues(alpha: 0.3), width: 1.5),
                   ),
-                    child: Column(
-                      children: [
-                        const Text(
-                          "SHARE OTP WITH DRIVER",
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                          ),
+                  child: Column(
+                    children: [
+                      Text(
+                        "SHARE OTP TO START RIDE",
+                        style: TextStyle(
+                          color: context.theme.primaryColor.withValues(alpha: 0.7),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _driver['otp'],
-                          style: TextStyle(
-                            color: context.theme.primaryColor,
-                            fontSize: 32,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 8,
-                          ),
-                        ),
-                        const Divider(height: 32),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              "FARE: ",
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ..._driver['otp'].toString().split('').map((char) => Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: context.theme.primaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            Text(
-                              "₹${widget.vehicle['price']}",
+                            child: Text(
+                              char,
                               style: TextStyle(
                                 color: context.colors.textPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        "Ask the driver to enter this code",
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
                   ),
+                ),
+
+                const Divider(height: 48),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "ESTIMATED FARE: ",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      "₹${widget.vehicle['price']}",
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
 
                 const SizedBox(height: 24),
 

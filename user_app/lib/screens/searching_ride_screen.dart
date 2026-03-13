@@ -8,6 +8,9 @@ import '../services/socket_service.dart';
 import '../services/location_service.dart';
 import '../widgets/leaflet_map.dart';
 import 'ride_tracking_screen.dart';
+import '../services/ride_service.dart';
+import '../services/auth_service.dart';
+import '../providers/user_provider.dart';
 
 class SearchingRideScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -39,46 +42,80 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
   List<LatLng> _routePoints = [];
   final MapController _mapController = MapController();
   StreamSubscription? _acceptedSubscription;
+  StreamSubscription? _statusSubscription;
+  late double _currentPrice;
 
   @override
   void initState() {
     super.initState();
+    _currentPrice = double.tryParse(widget.price.replaceAll('₹', '')) ?? 0.0;
     _loadRoute();
     
     // Listen for ride acceptance
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _acceptedSubscription = ref.read(socketServiceProvider).rideAcceptedStream.listen((data) {
-        if (mounted && data['rideId'] == widget.rideId) {
-          final negotiatedFare = data['fare'];
-          Map<String, dynamic> finalVehicle = widget.vehicle;
-          
-          if (negotiatedFare != null) {
-            finalVehicle = Map<String, dynamic>.from(widget.vehicle);
-            finalVehicle['price'] = negotiatedFare;
-          }
+      // Connect to socket to join user room
+      final userProfile = ref.read(fullUserProfileProvider).value;
+      final userId = userProfile?.id;
+      final userName = userProfile?.name;
+      
+      if (userId != null && userId.isNotEmpty) {
+        ref.read(socketServiceProvider).connect(userId, name: userName);
+      } else {
+        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+        if (firebaseId != null) {
+          ref.read(socketServiceProvider).connect(firebaseId, name: userName);
+        }
+      }
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => RideTrackingScreen(
-                pickup: widget.pickup,
-                dropoff: widget.dropoff,
-                vehicle: finalVehicle,
-                rideId: widget.rideId,
-                otp: widget.otp,
-                distance: widget.distance,
-                driverData: data['driver'],
-              ),
-            ),
-          );
+      // Join the specific ride room to receive updates for this ride
+      ref.read(socketServiceProvider).joinRide(widget.rideId);
+
+      _acceptedSubscription = ref.read(socketServiceProvider).rideAcceptedStream.listen((data) {
+        if (mounted && data['rideId'].toString() == widget.rideId.toString()) {
+          _navigateToTracking(data);
+        }
+      });
+
+      _statusSubscription = ref.read(socketServiceProvider).rideStatusStream.listen((data) {
+        // If a status update comes as 'accepted', treat it as a trigger to navigate
+        if (mounted && 
+            data['rideId'].toString() == widget.rideId.toString() && 
+            data['status']?.toString().toLowerCase() == 'accepted') {
+          _navigateToTracking(data);
         }
       });
     });
   }
 
+  void _navigateToTracking(Map<String, dynamic> data) {
+    final negotiatedFare = data['fare'];
+    Map<String, dynamic> finalVehicle = widget.vehicle;
+    
+    if (negotiatedFare != null) {
+      finalVehicle = Map<String, dynamic>.from(widget.vehicle);
+      finalVehicle['price'] = negotiatedFare;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RideTrackingScreen(
+          pickup: widget.pickup,
+          dropoff: widget.dropoff,
+          vehicle: finalVehicle,
+          rideId: widget.rideId,
+          otp: widget.otp,
+          distance: widget.distance,
+          driverData: data['driver'],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _acceptedSubscription?.cancel();
+    _statusSubscription?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -277,7 +314,7 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
             children: [
               _buildDetailItem("Distance", widget.distance),
               _buildDetailItem("Ride Mode", widget.rideMode),
-              _buildDetailItem("Price", "₹${widget.price}"),
+              _buildDetailItem("Price", "₹${_currentPrice.toStringAsFixed(0)}"),
             ],
           ),
         ],
@@ -329,12 +366,74 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
     );
   }
 
+
+  Widget _buildFareAdjustmentSection() {
+    return Column(
+      children: [
+        const Text(
+          "Increase fare to find a driver faster",
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildAdjustmentButton(10),
+            _buildAdjustmentButton(20),
+            _buildAdjustmentButton(30),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdjustmentButton(int amount) {
+    return InkWell(
+      onTap: () => _increaseFare(amount),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.15)),
+        ),
+        child: Text(
+          "+$amount",
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _increaseFare(int amount) async {
+    try {
+      final res = await ref.read(rideServiceProvider).updateFare(widget.rideId, amount);
+      if (res['success'] == true) {
+        setState(() {
+          _currentPrice += amount;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Fare increased to ₹${_currentPrice.toStringAsFixed(0)}"),
+            backgroundColor: context.theme.primaryColor,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error increasing fare: $e");
+    }
+  }
+
   Widget _buildFooter() {
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          _buildFareAdjustmentSection(),
+          const SizedBox(height: 32),
           TextButton(
             onPressed: () => Navigator.pop(context),
             style: TextButton.styleFrom(

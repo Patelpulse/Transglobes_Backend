@@ -23,7 +23,16 @@ import 'package:flutter/foundation.dart';
 class DriverStatusNotifier extends Notifier<DriverStatus> {
   @override
   DriverStatus build() => DriverStatus.offline;
-  void set(DriverStatus value) => state = value;
+  void set(DriverStatus value) {
+    if (state == value) return;
+    state = value;
+    
+    // Sync with backend service
+    final isOnline = value != DriverStatus.offline;
+    ref.read(driverServiceProvider).setOnline(isOnline).catchError((e) {
+      debugPrint("Error syncing online status: $e");
+    });
+  }
 }
 
 final driverStatusProvider = NotifierProvider<DriverStatusNotifier, DriverStatus>(
@@ -74,6 +83,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   late Animation<double> _bannerFade;
   StreamSubscription? _newRideSub;
   StreamSubscription? _rideAssignedSub;
+  StreamSubscription? _fareUpdatedSub;
   StreamSubscription? _connectionSub;
   StreamSubscription<Position>? _positionSub;
 
@@ -113,28 +123,39 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       CurvedAnimation(parent: _onlineBannerController, curve: Curves.easeIn),
     );
 
+    // Socket connection listener
+    ref.listenManual(driverProfileProvider, (previous, next) {
+      next.whenData((driverProfile) {
+        if (driverProfile != null) {
+          final socketService = ref.read(socketServiceProvider);
+          socketService.connect(driverProfile.id, name: driverProfile.name);
+          
+          _connectionSub?.cancel();
+          _connectionSub = socketService.connectionSuccessStream.listen((data) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(data['message'] ?? 'Connected successfully!'),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          });
+        }
+      });
+    });
+
+    // Initial connection attempt if profile is already there
+    final initialProfile = ref.read(driverProfileProvider).value;
+    if (initialProfile != null) {
+      ref.read(socketServiceProvider).connect(initialProfile.id, name: initialProfile.name);
+    }
+
     // Socket listeners for live ride requests
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final socketService = ref.read(socketServiceProvider);
-      final driverProfile = ref.read(driverProfileProvider).value;
-      
-      if (driverProfile != null) {
-        socketService.connect(driverProfile.id, name: driverProfile.name);
-      }
-
-      _connectionSub?.cancel();
-      _connectionSub = socketService.connectionSuccessStream.listen((data) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? 'Connected successfully!'),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      });
 
       _newRideSub?.cancel();
       _newRideSub = socketService.newRideStream.listen((data) {
@@ -187,6 +208,31 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
           ref.read(currentRideRequestProvider.notifier).setRide(null);
         }
       });
+
+      _fareUpdatedSub?.cancel();
+      _fareUpdatedSub = socketService.fareUpdatedStream.listen((data) {
+        print("Driver App Received Fare Update: $data");
+        final currentRide = ref.read(currentRideRequestProvider);
+        if (currentRide != null && currentRide['id'] == data['rideId']) {
+          // Update the current ride request data
+          final updatedRide = Map<String, dynamic>.from(currentRide);
+          updatedRide['fare'] = data['newFare'];
+          ref.read(currentRideRequestProvider.notifier).setRide(updatedRide);
+          
+          // Also update in BookingNotifier
+          ref.read(bookingProvider.notifier).updateBookingFare(data['rideId'], (data['newFare'] as num).toDouble());
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Ride fare increased to ₹${data['newFare']}!'),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      });
     });
   }
 
@@ -194,6 +240,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   void dispose() {
     _newRideSub?.cancel();
     _rideAssignedSub?.cancel();
+    _fareUpdatedSub?.cancel();
     _connectionSub?.cancel();
     _mapController.dispose();
     _pulseController.dispose();
@@ -231,28 +278,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     _positionSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
+        distanceFilter: 2, // Faster updates for smoother map movement
       ),
     ).listen((position) {
       if (mounted) {
         setState(() => _currentPosition = position);
-        
-        // Update user app via socket if there's an active booking
-        final status = ref.read(driverStatusProvider);
-        if (status != DriverStatus.offline) {
-          final activeBooking = ref.read(currentActiveBookingProvider);
-          final driverProfile = ref.read(driverProfileProvider).value;
-          
-          if (activeBooking != null && driverProfile != null) {
-            ref.read(socketServiceProvider).updateLocation(
-              rideId: activeBooking.id,
-              userId: driverProfile.id,
-              latitude: position.latitude,
-              longitude: position.longitude,
-              heading: position.heading,
-            );
-          }
-        }
       }
     });
   }

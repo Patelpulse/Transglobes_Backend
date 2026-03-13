@@ -9,6 +9,7 @@ import 'providers/app_providers.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +68,14 @@ class AuthWrapper extends ConsumerWidget {
     }
 
     final authState = ref.watch(authStateProvider);
+    
+    // Initialize notification service when user is logged in
+    ref.listen(authStateProvider, (previous, next) {
+      if (next.value != null) {
+        ref.read(notificationServiceProvider).init();
+      }
+    });
+
     return authState.when(
       data: (user) => user != null ? const HomeScreen() : const LoginScreen(),
       loading: () => const SplashScreen(),

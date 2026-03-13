@@ -98,6 +98,10 @@ class SocketService {
     });
   }
 
+  void joinRide(String rideId) {
+    _socket?.emit("join_ride", rideId);
+  }
+
   void dispose() {
     _socket?.dispose();
     _messageController.close();

@@ -10,6 +10,7 @@ import 'services/auth_service.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'widgets/main_shell.dart';
 import 'screens/auth/auth_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,13 @@ class DriverApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = ref.watch(themeProvider);
     final authState = ref.watch(authStateProvider);
+
+    // Initialize notification service when user is logged in
+    ref.listen(authStateProvider, (previous, next) {
+      if (next.value != null) {
+        ref.read(notificationServiceProvider).init();
+      }
+    });
 
     return MaterialApp(
       title: 'RideShare Driver',

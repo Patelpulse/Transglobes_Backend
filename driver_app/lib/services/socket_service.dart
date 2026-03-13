@@ -13,6 +13,7 @@ class SocketService {
   final _historyController = StreamController<List<dynamic>>.broadcast();
   final _newRideController = StreamController<Map<String, dynamic>>.broadcast();
   final _rideAssignedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _fareUpdatedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
 
   IO.Socket? get socket => _socket;
@@ -21,6 +22,7 @@ class SocketService {
   Stream<List<dynamic>> get historyStream => _historyController.stream;
   Stream<Map<String, dynamic>> get newRideStream => _newRideController.stream;
   Stream<Map<String, dynamic>> get rideAssignedStream => _rideAssignedController.stream;
+  Stream<Map<String, dynamic>> get fareUpdatedStream => _fareUpdatedController.stream;
   Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
 
   void connect(String userId, {String? name}) {
@@ -72,6 +74,11 @@ class SocketService {
       print("Ride Assigned (Taken by another driver): $data");
       _rideAssignedController.add(Map<String, dynamic>.from(data));
     });
+    
+    _socket?.on("fare_updated", (data) {
+      print("Fare Updated via Socket: $data");
+      _fareUpdatedController.add(Map<String, dynamic>.from(data));
+    });
 
     _socket?.onDisconnect((_) => print("Socket Disconnected"));
   }
@@ -107,6 +114,10 @@ class SocketService {
       "longitude": longitude,
       "heading": heading,
     });
+  }
+
+  void joinRide(String rideId) {
+    _socket?.emit("join_ride", rideId);
   }
 
   void dispose() {

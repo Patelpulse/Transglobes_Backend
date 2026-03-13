@@ -70,4 +70,12 @@ class RideService {
   Future<RideModel> cancelRide(String rideId) async {
     return updateRideStatus(rideId, 'cancelled');
   }
+
+  Future<Map<String, dynamic>> updateFare(String rideId, int extraFare) async {
+    final response = await _apiService.put('/api/ride/update-fare', {
+      'rideId': rideId,
+      'extraFare': extraFare,
+    });
+    return response;
+  }
 }

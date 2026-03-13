@@ -45,25 +45,36 @@ class BookingModel {
     this.userId,
   });
 
-  BookingModel copyWith({String? status, double? actualFare, String? userId}) => BookingModel(
+  BookingModel copyWith({
+    String? status,
+    double? actualFare,
+    String? userId,
+    double? fare,
+    double? pickupLat,
+    double? pickupLng,
+    double? dropLat,
+    double? dropLng,
+    String? otp,
+  }) =>
+      BookingModel(
         id: id,
         userName: userName,
         userPhone: userPhone,
         pickupAddress: pickupAddress,
         dropAddress: dropAddress,
-        fare: fare,
+        fare: fare ?? this.fare,
         distanceKm: distanceKm,
         etaMinutes: etaMinutes,
         vehicleType: vehicleType,
         subType: subType,
         status: status ?? this.status,
         createdAt: createdAt,
-        otp: otp,
+        otp: otp ?? this.otp,
         userRating: userRating,
-        pickupLat: pickupLat,
-        pickupLng: pickupLng,
-        dropLat: dropLat,
-        dropLng: dropLng,
+        pickupLat: pickupLat ?? this.pickupLat,
+        pickupLng: pickupLng ?? this.pickupLng,
+        dropLat: dropLat ?? this.dropLat,
+        dropLng: dropLng ?? this.dropLng,
         actualFare: actualFare ?? this.actualFare,
         userId: userId ?? this.userId,
       );

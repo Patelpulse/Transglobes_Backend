@@ -5,6 +5,7 @@ import '../../models/booking_model.dart';
 import '../../providers/booking_provider.dart';
 import '../../services/driver_service.dart';
 import '../chat/chat_screen.dart';
+import '../../services/socket_service.dart';
 
 class ActiveRideScreen extends ConsumerStatefulWidget {
   final BookingModel booking;
@@ -20,6 +21,14 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
       List.generate(4, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
   bool _isVerifying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(socketServiceProvider).joinRide(widget.booking.id);
+    });
+  }
 
   @override
   void dispose() {

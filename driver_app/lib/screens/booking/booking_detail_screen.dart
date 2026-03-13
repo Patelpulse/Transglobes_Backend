@@ -346,35 +346,67 @@ class BookingDetailScreen extends ConsumerWidget {
   }
 
   void _showOTPDialog(BuildContext context, WidgetRef ref, BookingModel booking) {
-    final controller = TextEditingController();
+    final List<TextEditingController> controllers = List.generate(4, (_) => TextEditingController());
+    final List<FocusNode> focusNodes = List.generate(4, (_) => FocusNode());
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.darkSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Verify User OTP', style: TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Enter the 4-digit code provided by the passenger:', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 13)),
-            const SizedBox(height: 20),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.neonGreen, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 20),
-              decoration: InputDecoration(
-                counterText: '',
-                fillColor: AppTheme.darkBg,
-                filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.neonGreen)),
+        content: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Enter OTP to Start Ride',
+                style: TextStyle(color: AppTheme.darkTextPrimary, fontSize: 20, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              const Text(
+                'Ask the customer for the 4-digit code',
+                style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(4, (index) => SizedBox(
+                  width: 50,
+                  height: 60,
+                  child: TextField(
+                    controller: controllers[index],
+                    focusNode: focusNodes[index],
+                    onChanged: (value) {
+                      if (value.isNotEmpty && index < 3) {
+                        focusNodes[index + 1].requestFocus();
+                      } else if (value.isEmpty && index > 0) {
+                        focusNodes[index - 1].requestFocus();
+                      }
+                    },
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    maxLength: 1,
+                    style: const TextStyle(color: AppTheme.neonGreen, fontSize: 24, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      fillColor: AppTheme.darkBg,
+                      filled: true,
+                      hintText: '-',
+                      hintStyle: TextStyle(color: AppTheme.darkTextSecondary.withOpacity(0.3)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.neonGreen)),
+                    ),
+                  ),
+                )),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -382,9 +414,23 @@ class BookingDetailScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
+              final otp = controllers.map((c) => c.text).join();
+              if (otp.length < 4) return;
+              
               try {
-                await ref.read(bookingProvider.notifier).verifyOtp(booking.id, controller.text);
-                if (context.mounted) Navigator.pop(context);
+                await ref.read(bookingProvider.notifier).verifyOtp(booking.id, otp);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  // Open map for drop-off
+                  final lat = booking.dropLat;
+                  final lng = booking.dropLng;
+                  if (lat != null && lng != null) {
+                    final Uri url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  }
+                }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -393,8 +439,13 @@ class BookingDetailScreen extends ConsumerWidget {
                 }
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: AppTheme.darkBg),
-            child: const Text('VERIFY & START'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.neonGreen, 
+              foregroundColor: AppTheme.darkBg,
+              minimumSize: const Size(120, 48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

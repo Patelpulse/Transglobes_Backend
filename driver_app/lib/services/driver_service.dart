@@ -47,9 +47,11 @@ class DriverService {
 
     if (online) {
       await _locationRef.child(driverId).update({'status': 'online'});
+      await _api.put('/api/driver/status', {'status': 'active', 'isOnline': true});
       _startLocationStream(driverId);
     } else {
       await _locationRef.child(driverId).update({'status': 'offline'});
+      await _api.put('/api/driver/status', {'status': 'offline', 'isOnline': false});
       _stopLocationStream();
     }
   }
@@ -57,7 +59,10 @@ class DriverService {
   void _startLocationStream(String driverId) {
     _stopLocationStream();
     _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high, 
+        distanceFilter: 2, // 2 meters for smoother tracking
+      ),
     ).listen((pos) {
       // 1. Update Firebase RD (Already there)
       _locationRef.child(driverId).update({
