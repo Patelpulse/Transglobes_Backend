@@ -57,6 +57,8 @@ class RideService {
     String? paymentMode,
     String? vehicleType,
     String? typeOfGood,
+    int? helperCount,
+    List<Map<String, dynamic>>? logisticItems,
   }) async {
     final response = await _apiService.post('/ride-request', {
       'locations': locations,
@@ -66,6 +68,8 @@ class RideService {
       if (paymentMode != null) 'paymentMode': paymentMode,
       if (vehicleType != null) 'vehicleType': vehicleType,
       if (typeOfGood != null) 'typeOfGood': typeOfGood,
+      if (helperCount != null) 'helperCount': helperCount,
+      if (logisticItems != null) 'logisticItems': logisticItems,
     });
     return RideModel.fromJson(response['data'] ?? response);
   }

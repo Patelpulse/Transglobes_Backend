@@ -95,7 +95,7 @@ exports.getDriverBookings = async (req, res) => {
 // To save user's "input fill" (Ride Request / Booking)
 exports.createRideRequest = async (req, res) => {
     try {
-        const { mobileNumber, locations, rideMode, paymentMode, fare, distance, vehicleType, typeOfGood } = req.body;
+        const { mobileNumber, locations, rideMode, paymentMode, fare, distance, vehicleType, typeOfGood, helperCount, logisticItems } = req.body;
 
         // Verify we have required fields
         if (!locations || !locations.pickup || !locations.dropoff || !rideMode || !fare) {

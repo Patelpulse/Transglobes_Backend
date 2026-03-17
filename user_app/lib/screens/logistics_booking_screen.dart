@@ -12,12 +12,14 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/config.dart';
 import '../services/auth_service.dart';
+import 'dart:async';
 
 // ─── Helper cost per person ─────────────────────────────
-const double _helperCostPerPerson = 150.0; // ₹150 per helper
+const double _helperCostPerPerson = 800.0; // ₹800 per helper
 
 // ─── Single item model (in-memory before save) ──────────
 class _ItemEntry {
@@ -26,6 +28,7 @@ class _ItemEntry {
   double length;
   double height;
   double width;
+  String unit;
   Uint8List? imageBytes;
   String? imageName;
   String? savedImageUrl; // After ImageKit upload
@@ -36,6 +39,7 @@ class _ItemEntry {
     this.length = 0,
     this.height = 0,
     this.width = 0,
+    this.unit = 'cm',
     this.imageBytes,
     this.imageName,
     this.savedImageUrl,
@@ -59,6 +63,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
   // Added items list
   final List<_ItemEntry> _addedItems = [];
+  String _selectedUnit = 'cm';
+  final List<String> _units = ['cm', 'm', 'feet', 'inch'];
 
   // Current item form fields
   final _itemNameController = TextEditingController();
@@ -85,11 +91,153 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   // Booking loader
   bool _isSavingGood = false;
 
+  // In-page search state
+  final _pickupSearchController = TextEditingController();
+  final _dropoffSearchController = TextEditingController();
+  final _pickupFocusNode = FocusNode();
+  final _dropoffFocusNode = FocusNode();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearchingLocations = false;
+  Timer? _debounce;
+  bool _isPickupFocused = false;
+  bool _showSuggestions = false;
+  bool _activeSearchingPickup = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pickupFocusNode.addListener(_onFocusChanged);
+    _dropoffFocusNode.addListener(_onFocusChanged);
+  }
+
+  void _onFocusChanged() {
+    if (!mounted) return;
+    setState(() {
+      _isPickupFocused = _pickupFocusNode.hasFocus;
+      if (_pickupFocusNode.hasFocus) {
+        _activeSearchingPickup = true;
+        _showSuggestions = true;
+      } else if (_dropoffFocusNode.hasFocus) {
+        _activeSearchingPickup = false;
+        _showSuggestions = true;
+      } else {
+        // Delay hiding suggestions to allow tap events to fire
+        Future.delayed(const Duration(milliseconds: 250), () {
+          if (mounted && !_pickupFocusNode.hasFocus && !_dropoffFocusNode.hasFocus) {
+            setState(() => _showSuggestions = false);
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _pickupSearchController.dispose();
+    _dropoffSearchController.dispose();
+    _pickupFocusNode.removeListener(_onFocusChanged);
+    _dropoffFocusNode.removeListener(_onFocusChanged);
+    _pickupFocusNode.dispose();
+    _dropoffFocusNode.dispose();
+    _itemNameController.dispose();
+    _lengthController.dispose();
+    _heightController.dispose();
+    _widthController.dispose();
+    super.dispose();
+  }
+
+  // ─── Suggestions & Selection ────────────────────────────
+  Future<void> _fetchSuggestions(String query) async {
+    if (query.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearchingLocations = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) setState(() => _isSearchingLocations = true);
+
+    try {
+      final apiKey = AppConfig.googleMapsApiKey;
+      final baseUrl = AppConfig.apiBaseUrl;
+      final url =
+          '$baseUrl/api/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200 && mounted) {
+        final data = json.decode(response.body);
+        final List predictions = data['predictions'] ?? [];
+        setState(() {
+          _searchResults = predictions
+              .map((item) => {
+                    'name': item['structured_formatting']['main_text'] as String,
+                    'address': item['description'] as String,
+                    'place_id': item['place_id'] as String,
+                  })
+              .toList();
+          _isSearchingLocations = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isSearchingLocations = false);
+    }
+  }
+
+  Future<void> _selectSuggestion(Map<String, dynamic> suggestion, bool isPickup) async {
+    if (mounted) setState(() => _isSearchingLocations = true);
+    try {
+      final apiKey = AppConfig.googleMapsApiKey;
+      final baseUrl = AppConfig.apiBaseUrl;
+      final url =
+          '$baseUrl/api/maps/details?place_id=${suggestion['place_id']}&key=$apiKey&fields=geometry';
+      final response = await http.get(Uri.parse(url));
+      final data = json.decode(response.body);
+      final loc = data['result']['geometry']['location'];
+      final lat = loc['lat'] as double;
+      final lng = loc['lng'] as double;
+
+      final result = {
+        'name': suggestion['name'],
+        'address': suggestion['address'],
+        'lat': lat,
+        'lng': lng,
+      };
+
+          if (mounted) {
+            setState(() {
+              _showSuggestions = false;
+              if (isPickup) {
+                _pickup = result;
+                _pickupSearchController.text = "${suggestion['name']}, ${suggestion['address']}";
+                _pickupFocusNode.unfocus();
+              } else {
+                _dropoff = result;
+                _dropoffSearchController.text = "${suggestion['name']}, ${suggestion['address']}";
+                _dropoffFocusNode.unfocus();
+              }
+              _searchResults = [];
+              _isSearchingLocations = false;
+            });
+            _fetchRoute();
+          }
+    } catch (e) {
+      if (mounted) setState(() => _isSearchingLocations = false);
+    }
+  }
+
   // ─── Price ──────────────────────────────────────────────
   double get _vehiclePrice {
     if (_selectedVehicleData == null) return 0.0;
-    return _selectedVehicleData!.basePrice +
-        _selectedVehicleData!.pricePerKm * _distance;
+    // Return base price even if locations aren't selected yet
+    double total = _selectedVehicleData!.basePrice;
+    if (_pickup != null && _dropoff != null) {
+      total += _selectedVehicleData!.pricePerKm * _distance;
+    }
+    return total;
   }
 
   double get _helperCost => _helperCount * _helperCostPerPerson;
@@ -97,27 +245,6 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   double get _totalPrice =>
       (_vehiclePrice + _helperCost - _discountAmount).clamp(0.0, double.infinity);
 
-  // ─── Location search ────────────────────────────────────
-  Future<void> _handleSearch(bool isPickup) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => LocationSearchScreen(
-          title: isPickup ? 'Pickup Location' : 'Drop Location',
-        ),
-      ),
-    );
-    if (result != null && result is Map && mounted) {
-      setState(() {
-        if (isPickup) {
-          _pickup = result['pickup'] ?? result;
-        } else {
-          _dropoff = result['dropoff'] ?? result;
-        }
-      });
-      _fetchRoute();
-    }
-  }
 
   // ─── Route & distance ───────────────────────────────────
   Future<void> _fetchRoute() async {
@@ -371,18 +498,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     final typeGoodsAsync = ref.watch(typeGoodsProvider);
     final vehiclesAsync = ref.watch(logisticsVehiclesProvider);
 
-    vehiclesAsync.whenData((vehicles) {
-      if (_selectedVehicle == null && vehicles.isNotEmpty) {
-        Future.microtask(() {
-          if (mounted) {
-            setState(() {
-              _selectedVehicle = vehicles.first.name;
-              _selectedVehicleData = vehicles.first;
-            });
-          }
-        });
-      }
-    });
+    // No auto-selection to keep initial cost zero
 
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -447,31 +563,32 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                     decoration: BoxDecoration(
                       color: context.theme.cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(13),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        )
-                      ],
                     ),
                     child: Column(
                       children: [
-                        _buildLocationTile(
+                        _buildSearchField(
+                          controller: _pickupSearchController,
+                          focusNode: _pickupFocusNode,
                           icon: Icons.circle,
                           iconColor: Colors.green,
                           label: 'Pickup Location',
-                          value: _pickup?['name'] ?? 'Search Pickup Location',
-                          onTap: () => _handleSearch(true),
+                          hint: 'Search Pickup Location',
+                          isPickup: true,
                         ),
-                        const Divider(height: 24),
-                        _buildLocationTile(
+                        if (_showSuggestions && _activeSearchingPickup && _searchResults.isNotEmpty)
+                          _buildSuggestionsList(true),
+                        const SizedBox(height: 16),
+                        _buildSearchField(
+                          controller: _dropoffSearchController,
+                          focusNode: _dropoffFocusNode,
                           icon: Icons.circle,
                           iconColor: Colors.red,
                           label: 'Drop Location',
-                          value: _dropoff?['name'] ?? 'Search Drop Location',
-                          onTap: () => _handleSearch(false),
+                          hint: 'Search Drop Location',
+                          isPickup: false,
                         ),
+                        if (_showSuggestions && !_activeSearchingPickup && _searchResults.isNotEmpty)
+                          _buildSuggestionsList(false),
                       ],
                     ),
                   ),
@@ -663,7 +780,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                               fontWeight: FontWeight.bold,
                                               color: context.colors.textPrimary)),
                                       Text(
-                                          '${item.type} · ${item.length}×${item.height}×${item.width} cm',
+                                          '${item.type} · ${item.length}×${item.height}×${item.width} ${item.unit}',
                                           style: TextStyle(
                                               fontSize: 12,
                                               color: context.colors.textSecondary)),
@@ -719,9 +836,12 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               Expanded(
                                 child: TextField(
                                   controller: _lengthController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                                  ],
                                   decoration: InputDecoration(
-                                    labelText: 'Length (cm)',
+                                    labelText: 'Length (${_selectedUnit})',
                                     prefixIcon: const Icon(Icons.straighten),
                                     border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12)),
@@ -733,9 +853,12 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               Expanded(
                                 child: TextField(
                                   controller: _heightController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                                  ],
                                   decoration: InputDecoration(
-                                    labelText: 'Height (cm)',
+                                    labelText: 'Height (${_selectedUnit})',
                                     prefixIcon: const Icon(Icons.height),
                                     border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12)),
@@ -747,9 +870,12 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               Expanded(
                                 child: TextField(
                                   controller: _widthController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                                  ],
                                   decoration: InputDecoration(
-                                    labelText: 'Width (cm)',
+                                    labelText: 'Width (${_selectedUnit})',
                                     prefixIcon: const Icon(Icons.width_normal),
                                     border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12)),
@@ -758,6 +884,31 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Unit Selection
+                          const Text('Dimension Unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: _units.map((unit) {
+                              final isSelected = _selectedUnit == unit;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(unit),
+                                  selected: isSelected,
+                                  onSelected: (selected) {
+                                    if (selected) setState(() => _selectedUnit = unit);
+                                  },
+                                  selectedColor: context.theme.primaryColor.withAlpha(50),
+                                  labelStyle: TextStyle(
+                                    color: isSelected ? context.theme.primaryColor : context.colors.textSecondary,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                           const SizedBox(height: 16),
 
@@ -888,63 +1039,51 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           ),
                           const SizedBox(height: 16),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [0, 1, 2, 3].map((count) {
-                              final isSelected = _helperCount == count;
-                              return GestureDetector(
-                                onTap: () => setState(() => _helperCount = count),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width: 70,
-                                  height: 72,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? context.theme.primaryColor
-                                        : context.theme.scaffoldBackgroundColor,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? context.theme.primaryColor
-                                          : context.theme.dividerColor.withAlpha(50),
-                                      width: isSelected ? 2 : 1,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        count == 0 ? Icons.not_interested : Icons.person,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : context.colors.textSecondary,
-                                        size: 24,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        count == 0 ? 'None' : '$count',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : context.colors.textPrimary,
-                                        ),
-                                      ),
-                                      if (count > 0)
-                                        Text(
-                                          '₹${(count * _helperCostPerPerson).toInt()}',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: isSelected
-                                                ? Colors.white70
-                                                : context.colors.textSecondary,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Number of Helpers',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: context.colors.textPrimary),
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: context.theme.primaryColor.withAlpha(20),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                      color: context.theme.primaryColor.withAlpha(50)),
                                 ),
-                              );
-                            }).toList(),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      onPressed: _helperCount > 0
+                                          ? () => setState(() => _helperCount--)
+                                          : null,
+                                      icon: const Icon(Icons.remove),
+                                      color: _helperCount > 0 ? context.theme.primaryColor : Colors.grey,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                    Text(
+                                      '$_helperCount',
+                                      style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: context.colors.textPrimary),
+                                    ),
+                                    IconButton(
+                                      onPressed: () => setState(() => _helperCount++),
+                                      icon: const Icon(Icons.add),
+                                      color: context.theme.primaryColor,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                           if (_helperCount > 0) ...[
                             const SizedBox(height: 12),
@@ -1132,6 +1271,17 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                     fare: _totalPrice,
                                     vehicleType: _selectedVehicle ?? 'Logistics',
                                     typeOfGood: goodTypeName,
+                                    helperCount: _helperCount,
+                                    logisticItems: _addedItems
+                                        .map((item) => {
+                                              'name': item.name,
+                                              'type': item.type,
+                                              'length': item.length,
+                                              'height': item.height,
+                                              'width': item.width,
+                                              'imageUrl': item.savedImageUrl,
+                                            })
+                                        .toList(),
                                   );
 
                               if (mounted) {
@@ -1206,41 +1356,93 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     return 0.0;
   }
 
-  Widget _buildLocationTile({
+  Widget _buildSearchField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
     required IconData icon,
     required Color iconColor,
     required String label,
-    required String value,
-    required VoidCallback onTap,
+    required String hint,
+    required bool isPickup,
   }) {
-    return InkWell(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: iconColor, size: 12),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 11, color: context.colors.textSecondary)),
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.textPrimary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: iconColor, size: 12),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 11, color: context.colors.textSecondary ?? Colors.grey)),
+                  TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    onChanged: (val) {
+                      if (_debounce?.isActive ?? false) _debounce!.cancel();
+                      _debounce = Timer(const Duration(milliseconds: 500), () => _fetchSuggestions(val));
+                    },
+                    decoration: InputDecoration(
+                      hintText: hint,
+                      hintStyle: TextStyle(fontSize: 14, color: (context.colors.textSecondary ?? Colors.grey).withAlpha(100)),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.colors.textPrimary ?? Colors.black),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Icon(Icons.chevron_right, color: context.colors.textSecondary, size: 20),
-        ],
+            if (controller.text.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () {
+                  controller.clear();
+                  if (isPickup) {
+                    _pickup = null;
+                  } else {
+                    _dropoff = null;
+                  }
+                  setState(() => _searchResults = []);
+                },
+              )
+            else
+              Icon(Icons.chevron_right, color: context.colors.textSecondary, size: 20),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSuggestionsList(bool isPickup) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 200),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _searchResults.length,
+        separatorBuilder: (context, index) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final suggestion = _searchResults[index];
+          return ListTile(
+            leading: const Icon(Icons.location_on_outlined, size: 20),
+            title: Text(suggestion['name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            subtitle: Text(suggestion['address'], style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+            onTap: () => _selectSuggestion(suggestion, isPickup),
+          );
+        },
       ),
     );
   }
+
 
   void _showCouponBottomSheet() {
     showModalBottomSheet(
