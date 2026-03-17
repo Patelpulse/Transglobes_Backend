@@ -12,6 +12,8 @@ import 'rating_screen.dart';
 import 'chat_screen.dart';
 import '../widgets/leaflet_map.dart';
 import '../services/location_service.dart';
+import '../services/ride_service.dart';
+import '../services/api_service.dart';
 
 class RideTrackingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -48,10 +50,20 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   StreamSubscription? _locationSubscription;
   LatLng? _driverPos;
   double _driverHeading = 0.0;
+  double _currentFare = 0.0;
+  String _paymentStatus = 'unpaid';
+  StreamSubscription? _fareSubscription;
 
   late Map<String, dynamic> _driver;
 
   bool _hasNavigatedToRating = false;
+
+  double _parseDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
+  }
 
   @override
   void initState() {
@@ -59,16 +71,18 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
     
     // Initialize driver data
     _driver = {
-      'name': widget.driverData?['name'] ?? 'Driver',
+      'name': widget.driverData?['name']?.toString() ?? 'Driver',
       'rating': '4.9',
-      'vehicle': widget.driverData?['vehicle_name'] ?? widget.vehicle['name'] ?? 'Car',
-      'plate': widget.driverData?['vehicle_number'] ?? widget.driverData?['vichle_number'] ?? 'N/A',
-      'phone': widget.driverData?['phone'] ?? '',
+      'vehicle': widget.driverData?['vehicle_name']?.toString() ?? widget.vehicle['name']?.toString() ?? 'Car',
+      'plate': (widget.driverData?['vehicle_number'] ?? widget.driverData?['vichle_number'] ?? 'N/A').toString(),
+      'phone': widget.driverData?['phone']?.toString() ?? '',
       'otp': widget.otp ?? '----',
       'image': widget.driverData?['photo'] != null && widget.driverData!['photo'].toString().isNotEmpty
-          ? widget.driverData!['photo']
+          ? widget.driverData!['photo'].toString()
           : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png', // Premium avatar
     };
+
+    _currentFare = _parseDouble(widget.vehicle['price']);
 
     _rawStatus = widget.driverData?['status']?.toString().toLowerCase() ?? 'accepted';
     _rideStatus = _mapStatusLabel(_rawStatus);
@@ -100,19 +114,22 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
       // Listen for status updates
       _statusSubscription = ref.read(socketServiceProvider).rideStatusStream.listen((data) {
         if (data['rideId'].toString() == widget.rideId.toString()) {
-          final newStatus = data['status']?.toString();
-          if (newStatus != null) {
+          final newStatus = data['status']?.toString() ?? _rawStatus;
+          if (mounted) {
             setState(() {
               _rawStatus = newStatus.toLowerCase();
               _rideStatus = _mapStatusLabel(_rawStatus);
               if (data['driver'] != null) {
-                _driver['name'] = data['driver']['name'] ?? _driver['name'];
-                _driver['plate'] = data['driver']['vehicle_number'] ?? data['driver']['vichle_number'] ?? _driver['plate'];
-                _driver['phone'] = data['driver']['phone'] ?? _driver['phone'];
-                _driver['vehicle'] = data['driver']['vehicle_name'] ?? _driver['vehicle'];
+                _driver['name'] = data['driver']['name']?.toString() ?? _driver['name'];
+                _driver['plate'] = (data['driver']['vehicle_number'] ?? data['driver']['vichle_number'] ?? _driver['plate']).toString();
+                _driver['phone'] = data['driver']['phone']?.toString() ?? _driver['phone'];
+                _driver['vehicle'] = data['driver']['vehicle_name']?.toString() ?? _driver['vehicle'];
                 if (data['driver']['photo'] != null && data['driver']['photo'].toString().isNotEmpty) {
-                   _driver['image'] = data['driver']['photo'];
+                   _driver['image'] = data['driver']['photo'].toString();
                 }
+              }
+              if (data['paymentStatus'] != null) {
+                _paymentStatus = data['paymentStatus'].toString();
               }
               // Update OTP visibility based on raw status
               if (['accepted', 'on_the_way', 'arrived'].contains(_rawStatus)) {
@@ -121,17 +138,16 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                 _driver['otp'] = '----'; 
               }
             });
-          }
 
-          // Auto-navigate to rating if completed
-          if (newStatus == 'completed' && !_hasNavigatedToRating) {
-            _hasNavigatedToRating = true;
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => RatingScreen(driver: _driver),
-              ),
-            );
+            if (_rawStatus == 'completed' && !_hasNavigatedToRating) {
+               _hasNavigatedToRating = true;
+               Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
+                ),
+              );
+            }
           }
         }
       });
@@ -141,16 +157,16 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
         if (data['rideId'].toString() == widget.rideId.toString()) {
           setState(() {
             _driverPos = LatLng(
-              (data['latitude'] as num).toDouble(),
-              (data['longitude'] as num).toDouble(),
+              _parseDouble(data['latitude']),
+              _parseDouble(data['longitude']),
             );
-            _driverHeading = (data['heading'] as num?)?.toDouble() ?? 0.0;
+            _driverHeading = _parseDouble(data['heading']);
             
             // Calculate dynamic ETA
-            final pLat = (widget.pickup['lat'] as num).toDouble();
-            final pLng = (widget.pickup['lng'] as num).toDouble();
-            final dLat = (widget.dropoff['lat'] as num).toDouble();
-            final dLng = (widget.dropoff['lng'] as num).toDouble();
+            final pLat = _parseDouble(widget.pickup['lat']);
+            final pLng = _parseDouble(widget.pickup['lng']);
+            final dLat = _parseDouble(widget.dropoff['lat']);
+            final dLng = _parseDouble(widget.dropoff['lng']);
 
             final destination = ['accepted', 'on_the_way', 'arrived'].contains(_rawStatus) 
                 ? LatLng(pLat, pLng) 
@@ -160,6 +176,27 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
           });
         }
       });
+
+      // Listen for fare increase
+      _fareSubscription = ref.read(socketServiceProvider).fareIncreasedStream.listen((data) {
+        if (data['rideId'].toString() == widget.rideId.toString()) {
+          final amount = data['amount'];
+          final newFareVal = data['newFare'];
+          double newFareDouble = 0.0;
+          if (newFareVal is num) {
+            newFareDouble = newFareVal.toDouble();
+          } else if (newFareVal is String) {
+            newFareDouble = double.tryParse(newFareVal) ?? 0.0;
+          }
+          
+          if (mounted) {
+            setState(() {
+              _currentFare = newFareDouble;
+            });
+            _showFareIncreaseDialog(amount, newFareDouble);
+          }
+        }
+      });
     });
   }
 
@@ -167,25 +204,27 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   void dispose() {
     _statusSubscription?.cancel();
     _locationSubscription?.cancel();
+    _fareSubscription?.cancel();
     _mapController.dispose();
     super.dispose();
   }
 
   Future<void> _loadRoute() async {
     final pickupPos = LatLng(
-      (widget.pickup['lat'] as num).toDouble(),
-      (widget.pickup['lng'] as num).toDouble(),
+      _parseDouble(widget.pickup['lat']),
+      _parseDouble(widget.pickup['lng']),
     );
     final dropoffPos = LatLng(
-      (widget.dropoff['lat'] as num).toDouble(),
-      (widget.dropoff['lng'] as num).toDouble(),
+      _parseDouble(widget.dropoff['lat']),
+      _parseDouble(widget.dropoff['lng']),
     );
 
     try {
       final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
       if (mounted) {
         setState(() {
-          _routePoints = routeData['points'] ?? [];
+          final List<dynamic> rawPoints = routeData['points'] ?? [];
+          _routePoints = rawPoints.map((p) => LatLng(p[0], p[1])).toList();
         });
         _fitBounds();
       }
@@ -207,8 +246,8 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
     // Fallback bounds if route is empty
     if (boundsPoints.isEmpty || boundsPoints.length < 2) {
       boundsPoints = [
-        LatLng((widget.pickup['lat'] as num).toDouble(), (widget.pickup['lng'] as num).toDouble()),
-        LatLng((widget.dropoff['lat'] as num).toDouble(), (widget.dropoff['lng'] as num).toDouble()),
+        LatLng(_parseDouble(widget.pickup['lat']), _parseDouble(widget.pickup['lng'])),
+        LatLng(_parseDouble(widget.dropoff['lat']), _parseDouble(widget.dropoff['lng'])),
       ];
     }
     
@@ -321,15 +360,123 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
     }
   }
 
+  void _showFareIncreaseDialog(dynamic amount, double newFare) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: context.theme.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text("Fare Increased", style: TextStyle(color: context.colors.textPrimary)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Driver has increased the fare by ₹$amount.",
+              style: TextStyle(color: context.colors.textPrimary, fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "New Estimated Fare: ₹${newFare.toStringAsFixed(0)}",
+              style: TextStyle(
+                color: context.theme.primaryColor,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: context.theme.primaryColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("OK", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cancelRide() async {
+    try {
+      await ref.read(rideServiceProvider).cancelRide(widget.rideId);
+      if (mounted) {
+        setState(() {
+          _rawStatus = 'cancelled';
+          _rideStatus = _mapStatusLabel(_rawStatus);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride cancelled successfully.')),
+        );
+        // Optionally navigate back or to a different screen
+        Navigator.pop(context); // Pop the tracking screen
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to cancel ride: $e')),
+        );
+      }
+    }
+  }
+
+  void _showCancelDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: context.theme.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.red),
+            const SizedBox(width: 8),
+            Text("Cancel Ride?", style: TextStyle(color: context.colors.textPrimary)),
+          ],
+        ),
+        content: Text(
+          "Are you sure you want to cancel this ride? This action cannot be undone.",
+          style: TextStyle(color: context.colors.textPrimary, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("No", style: TextStyle(color: context.colors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              _cancelRide();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Yes, Cancel", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pickupPos = LatLng(
-      (widget.pickup['lat'] as num).toDouble(),
-      (widget.pickup['lng'] as num).toDouble(),
+      _parseDouble(widget.pickup['lat']),
+      _parseDouble(widget.pickup['lng']),
     );
     final dropoffPos = LatLng(
-      (widget.dropoff['lat'] as num).toDouble(),
-      (widget.dropoff['lng'] as num).toDouble(),
+      _parseDouble(widget.dropoff['lat']),
+      _parseDouble(widget.dropoff['lng']),
     );
 
     return Scaffold(
@@ -347,34 +494,22 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                 Polyline(
                   points: _routePoints,
                   strokeWidth: 4.0,
-                  color: context.theme.primaryColor,
+                  color: Colors.black,
                   strokeCap: StrokeCap.round,
                 ),
               ],
               markers: [
                 Marker(
                   point: pickupPos,
-                  width: 12,
-                  height: 12,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: context.theme.primaryColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
+                  width: 220,
+                  height: 80,
+                  child: _buildMapLabel(widget.pickup['name'] ?? 'Pickup', true),
                 ),
                 Marker(
                   point: dropoffPos,
-                  width: 12,
-                  height: 12,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.rectangle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
+                  width: 220,
+                  height: 80,
+                  child: _buildMapLabel(widget.dropoff['name'] ?? 'Drop-off', false),
                 ),
                 if (_driverPos != null)
                   Marker(
@@ -650,9 +785,27 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                 // Driver Info
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 32,
-                      backgroundImage: NetworkImage(_driver['image']),
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 32,
+                          backgroundImage: NetworkImage(_driver['image']),
+                          backgroundColor: context.theme.primaryColor.withOpacity(0.1),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: context.theme.scaffoldBackgroundColor, width: 2),
+                            ),
+                            child: const Icon(Icons.check, color: Colors.white, size: 10),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -666,40 +819,52 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.star,
-                                color: Colors.yellow,
-                                size: 14,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  "${_driver['rating']} • ${_driver['vehicle']}",
-                                  style: const TextStyle(
-                                    color: Color(0xFF9DA6B9),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 4),
+                          Text(
+                            _driver['vehicle'],
+                            style: TextStyle(
+                              color: context.colors.textSecondary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             _driver['plate'],
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                              letterSpacing: 2,
+                            style: TextStyle(
+                              color: context.theme.primaryColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _driver['phone'],
+                            style: TextStyle(
+                              color: context.colors.textSecondary?.withOpacity(0.7) ?? Colors.grey,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                    _buildCallButton(_driver['phone']),
+                    Row(
+                      children: [
+                        _buildCallButton(_driver['phone']),
+                        const SizedBox(width: 8),
+                        _buildChatButton(),
+                      ],
+                    ),
                   ],
                 ),
 
@@ -770,7 +935,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                       ),
                     ),
                     Text(
-                      "₹${widget.vehicle['price']}",
+                      "₹${_currentFare.toStringAsFixed(0)}",
                       style: TextStyle(
                         color: context.colors.textPrimary,
                         fontSize: 22,
@@ -830,26 +995,58 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => RatingScreen(driver: _driver),
-                      ),
-                    );
+                  onPressed: () async {
+                    if (_paymentStatus == 'unpaid') {
+                      // Perform payment
+                      try {
+                        await ref.read(rideServiceProvider).updateRideStatus(widget.rideId, _rawStatus); 
+                        // In a real app we'd call the payRide API
+                        await ref.read(apiServiceProvider).put('/api/ride/rides/${widget.rideId}/pay', {});
+                        setState(() {
+                          _paymentStatus = 'paid';
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment Successful!')));
+                      } catch (e) {
+                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Failed: $e')));
+                      }
+                    } else {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.withOpacity(0.1),
-                    foregroundColor: Colors.red,
-                    minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: _paymentStatus == 'unpaid' ? context.theme.primaryColor : Colors.green.withOpacity(0.1),
+                    foregroundColor: _paymentStatus == 'unpaid' ? Colors.white : Colors.green,
+                    minimumSize: const Size(double.infinity, 56),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    elevation: 0,
+                    elevation: _paymentStatus == 'unpaid' ? 8 : 0,
+                    shadowColor: context.theme.primaryColor.withOpacity(0.4),
                   ),
-                  child: const Text(
-                    "Finish Ride",
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  child: Text(
+                    _paymentStatus == 'unpaid' ? "Pay ₹${_currentFare.toStringAsFixed(0)}" : "Ride Completed",
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                
+                if (_rawStatus == 'accepted' || _rawStatus == 'on_the_way' || _rawStatus == 'arrived')
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: TextButton(
+                    onPressed: () => _showCancelDialog(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: const Text(
+                      "Cancel Ride",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -887,13 +1084,41 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: context.theme.primaryColor.withValues(alpha: 0.1),
+          color: context.theme.primaryColor.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
         child: Icon(Icons.phone, color: context.theme.primaryColor, size: 24),
       ),
     );
   }
+
+  Widget _buildChatButton() {
+    return GestureDetector(
+      onTap: () {
+        final driverId = widget.driverData?['uid'] ?? widget.driverData?['_id'] ?? widget.driverData?['driver_id'];
+        if (driverId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                receiverId: driverId.toString(),
+                receiverName: _driver['name'],
+              ),
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.chat_outlined, color: Colors.blue, size: 24),
+      ),
+    );
+  }
+
 
   Widget _buildBottomActionButton({
     required String label,
@@ -990,5 +1215,96 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
         ),
       ],
     );
+  }
+
+  Widget _buildMapLabel(String name, bool isPickup) {
+    String cleanName = name.contains(',') ? name.split(',')[0] : name;
+    if (isPickup) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    border: Border(right: BorderSide(color: Colors.white.withOpacity(0.2))),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text("2", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text("min", style: TextStyle(color: Colors.white, fontSize: 8)),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          cleanName, 
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.white, size: 14),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(width: 2, height: 6, color: Colors.black),
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(color: Colors.black, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+          ),
+        ],
+      );
+    } else {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    cleanName, 
+                    style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.black, size: 14),
+              ],
+            ),
+          ),
+          Container(width: 2, height: 6, color: Colors.black),
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(color: Colors.black, shape: BoxShape.rectangle, border: Border.all(color: Colors.white, width: 2)),
+          ),
+        ],
+      );
+    }
   }
 }

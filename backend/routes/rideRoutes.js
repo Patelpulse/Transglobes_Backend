@@ -23,5 +23,7 @@ router.put('/rides/:rideId/reject', verifyToken, rideController.rejectRide);
 router.put('/rides/:rideId/status', verifyToken, rideController.updateRideStatus);
 router.put('/rides/:rideId/complete', verifyToken, rideController.updateRideStatus);
 router.put('/rides/:rideId/verify-otp', verifyToken, rideController.verifyRideOtp);
+router.post('/review', verifyToken, rideController.submitReview);
+router.put('/rides/:rideId/pay', verifyToken, rideController.payRide);
 
 module.exports = router;

@@ -3,9 +3,14 @@ const History = require("../models/History");
 const User = require("../models/User"); // used for populating name
 const { notifyAllDrivers } = require('../utils/notificationService');
 
+const Review = require("../models/Review");
+
 exports.getRideTypes = async (req, res) => {
     try {
-        const rides = await RideType.find({ status: true });
+        let rides = await RideType.find({ status: true });
+        
+        // Only return Transglobe
+        rides = rides.filter(r => r.name.toLowerCase().includes('transglobe'));
 
         res.status(200).json({
             success: true,
@@ -90,7 +95,7 @@ exports.getDriverBookings = async (req, res) => {
 // To save user's "input fill" (Ride Request / Booking)
 exports.createRideRequest = async (req, res) => {
     try {
-        const { mobileNumber, locations, rideMode, paymentMode, fare, distance } = req.body;
+        const { mobileNumber, locations, rideMode, paymentMode, fare, distance, vehicleType, typeOfGood } = req.body;
 
         // Verify we have required fields
         if (!locations || !locations.pickup || !locations.dropoff || !rideMode || !fare) {
@@ -166,6 +171,10 @@ exports.createRideRequest = async (req, res) => {
             distance: distance || "",
             fare: fare,
             otp,
+            vehicleType,
+            typeOfGood,
+            helperCount: helperCount || 0,
+            logisticItems: logisticItems || [],
             locations: [
                 {
                     type: "pickup",
@@ -510,6 +519,45 @@ exports.updateFare = async (req, res) => {
             }
         });
 
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.submitReview = async (req, res) => {
+    try {
+        const { bookingId, driverId, rating, comment } = req.body;
+        const review = await Review.create({
+            bookingId,
+            fromId: req.user.id || req.user._id, // User ID from token
+            toId: driverId,
+            onModel: 'Driver',
+            rating,
+            comment
+        });
+        res.status(201).json({ success: true, data: review });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.payRide = async (req, res) => {
+    try {
+        const { rideId } = req.params;
+        const ride = await History.findById(rideId);
+        if (!ride) return res.status(404).json({ success: false, message: "Ride not found" });
+
+        ride.paymentStatus = 'paid';
+        await ride.save();
+
+        if (req.io) {
+            req.io.to(ride._id.toString()).emit("ride_status_update", {
+                rideId: ride._id.toString(),
+                paymentStatus: 'paid'
+            });
+        }
+
+        res.json({ success: true, message: "Payment successful", ride });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

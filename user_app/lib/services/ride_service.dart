@@ -28,6 +28,8 @@ class RideService {
     required double duration,
     bool isScheduled = false,
     DateTime? scheduledTime,
+    String? vehicleType,
+    String? typeOfGood,
   }) async {
     final response = await _apiService.post('/rides', {
       'pickupLocation': {'coordinates': pickupCoordinates},
@@ -41,8 +43,31 @@ class RideService {
       'isScheduled': isScheduled,
       if (scheduledTime != null)
         'scheduledTime': scheduledTime.toIso8601String(),
+      if (vehicleType != null) 'vehicleType': vehicleType,
+      if (typeOfGood != null) 'typeOfGood': typeOfGood,
     });
     return RideModel.fromJson(response);
+  }
+
+  Future<RideModel> createRideRequest({
+    required Map<String, dynamic> locations,
+    required String rideMode,
+    required double fare,
+    String? distance,
+    String? paymentMode,
+    String? vehicleType,
+    String? typeOfGood,
+  }) async {
+    final response = await _apiService.post('/ride-request', {
+      'locations': locations,
+      'rideMode': rideMode,
+      'fare': fare,
+      if (distance != null) 'distance': distance,
+      if (paymentMode != null) 'paymentMode': paymentMode,
+      if (vehicleType != null) 'vehicleType': vehicleType,
+      if (typeOfGood != null) 'typeOfGood': typeOfGood,
+    });
+    return RideModel.fromJson(response['data'] ?? response);
   }
 
   Future<List<RideModel>> getMyRides() async {
@@ -77,5 +102,19 @@ class RideService {
       'extraFare': extraFare,
     });
     return response;
+  }
+
+  Future<void> submitReview({
+    required String bookingId,
+    required String driverId,
+    required int rating,
+    required String comment,
+  }) async {
+    await _apiService.post('/api/ride/review', {
+      'bookingId': bookingId,
+      'driverId': driverId,
+      'rating': rating,
+      'comment': comment,
+    });
   }
 }

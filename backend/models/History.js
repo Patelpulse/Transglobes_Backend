@@ -71,6 +71,25 @@ const historySchema = new mongoose.Schema({
     rejectedBy: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Driver"
+    }],
+    paymentStatus: {
+        type: String,
+        enum: ["unpaid", "paid"],
+        default: "unpaid"
+    },
+    vehicleType: {
+        type: String
+    },
+    typeOfGood: {
+        type: String
+    },
+    helperCount: {
+        type: Number,
+        default: 0
+    },
+    logisticItems: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'LogisticGood'
     }]
 }, { timestamps: true });
 

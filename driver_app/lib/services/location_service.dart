@@ -1,19 +1,24 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
+import 'package:google_polyline_algorithm/google_polyline_algorithm.dart' as poly;
 import '../core/config.dart';
 
 class LocationService {
   static Future<Map<String, dynamic>> getRouteData(
-    LatLng start,
-    LatLng end,
+    dynamic start, // Can be latlong2.LatLng or google_maps_flutter.LatLng
+    dynamic end,
   ) async {
     try {
+      final startLat = start.latitude;
+      final startLng = start.longitude;
+      final endLat = end.latitude;
+      final endLng = end.longitude;
+
       final apiKey = AppConfig.googleMapsApiKey;
       final baseUrl = AppConfig.apiBaseUrl;
       final url = Uri.parse(
-        '$baseUrl/api/maps/directions?origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&key=$apiKey',
+        '$baseUrl/api/maps/directions?origin=$startLat,$startLng&destination=$endLat,$endLng&key=$apiKey',
       );
       final response = await http.get(url);
 
@@ -23,18 +28,20 @@ class LocationService {
           final route = data['routes'][0];
           final leg = route['legs'][0];
           
-          // Decode polyline using the google_polyline_algorithm logic
           String encodedPolyline = route['overview_polyline']['points'];
-          final decodedCoords = decodePolyline(encodedPolyline);
+          final List<List<double>> decodedPoints = poly.decodePolyline(encodedPolyline).map((p) => [p[0].toDouble(), p[1].toDouble()]).toList();
           
-          final List<LatLng> points = decodedCoords
-              .map((coord) => LatLng(coord[0].toDouble(), coord[1].toDouble()))
-              .toList();
-          
+          double parseDouble(dynamic val) {
+            if (val == null) return 0.0;
+            if (val is num) return val.toDouble();
+            if (val is String) return double.tryParse(val) ?? 0.0;
+            return 0.0;
+          }
+
           return {
-            'points': points,
-            'distance': (leg['distance']['value'] as num).toDouble() / 1000, // km
-            'duration': (leg['duration']['value'] as num).toDouble() / 60,   // mins
+            'points': decodedPoints, // Returning as raw coordinates to avoid package conflicts
+            'distance': parseDouble(leg['distance']['value']) / 1000, 
+            'duration': parseDouble(leg['duration']['value']) / 60,   
           };
         }
       }
@@ -42,46 +49,10 @@ class LocationService {
       debugPrint('Error fetching route for driver: $e');
     }
     return {
-      'points': [start, end],
+      'points': [[start.latitude, start.longitude], [end.latitude, end.longitude]],
       'distance': 0.0,
       'duration': 0.0,
     };
   }
 }
 
-// Utility to decode polyline strings
-List<List<num>> decodePolyline(String encoded) {
-  List<int> poly = encoded.codeUnits;
-  int index = 0;
-  int len = encoded.length;
-  int lat = 0;
-  int lng = 0;
-  List<List<num>> decoded = [];
-
-  while (index < len) {
-    int b;
-    int shift = 0;
-    int result = 0;
-    do {
-      b = poly[index++] - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-    lat += dlat;
-
-    shift = 0;
-    result = 0;
-    do {
-      b = poly[index++] - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-    lng += dlng;
-
-    decoded.add([lat / 1E5, lng / 1E5]);
-  }
-
-  return decoded;
-}

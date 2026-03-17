@@ -20,6 +20,7 @@ class AdminScaffold extends ConsumerWidget {
     if (location.startsWith('/finance')) return 3;
     if (location.startsWith('/alerts')) return 4;
     if (location.startsWith('/settings')) return 5;
+    if (location.startsWith('/logistics')) return 6;
     return 0; // Fleet / Dashboard
   }
 
@@ -42,6 +43,9 @@ class AdminScaffold extends ConsumerWidget {
         break;
       case 5:
         context.go('/settings');
+        break;
+      case 6:
+        context.go('/logistics');
         break;
     }
   }
@@ -222,6 +226,12 @@ class AdminScaffold extends ConsumerWidget {
                   isSelected: currentIndex == 5,
                   onTap: () => _onItemTapped(5, context),
                 ),
+                _SidebarItem(
+                  icon: Icons.local_shipping,
+                  title: 'Logistics Modes',
+                  isSelected: currentIndex == 6,
+                  onTap: () => _onItemTapped(6, context),
+                ),
               ],
             ),
           ),
@@ -367,6 +377,15 @@ class AdminScaffold extends ConsumerWidget {
             title: const Text('Settings', style: TextStyle(color: Colors.white)),
             onTap: () {
               context.go('/settings');
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.local_shipping_outlined,
+                color: AppTheme.textMutedLight),
+            title: const Text('Logistics Management', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              context.go('/logistics');
               Navigator.pop(context);
             },
           ),

@@ -295,7 +295,13 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                     child: ElevatedButton(
                       onPressed: () {
                         if (widget.onAccept != null) {
-                          final baseFare = (widget.rideData?['fare'] as num?)?.toDouble() ?? 0.0;
+                          final fareValue = widget.rideData?['fare'];
+                          double baseFare = 0.0;
+                          if (fareValue is num) {
+                            baseFare = fareValue.toDouble();
+                          } else if (fareValue is String) {
+                            baseFare = double.tryParse(fareValue) ?? 0.0;
+                          }
                           widget.onAccept!(baseFare + _additionalFare);
                         }
                       },

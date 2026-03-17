@@ -29,6 +29,17 @@ const bookingSchema = new mongoose.Schema({
     },
     distance: {
         type: String
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['unpaid', 'paid'],
+        default: 'unpaid'
+    },
+    vehicleType: {
+        type: String
+    },
+    typeOfGood: {
+        type: String
     }
 }, { timestamps: true });
 

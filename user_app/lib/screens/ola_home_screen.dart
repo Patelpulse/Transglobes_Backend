@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/ride_service.dart';
 import '../models/ride_type_model.dart';
-import '../services/auth_service.dart';
+import '../providers/ride_provider.dart';
 
 class OlaHomeScreen extends ConsumerStatefulWidget {
   const OlaHomeScreen({super.key});
@@ -17,7 +17,6 @@ class _OlaHomeScreenState extends ConsumerState<OlaHomeScreen> with SingleTicker
     text: "The Weekend Wine & More, 504, 1, Hazipur, Sector 104, Noida, U...",
   );
   final TextEditingController _toController = TextEditingController();
-  String _selectedWhen = "Now";
 
   @override
   void initState() {
@@ -34,25 +33,44 @@ class _OlaHomeScreenState extends ConsumerState<OlaHomeScreen> with SingleTicker
   }
 
   Future<void> _handleRideSelection(RideTypeModel rideType) async {
-    final userId = ref.read(authServiceProvider).currentUser?.uid ?? "demo_user";
     
-    final success = await ref.read(rideServiceProvider).createRideRequest(
-      from: _fromController.text,
-      to: _toController.text,
-      when: _selectedWhen,
-      rideTypeId: rideType.id,
-      userId: userId,
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success 
-            ? "Ride request for ${rideType.name} saved to database!" 
-            : "Failed to save ride request"),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
+    try {
+      await ref.read(rideServiceProvider).createRideRequest(
+        locations: {
+          'pickup': {
+            'title': 'Current Location',
+            'address': _fromController.text,
+            'latitude': 19.0760,
+            'longitude': 72.8777,
+          },
+          'dropoff': {
+            'title': 'Destination',
+            'address': _toController.text,
+            'latitude': 19.0800,
+            'longitude': 72.8800,
+          },
+        },
+        rideMode: rideType.name,
+        fare: rideType.baseFare,
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Ride request for ${rideType.name} saved!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to save ride request: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

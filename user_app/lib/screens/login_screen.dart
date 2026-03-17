@@ -112,7 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     try {
       final authService = ref.read(authServiceProvider);
-      final userCredential = await authService.signInWithPhoneCredential(
+      await authService.signInWithPhoneCredential(
         _verificationId!,
         _otpController.text,
       );

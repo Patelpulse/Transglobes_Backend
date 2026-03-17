@@ -14,6 +14,7 @@ class SocketService {
   final _rideAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
   final _rideStatusController = StreamController<Map<String, dynamic>>.broadcast();
   final _driverLocationController = StreamController<Map<String, dynamic>>.broadcast();
+  final _fareIncreasedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
 
   IO.Socket? get socket => _socket;
@@ -23,6 +24,7 @@ class SocketService {
   Stream<Map<String, dynamic>> get rideAcceptedStream => _rideAcceptedController.stream;
   Stream<Map<String, dynamic>> get rideStatusStream => _rideStatusController.stream;
   Stream<Map<String, dynamic>> get driverLocationStream => _driverLocationController.stream;
+  Stream<Map<String, dynamic>> get fareIncreasedStream => _fareIncreasedController.stream;
   Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
 
   void connect(String userId, {String? name}) {
@@ -76,6 +78,11 @@ class SocketService {
 
     _socket?.on("chat_history", (data) {
       _historyController.add(List<dynamic>.from(data));
+    });
+
+    _socket?.on("fare_increased", (data) {
+      print("Fare Increased: $data");
+      _fareIncreasedController.add(Map<String, dynamic>.from(data));
     });
 
     _socket?.onDisconnect((_) => print("User Socket Disconnected"));

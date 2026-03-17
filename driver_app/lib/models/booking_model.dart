@@ -21,6 +21,7 @@ class BookingModel {
   final double? dropLng;
   final String? userId;
   final double? actualFare;
+  final String paymentStatus; // unpaid, paid
 
   const BookingModel({
     required this.id,
@@ -43,6 +44,7 @@ class BookingModel {
     this.dropLng,
     this.actualFare,
     this.userId,
+    this.paymentStatus = 'unpaid',
   });
 
   BookingModel copyWith({
@@ -55,6 +57,7 @@ class BookingModel {
     double? dropLat,
     double? dropLng,
     String? otp,
+    String? paymentStatus,
   }) =>
       BookingModel(
         id: id,
@@ -77,30 +80,55 @@ class BookingModel {
         dropLng: dropLng ?? this.dropLng,
         actualFare: actualFare ?? this.actualFare,
         userId: userId ?? this.userId,
+        paymentStatus: paymentStatus ?? this.paymentStatus,
       );
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic val) {
+      if (val == null) return 0.0;
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val) ?? 0.0;
+      return 0.0;
+    }
+
+    double? parseOptionalDouble(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val);
+      return null;
+    }
+
+    int parseInt(dynamic val, [int def = 0]) {
+      if (val == null) return def;
+      if (val is int) return val;
+      if (val is num) return val.toInt();
+      if (val is String) return int.tryParse(val) ?? def;
+      return def;
+    }
+
     return BookingModel(
       id: json['_id'] ?? json['id'] ?? '',
       userName: json['userName'] ?? 'Customer',
       userPhone: json['userPhone'] ?? json['phone'] ?? '',
       pickupAddress: json['pickupAddress'] ?? json['pick'] ?? '',
       dropAddress: json['dropAddress'] ?? json['drop'] ?? '',
-      fare: (json['fare'] as num?)?.toDouble() ?? 0.0,
-      distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 
-                 double.tryParse(json['distance']?.toString().replaceAll(' km', '') ?? '0') ?? 0.0,
-      etaMinutes: json['etaMinutes'] ?? 10,
+      fare: parseDouble(json['fare']),
+      distanceKm: (json['distanceKm'] != null)
+          ? parseDouble(json['distanceKm'])
+          : parseDouble(json['distance']?.toString().replaceAll(' km', '')),
+      etaMinutes: parseInt(json['etaMinutes'], 10),
       vehicleType: json['rideMode'] == 'truck' ? 'truck' : 'cab',
       subType: json['rideMode']?.toString().toUpperCase() ?? 'SEDAN',
       status: json['status'] ?? 'pending',
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       otp: json['otp']?.toString(),
-      actualFare: (json['actualFare'] as num?)?.toDouble(),
-      pickupLat: (json['pickupLat'] as num?)?.toDouble(),
-      pickupLng: (json['pickupLng'] as num?)?.toDouble(),
-      dropLat: (json['dropLat'] as num?)?.toDouble(),
-      dropLng: (json['dropLng'] as num?)?.toDouble(),
+      actualFare: parseOptionalDouble(json['actualFare']),
+      pickupLat: parseOptionalDouble(json['pickupLat']),
+      pickupLng: parseOptionalDouble(json['pickupLng']),
+      dropLat: parseOptionalDouble(json['dropLat']),
+      dropLng: parseOptionalDouble(json['dropLng']),
       userId: json['userId']?.toString(),
+      paymentStatus: json['paymentStatus'] ?? 'unpaid',
     );
   }
 }

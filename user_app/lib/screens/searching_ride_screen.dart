@@ -45,6 +45,13 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
   StreamSubscription? _statusSubscription;
   late double _currentPrice;
 
+  double _parseDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -122,20 +129,24 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
 
   Future<void> _loadRoute() async {
     final pickupPos = LatLng(
-      (widget.pickup['latitude'] ?? widget.pickup['lat'] as num).toDouble(),
-      (widget.pickup['longitude'] ?? widget.pickup['lng'] as num).toDouble(),
+      _parseDouble(widget.pickup['latitude'] ?? widget.pickup['lat']),
+      _parseDouble(widget.pickup['longitude'] ?? widget.pickup['lng']),
     );
     final dropoffPos = LatLng(
-      (widget.dropoff['latitude'] ?? widget.dropoff['lat'] as num).toDouble(),
-      (widget.dropoff['longitude'] ?? widget.dropoff['lng'] as num).toDouble(),
+      _parseDouble(widget.dropoff['latitude'] ?? widget.dropoff['lat']),
+      _parseDouble(widget.dropoff['longitude'] ?? widget.dropoff['lng']),
     );
 
-    final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
-    if (mounted) {
-      setState(() {
-        _routePoints = routeData['points'];
-      });
-      _fitBounds();
+    try {
+      final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
+      if (mounted) {
+        setState(() {
+          _routePoints = routeData['points'] ?? [];
+        });
+        _fitBounds();
+      }
+    } catch (e) {
+      debugPrint("Error loading route: $e");
     }
   }
 
@@ -163,10 +174,10 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pickupLat = (widget.pickup['latitude'] ?? widget.pickup['lat'] as num).toDouble();
-    final pickupLng = (widget.pickup['longitude'] ?? widget.pickup['lng'] as num).toDouble();
-    final dropoffLat = (widget.dropoff['latitude'] ?? widget.dropoff['lat'] as num).toDouble();
-    final dropoffLng = (widget.dropoff['longitude'] ?? widget.dropoff['lng'] as num).toDouble();
+    final pickupLat = _parseDouble(widget.pickup['latitude'] ?? widget.pickup['lat']);
+    final pickupLng = _parseDouble(widget.pickup['longitude'] ?? widget.pickup['lng']);
+    final dropoffLat = _parseDouble(widget.dropoff['latitude'] ?? widget.dropoff['lat']);
+    final dropoffLng = _parseDouble(widget.dropoff['longitude'] ?? widget.dropoff['lng']);
 
     return Scaffold(
       backgroundColor: Colors.black,

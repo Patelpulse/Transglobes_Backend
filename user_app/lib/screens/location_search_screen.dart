@@ -262,31 +262,14 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     
     setState(() => _isSearching = true);
     try {
-      final origin = "${_pickupLatLng!.latitude},${_pickupLatLng!.longitude}";
-      final dest = "${_dropoffLatLng!.latitude},${_dropoffLatLng!.longitude}";
-      final apiKey = AppConfig.googleMapsApiKey;
-      final baseUrl = AppConfig.apiBaseUrl;
+      final routeData = await LocationService.getRouteData(_pickupLatLng!, _dropoffLatLng!);
+      setState(() {
+        _routePoints = routeData['points'];
+      });
       
-      // Use proxy on Web, direct on Mobile
-      final url = kIsWeb 
-          ? "$baseUrl/api/maps/directions?origin=$origin&destination=$dest&key=$apiKey"
-          : "https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$dest&key=$apiKey";
-
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK' && (data['routes'] as List).isNotEmpty) {
-          final points = data['routes'][0]['overview_polyline']['points'];
-          setState(() {
-            _routePoints = _decodePolyline(points);
-          });
-          
-          // Fit map to route
-          if (_routePoints.isNotEmpty) {
-            final bounds = LatLngBounds.fromPoints(_routePoints);
-            _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)));
-          }
-        }
+      if (_routePoints.isNotEmpty) {
+        final bounds = LatLngBounds.fromPoints(_routePoints);
+        _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)));
       }
     } catch (e) {
       debugPrint("Route error: $e");
@@ -295,28 +278,7 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     }
   }
 
-  List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> polyline = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do { b = encoded.codeUnitAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1)); lat += dlat;
-      shift = 0; result = 0;
-      do { b = encoded.codeUnitAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1)); lng += dlng;
-      
-      double latVal = lat / 100000.0;
-      double lngVal = lng / 100000.0;
-      if (latVal > 90) latVal = 90;
-      if (latVal < -90) latVal = -90;
-      if (lngVal > 180) lngVal = 180;
-      if (lngVal < -180) lngVal = -180;
-      polyline.add(LatLng(latVal, lngVal));
-    }
-    return polyline;
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -346,17 +308,23 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
                 ),
                 if (_routePoints.isNotEmpty)
                   PolylineLayer(polylines: [
-                    Polyline(points: _routePoints, color: Colors.blue[600]!, strokeWidth: 5),
-                  ])
-                else if (_pickupLatLng != null && _dropoffLatLng != null)
-                  PolylineLayer(polylines: [
-                    Polyline(points: [_pickupLatLng!, _dropoffLatLng!], color: Colors.black26, strokeWidth: 3),
+                    Polyline(points: _routePoints, color: Colors.black, strokeWidth: 4, strokeCap: StrokeCap.round),
                   ]),
                 MarkerLayer(markers: [
                   if (_pickupLatLng != null)
-                    Marker(point: _pickupLatLng!, child: const Icon(Icons.radio_button_checked, color: Colors.blue, size: 20)),
+                    Marker(
+                      point: _pickupLatLng!,
+                      width: 220,
+                      height: 80,
+                      child: _buildMapLabel('From ${_pickupController.text}', true),
+                    ),
                   if (_dropoffLatLng != null)
-                    Marker(point: _dropoffLatLng!, child: const Icon(Icons.location_on, color: Colors.red, size: 30)),
+                    Marker(
+                      point: _dropoffLatLng!,
+                      width: 220,
+                      height: 80,
+                      child: _buildMapLabel('To ${_dropoffController.text}', false),
+                    ),
                 ]),
               ],
             ),
@@ -594,6 +562,84 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildMapLabel(String name, bool isPickup) {
+    String cleanName = name.contains(',') ? name.split(',')[0] : name;
+    if (isPickup) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    border: Border(right: BorderSide(color: Colors.white.withOpacity(0.2))),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text("2", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text("min", style: TextStyle(color: Colors.white, fontSize: 8)),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    children: [
+                      Text(cleanName, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.chevron_right, color: Colors.white, size: 14),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(width: 2, height: 6, color: Colors.black),
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(color: Colors.black, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+          ),
+        ],
+      );
+    } else {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(cleanName, style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
+                const Icon(Icons.chevron_right, color: Colors.black, size: 14),
+              ],
+            ),
+          ),
+          Container(width: 2, height: 6, color: Colors.black),
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(color: Colors.black, shape: BoxShape.rectangle, border: Border.all(color: Colors.white, width: 2)),
+          ),
+        ],
+      );
+    }
   }
 
   Widget _buildSearchField({

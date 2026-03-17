@@ -1,16 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
+import '../services/ride_service.dart';
 
-class RatingScreen extends StatefulWidget {
+class RatingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> driver;
-  const RatingScreen({super.key, required this.driver});
+  final String? bookingId;
+  const RatingScreen({super.key, required this.driver, this.bookingId});
 
   @override
-  State<RatingScreen> createState() => _RatingScreenState();
+  ConsumerState<RatingScreen> createState() => _RatingScreenState();
 }
 
-class _RatingScreenState extends State<RatingScreen> {
+class _RatingScreenState extends ConsumerState<RatingScreen> {
   int _selectedRating = 4;
+  final _commentController = TextEditingController();
+  bool _isSubmitting = false;
+
+  Future<void> _submitReview() async {
+    if (widget.bookingId == null) {
+      Navigator.pop(context);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final driverId = widget.driver['uid'] ?? widget.driver['_id'] ?? widget.driver['driver_id'];
+      await ref.read(rideServiceProvider).submitReview(
+        bookingId: widget.bookingId!,
+        driverId: driverId.toString(),
+        rating: _selectedRating,
+        comment: _commentController.text,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thank you for your feedback!')));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to submit review: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
   final List<String> _tags = [
     "Professional",
     "Clean Vehicle",
@@ -42,15 +76,18 @@ class _RatingScreenState extends State<RatingScreen> {
         ),
         centerTitle: true,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                "Post",
-                style: TextStyle(
-                  color: context.theme.primaryColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+          GestureDetector(
+            onTap: _isSubmitting ? null : _submitReview,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Text(
+                  "Post",
+                  style: TextStyle(
+                    color: _isSubmitting ? Colors.grey : context.theme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -224,6 +261,7 @@ class _RatingScreenState extends State<RatingScreen> {
                 ),
               ),
               child: TextField(
+                controller: _commentController,
                 maxLines: 4,
                 style: TextStyle(color: context.colors.textPrimary),
                 decoration: InputDecoration(
@@ -314,7 +352,7 @@ class _RatingScreenState extends State<RatingScreen> {
         color: context.theme.scaffoldBackgroundColor,
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
         child: ElevatedButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSubmitting ? null : _submitReview,
           style: ElevatedButton.styleFrom(
             backgroundColor: context.theme.primaryColor,
             foregroundColor: Colors.white,
@@ -325,10 +363,12 @@ class _RatingScreenState extends State<RatingScreen> {
             elevation: 0,
             shadowColor: context.theme.primaryColor.withOpacity(0.3),
           ),
-          child: const Text(
-            "Submit Feedback",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          child: _isSubmitting 
+              ? const CircularProgressIndicator(color: Colors.white)
+              : const Text(
+                  "Submit Feedback",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
         ),
       ),
     );

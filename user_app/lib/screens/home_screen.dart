@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
-import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import 'location_search_screen.dart';
 import 'ride_booking_screen.dart';
@@ -41,6 +40,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
 
     return Scaffold(
+      drawer: _buildDrawer(context),
       body: tabs[_currentIndex],
       backgroundColor: context.theme.scaffoldBackgroundColor,
       bottomNavigationBar: NavigationBar(
@@ -99,6 +99,225 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    const Color transPurple = Color(0xFF8B7DBE);
+    final userAsync = ref.watch(fullUserProfileProvider);
+
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: Column(
+        children: [
+          // Drawer Header
+          DrawerHeader(
+            padding: EdgeInsets.zero,
+            margin: EdgeInsets.zero,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1A1A1A), Color(0xFF2D2442)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: transPurple.withOpacity(0.2),
+                    child: const Icon(Icons.person, color: Colors.white, size: 30),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        userAsync.when(
+                          data: (user) => Text(
+                            user?.name ?? "User",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          loading: () => const Text("Loading...",
+                              style: TextStyle(color: Colors.white70)),
+                          error: (_, __) => const Text("User",
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                        const Text(
+                          "4.8 ★ Gold Member",
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Vehicle Modes (Services)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "OUR SERVICES",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black54,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ),
+          _drawerServiceItem(
+            context,
+            icon: Icons.directions_car_rounded,
+            title: "Transglobe (Cabs)",
+            subtitle: "Comfortable city rides",
+            color: Colors.blue,
+            onTap: () {
+              Navigator.pop(context);
+              // Already on home screen which shows Cabs by default
+            },
+          ),
+          _drawerServiceItem(
+            context,
+            icon: Icons.local_shipping_rounded,
+            title: "Logistics (Trucks)",
+            subtitle: "Deliver heavy goods",
+            color: Colors.orange,
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LogisticsBookingScreen(),
+                ),
+              );
+            },
+          ),
+          _drawerServiceItem(
+            context,
+            icon: Icons.directions_bus_rounded,
+            title: "Shuttle (Buses)",
+            subtitle: "Smart daily commute",
+            color: Colors.purple,
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BusBookingScreen(),
+                ),
+              );
+            },
+          ),
+
+          const Divider(height: 32),
+
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _drawerMenuItem(Icons.history, "My Trips", () {
+                  Navigator.pop(context);
+                  setState(() => _currentIndex = 1);
+                }),
+                _drawerMenuItem(Icons.account_balance_wallet_outlined,
+                    "Wallet", () {
+                  Navigator.pop(context);
+                  setState(() => _currentIndex = 2);
+                }),
+                _drawerMenuItem(Icons.local_offer_outlined, "Offers", () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const OffersScreen()),
+                  );
+                }),
+                _drawerMenuItem(Icons.settings_outlined, "Settings", () {
+                  Navigator.pop(context);
+                  setState(() => _currentIndex = 3);
+                }),
+                _drawerMenuItem(Icons.help_outline, "Support", () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const SupportScreen()),
+                  );
+                }),
+                const Divider(),
+                _drawerMenuItem(Icons.logout, "Logout", () {
+                  AuthService().signOut();
+                }, isDestructive: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerServiceItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: color, size: 24),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 11, color: Colors.black54),
+      ),
+      trailing: const Icon(Icons.chevron_right, size: 18),
+      onTap: onTap,
+    );
+  }
+
+  Widget _drawerMenuItem(IconData icon, String title, VoidCallback onTap,
+      {bool isDestructive = false}) {
+    return ListTile(
+      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.black87),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isDestructive ? Colors.red : Colors.black87,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      onTap: onTap,
     );
   }
 }
@@ -172,18 +391,30 @@ class _HomeTabState extends State<HomeTab> {
                 ),
                 child: Row(
                   children: [
-                    // Menu/Back button
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey[200]!),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: Colors.black54,
+                    // Menu button
+                    Builder(
+                      builder: (ctx) => GestureDetector(
+                        onTap: () => Scaffold.of(ctx).openDrawer(),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.grey[200]!),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.menu,
+                            color: Colors.black87,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -386,7 +617,7 @@ class _HomeTabState extends State<HomeTab> {
                   children: [
                     _buildSquareServiceCard(
                       "assets/images/homescreen/service_ride.png",
-                      "Ride",
+                      "Transglobe",
                       _handleWhereTo,
                     ),
                     _buildSquareServiceCard(

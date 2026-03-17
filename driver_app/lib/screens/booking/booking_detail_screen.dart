@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
+
 import 'package:driver_app/models/booking_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:driver_app/screens/chat/chat_screen.dart';
@@ -8,7 +10,7 @@ import '../../core/theme.dart';
 import '../../providers/booking_provider.dart';
 import '../../widgets/delay_reason_sheet.dart';
 import '../navigation/navigation_screen.dart';
-import 'package:latlong2/latlong.dart';
+import 'active_ride_screen.dart';
 
 class BookingDetailScreen extends ConsumerWidget {
   final String bookingId;
@@ -62,14 +64,14 @@ class BookingDetailScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppTheme.darkSurface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.neonGreen.withValues(alpha: 0.3)),
+        border: Border.all(color: AppTheme.neonGreen.withOpacity(0.3)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.neonGreen.withValues(alpha: 0.1),
+              color: AppTheme.neonGreen.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check_circle_outline, color: AppTheme.neonGreen, size: 28),
@@ -246,7 +248,12 @@ class BookingDetailScreen extends ConsumerWidget {
             onPressed: () {
               // Logic to advance status
               if (booking.status == 'arrived') {
-                _showOTPDialog(context, ref, booking);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ActiveRideScreen(booking: booking),
+                  ),
+                );
               } else {
                 String nextStatus = '';
                 if (booking.status == 'accepted') nextStatus = 'on_the_way';
@@ -254,7 +261,17 @@ class BookingDetailScreen extends ConsumerWidget {
                 else if (booking.status == 'ongoing') nextStatus = 'completed';
                 
                 if (nextStatus == 'completed') {
-                  _showCompleteTripDialog(context, ref, booking);
+                  if (booking.paymentStatus == 'unpaid') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Waiting for customer payment...'),
+                        backgroundColor: Colors.orange,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  } else {
+                    _showCompleteTripDialog(context, ref, booking);
+                  }
                 } else if (nextStatus.isNotEmpty) {
                   ref.read(bookingProvider.notifier).updateStatus(booking.id, nextStatus);
                 }
@@ -266,7 +283,7 @@ class BookingDetailScreen extends ConsumerWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             child: Text(
-              _buttonLabel(booking.status),
+              _buttonLabel(booking.status, booking.paymentStatus),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1),
             ),
           ),
@@ -298,14 +315,14 @@ class BookingDetailScreen extends ConsumerWidget {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () {
-                  LatLng? dest;
+                  gmaps.LatLng? dest;
                   String destName = '';
 
                   if (['accepted', 'on_the_way'].contains(booking.status)) {
-                    dest = LatLng(booking.pickupLat ?? 26.8467, booking.pickupLng ?? 80.9462);
+                    dest = gmaps.LatLng(booking.pickupLat ?? 26.8467, booking.pickupLng ?? 80.9462);
                     destName = 'Pickup: ${booking.pickupAddress}';
                   } else {
-                    dest = LatLng(booking.dropLat ?? 26.8467, booking.dropLng ?? 80.9462);
+                    dest = gmaps.LatLng(booking.dropLat ?? 26.8467, booking.dropLng ?? 80.9462);
                     destName = 'Drop: ${booking.dropAddress}';
                   }
 
@@ -315,6 +332,7 @@ class BookingDetailScreen extends ConsumerWidget {
                       builder: (context) => NavigationScreen(
                         destination: dest!,
                         destinationName: destName,
+                        rideId: booking.id,
                       ),
                     ),
                   );
@@ -335,121 +353,14 @@ class BookingDetailScreen extends ConsumerWidget {
     );
   }
 
-  String _buttonLabel(String status) {
+  String _buttonLabel(String status, String paymentStatus) {
     switch (status) {
       case 'accepted': return 'ON THE WAY';
       case 'on_the_way': return 'I HAVE ARRIVED';
       case 'arrived': return 'VERIFY OTP';
-      case 'ongoing': return 'COMPLETE TRIP';
+      case 'ongoing': return paymentStatus == 'paid' ? 'COMPLETE TRIP' : 'WAIT FOR PAYMENT';
       default: return 'CONTINUE';
     }
-  }
-
-  void _showOTPDialog(BuildContext context, WidgetRef ref, BookingModel booking) {
-    final List<TextEditingController> controllers = List.generate(4, (_) => TextEditingController());
-    final List<FocusNode> focusNodes = List.generate(4, (_) => FocusNode());
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.darkSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        content: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Enter OTP to Start Ride',
-                style: TextStyle(color: AppTheme.darkTextPrimary, fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Ask the customer for the 4-digit code',
-                style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 13),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(4, (index) => SizedBox(
-                  width: 50,
-                  height: 60,
-                  child: TextField(
-                    controller: controllers[index],
-                    focusNode: focusNodes[index],
-                    onChanged: (value) {
-                      if (value.isNotEmpty && index < 3) {
-                        focusNodes[index + 1].requestFocus();
-                      } else if (value.isEmpty && index > 0) {
-                        focusNodes[index - 1].requestFocus();
-                      }
-                    },
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    maxLength: 1,
-                    style: const TextStyle(color: AppTheme.neonGreen, fontSize: 24, fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      counterText: '',
-                      fillColor: AppTheme.darkBg,
-                      filled: true,
-                      hintText: '-',
-                      hintStyle: TextStyle(color: AppTheme.darkTextSecondary.withOpacity(0.3)),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.neonGreen)),
-                    ),
-                  ),
-                )),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL', style: TextStyle(color: AppTheme.darkTextSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final otp = controllers.map((c) => c.text).join();
-              if (otp.length < 4) return;
-              
-              try {
-                await ref.read(bookingProvider.notifier).verifyOtp(booking.id, otp);
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  // Open map for drop-off
-                  final lat = booking.dropLat;
-                  final lng = booking.dropLng;
-                  if (lat != null && lng != null) {
-                    final Uri url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(url, mode: LaunchMode.externalApplication);
-                    }
-                  }
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid OTP. Please try again.'), backgroundColor: AppTheme.offlineRed),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.neonGreen, 
-              foregroundColor: AppTheme.darkBg,
-              minimumSize: const Size(120, 48),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showCompleteTripDialog(BuildContext context, WidgetRef ref, BookingModel booking) {

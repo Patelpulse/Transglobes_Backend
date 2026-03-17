@@ -37,11 +37,17 @@ const driverRoutes = require('./routes/driverRoutes');
 const adminRoutes = require('./routes/routeAdmin');
 const rideRoutes = require('./routes/rideRoutes');
 const mapsRoutes = require('./routes/mapsRoutes');
+const typeGoodRoutes = require('./routes/typeGoodRoutes');
+const logisticsVehicleRoutes = require('./routes/logisticsVehicleRoutes');
+const logisticGoodRoutes = require('./routes/logisticGoodRoutes');
 app.use('/api/user', userRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ride', rideRoutes);
 app.use('/api/maps', mapsRoutes);
+app.use('/api/typegood', typeGoodRoutes);
+app.use('/api/logistics-vehicles', logisticsVehicleRoutes);
+app.use('/api/logistic-goods', logisticGoodRoutes);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

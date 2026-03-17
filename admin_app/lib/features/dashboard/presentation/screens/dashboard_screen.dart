@@ -11,7 +11,7 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           children: [
             _buildHeader(),
-            _buildTabs(),
+            _buildTabs(context),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 24),
@@ -59,17 +59,21 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTabs() {
+  Widget _buildTabs(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Color(0xFF2D364A), width: 1)),
       ),
-      child: Row(
-        children: [
-          _buildTab("Cabs", true),
-          _buildTab("Trucks", false),
-          _buildTab("Buses", false),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildTab("Cabs", true),
+            _buildTab("Trucks", false),
+            _buildTab("Buses", false),
+            _buildTab("Logistics", false),
+          ],
+        ),
       ),
     );
   }

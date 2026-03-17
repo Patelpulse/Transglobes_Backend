@@ -12,7 +12,7 @@ class AppConfig {
 
 
   // Google Maps API Key (Replace with your key)
-  static const String googleMapsApiKey = 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I';
+  static const String googleMapsApiKey = 'AIzaSyAJZ0z6ayXWTRsQzslL21I6CtYgW2X3sfQ';
 
   // Service Types
   static const String serviceCab = 'cab';

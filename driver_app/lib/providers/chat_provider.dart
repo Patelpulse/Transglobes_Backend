@@ -50,6 +50,8 @@ class ChatMessage {
       text: map['message'] ?? '',
       isDriver: map['senderId'] == currentDriverId,
       time: parsedTime,
+      type: map['type'] == 'voice' ? ChatMessageType.voice : ChatMessageType.text,
+      durationSeconds: map['duration'], 
       senderId: map['senderId'],
       receiverId: map['receiverId'],
       isEdited: map['isEdited'] ?? false,
@@ -169,7 +171,35 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
   }
 
   void sendVoiceMessage(int durationSeconds) {
-    // Implement if needed for socket
+    if (_currentReceiverId == null) return;
+    final driverProfile = ref.read(driverProfileProvider).value;
+    if (driverProfile == null) return;
+
+    final driverId = driverProfile.id;
+    final socketService = ref.read(socketServiceProvider);
+
+    socketService.socket?.emit("send_message", {
+      "senderId": driverId,
+      "receiverId": _currentReceiverId!,
+      "message": "Voice Message (${durationSeconds}s)",
+      "type": "voice",
+      "duration": durationSeconds,
+      "senderRole": "driver",
+      "senderName": driverProfile.name
+    });
+
+    // Optimistic Update
+    final msg = ChatMessage(
+      id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
+      text: "Voice Message (${durationSeconds}s)",
+      isDriver: true,
+      time: DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30)),
+      type: ChatMessageType.voice,
+      durationSeconds: durationSeconds,
+      senderId: driverId,
+      receiverId: _currentReceiverId,
+    );
+    state = [...state, msg];
   }
 
   void editMessage(String messageId, String newText) {

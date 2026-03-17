@@ -66,6 +66,13 @@ class DriverModel {
   });
 
   factory DriverModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic val) {
+      if (val == null) return 0.0;
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val) ?? 0.0;
+      return 0.0;
+    }
+
     return DriverModel(
       id: json['_id'] ?? '',
       firebaseId: json['uid'] ?? json['firebaseId'] ?? '',
@@ -79,7 +86,7 @@ class DriverModel {
       location: json['location'] != null
           ? DriverLocation.fromJson(json['location'])
           : null,
-      rating: (json['rating'] as num?)?.toDouble() ?? 0,
+      rating: parseDouble(json['rating']),
       totalRides: json['totalRides'] ?? 0,
       documents:
           (json['documents'] as List<dynamic>?)
@@ -183,7 +190,11 @@ class DriverLocation {
       type: json['type'] ?? 'Point',
       coordinates:
           (json['coordinates'] as List<dynamic>?)
-              ?.map((e) => (e as num).toDouble())
+              ?.map((e) {
+                if (e is num) return e.toDouble();
+                if (e is String) return double.tryParse(e) ?? 0.0;
+                return 0.0;
+              })
               .toList() ??
           [0, 0],
     );

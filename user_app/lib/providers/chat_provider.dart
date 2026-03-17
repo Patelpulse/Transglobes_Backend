@@ -43,6 +43,7 @@ class ChatMessage {
       text: map['message'] ?? '',
       isUser: map['senderId'] == currentUserId,
       time: parsedTime,
+      type: map['type'] == 'voice' ? ChatMessageType.voice : ChatMessageType.text,
       senderId: map['senderId'],
       receiverId: map['receiverId'],
       isEdited: map['isEdited'] ?? false,
@@ -108,6 +109,9 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
        final messages = history.map((m) => ChatMessage.fromMap(Map<String, dynamic>.from(m), userId)).toList();
        state = messages;
     });
+
+    socketService.socket?.off("message_edited");
+    socketService.socket?.off("message_deleted");
 
     socketService.socket?.on("message_edited", (data) {
       final msgId = data['messageId'];

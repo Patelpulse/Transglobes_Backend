@@ -38,14 +38,41 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
   void didUpdateWidget(LeafletMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.location != oldWidget.location && widget.location != null) {
-      final lat = widget.location!['lat'];
-      final lng = widget.location!['lng'];
-      if (lat != null && lng != null) {
-        // Safe null check before animation
+      final lat = _parseDouble(widget.location!['lat']);
+      final lng = _parseDouble(widget.location!['lng']);
+      if (lat != 0.0 && lng != 0.0) {
         if (_mapController.camera.center.latitude.isFinite) {
           _animatedMapMove(LatLng(lat, lng), 15.0);
         }
       }
+    }
+
+    if (widget.polylines != oldWidget.polylines || widget.markers != oldWidget.markers) {
+      _fitBounds();
+    }
+  }
+
+  void _fitBounds() {
+    final List<LatLng> points = [];
+    if (widget.polylines != null) {
+      for (var p in widget.polylines!) {
+        points.addAll(p.points);
+      }
+    }
+    if (widget.markers != null) {
+      for (var m in widget.markers!) {
+        points.add(m.point);
+      }
+    }
+
+    if (points.isNotEmpty && points.length > 1) {
+      final bounds = LatLngBounds.fromPoints(points);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(50.0),
+        ),
+      );
     }
   }
 
@@ -92,13 +119,20 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
     controller.forward();
   }
 
+  double _parseDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     LatLng initialCenter = _defaultLocation;
     if (widget.location != null) {
-      final lat = widget.location!['lat'];
-      final lng = widget.location!['lng'];
-      if (lat != null && lng != null) {
+      final lat = _parseDouble(widget.location!['lat']);
+      final lng = _parseDouble(widget.location!['lng']);
+      if (lat != 0.0 && lng != 0.0) {
         initialCenter = LatLng(lat, lng);
       }
     }
@@ -141,7 +175,10 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
           markers: [
             if (widget.location != null)
               Marker(
-                point: LatLng(widget.location!['lat'], widget.location!['lng']),
+                point: LatLng(
+                  _parseDouble(widget.location!['lat']),
+                  _parseDouble(widget.location!['lng']),
+                ),
                 width: 60,
                 height: 60,
                 child: _buildPulsingMarker(),

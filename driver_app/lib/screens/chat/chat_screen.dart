@@ -109,18 +109,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             const CircleAvatar(backgroundColor: AppTheme.cabBlue, radius: 18, child: Icon(Icons.person, color: Colors.white, size: 20)),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.receiverName, style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
-                Row(children: [
-                  Text('ID: ${widget.receiverId.substring(0, 8)}', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11)),
-                  const SizedBox(width: 8),
-                  Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.neonGreen, shape: BoxShape.circle)),
-                  const SizedBox(width: 4),
-                  const Text('Online', style: TextStyle(color: AppTheme.neonGreen, fontSize: 11)),
-                ]),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.receiverName, style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700, fontSize: 15), overflow: TextOverflow.ellipsis),
+                  Row(children: [
+                    Text('ID: ${widget.receiverId.substring(0, widget.receiverId.length > 8 ? 8 : widget.receiverId.length)}', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11)),
+                    const SizedBox(width: 8),
+                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.neonGreen, shape: BoxShape.circle)),
+                    const SizedBox(width: 4),
+                    const Text('Online', style: TextStyle(color: AppTheme.neonGreen, fontSize: 11)),
+                  ]),
+                ],
+              ),
             ),
           ],
         ),
@@ -367,6 +369,9 @@ class _ChatBubble extends ConsumerWidget {
                         bottomLeft: Radius.circular(isDriver ? 18 : 4),
                         bottomRight: Radius.circular(isDriver ? 4 : 18),
                       ),
+                    ),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.7,
                     ),
                     child: isVoice 
                       ? _VoiceMessageBubble(msg: msg, isDriver: isDriver)

@@ -20,13 +20,20 @@ class RideTypeModel {
   });
 
   factory RideTypeModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic val) {
+      if (val == null) return 0.0;
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val) ?? 0.0;
+      return 0.0;
+    }
+
     return RideTypeModel(
       id: json['_id'] ?? '',
       name: json['name'] ?? '',
       description: json['description'] ?? '',
       icon: json['icon'] ?? '',
-      baseFare: (json['baseFare'] as num?)?.toDouble() ?? 0.0,
-      pricePerKm: (json['pricePerKm'] as num?)?.toDouble() ?? 0.0,
+      baseFare: parseDouble(json['baseFare']),
+      pricePerKm: parseDouble(json['pricePerKm']),
       waitingTime: json['waitingTime'] ?? '',
       status: json['status'] ?? true,
     );

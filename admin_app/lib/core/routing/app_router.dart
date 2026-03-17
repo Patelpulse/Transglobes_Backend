@@ -9,6 +9,7 @@ import '../../features/users/presentation/screens/users_screen.dart';
 import '../../features/vehicles/presentation/screens/fleet_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/vehicles/presentation/screens/logistics_management_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../shared/widgets/admin_scaffold.dart';
 
@@ -72,6 +73,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/vehicles',
             builder: (context, state) =>
                 const Center(child: Text('Vehicles Management')),
+          ),
+          GoRoute(
+            path: '/logistics',
+            builder: (context, state) => const LogisticsManagementScreen(),
           ),
           GoRoute(
             path: '/services',

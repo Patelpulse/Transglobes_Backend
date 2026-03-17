@@ -120,6 +120,14 @@ class SocketService {
     _socket?.emit("join_ride", rideId);
   }
 
+  void updateFare(String rideId, int amount, double newFare) {
+    _socket?.emit("update_fare", {
+      "rideId": rideId,
+      "amount": amount,
+      "newFare": newFare
+    });
+  }
+
   void dispose() {
     _socket?.dispose();
     _messageController.close();

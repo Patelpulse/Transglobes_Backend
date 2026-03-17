@@ -40,6 +40,13 @@ class RideModel {
   });
 
   factory RideModel.fromJson(Map<String, dynamic> json) {
+    double? parseDouble(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val);
+      return null;
+    }
+
     return RideModel(
       id: json['_id'] ?? '',
       userId: json['userId'] ?? '',
@@ -50,10 +57,10 @@ class RideModel {
       dropoffAddress: json['dropoffAddress'] ?? '',
       serviceType: json['serviceType'] ?? 'cab',
       status: json['status'] ?? 'pending',
-      fareEstimation: (json['fareEstimation'] as num?)?.toDouble(),
-      actualFare: (json['actualFare'] as num?)?.toDouble(),
-      distance: (json['distance'] as num?)?.toDouble(),
-      duration: (json['duration'] as num?)?.toDouble(),
+      fareEstimation: parseDouble(json['fareEstimation']),
+      actualFare: parseDouble(json['actualFare']),
+      distance: parseDouble(json['distance']),
+      duration: parseDouble(json['duration']),
       otp: json['otp'],
       delayReason: json['delayReason'],
       isScheduled: json['isScheduled'] ?? false,
@@ -124,7 +131,11 @@ class LocationPoint {
       type: json['type'] ?? 'Point',
       coordinates:
           (json['coordinates'] as List<dynamic>?)
-              ?.map((e) => (e as num).toDouble())
+              ?.map((e) {
+                if (e is num) return e.toDouble();
+                if (e is String) return double.tryParse(e) ?? 0.0;
+                return 0.0;
+              })
               .toList() ??
           [0, 0],
     );

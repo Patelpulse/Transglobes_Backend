@@ -1,5 +1,6 @@
 const { Server } = require("socket.io");
 const Message = require("../models/Message");
+const Booking = require("../models/Booking");
 
 const initSocket = (server) => {
     const io = new Server(server, {
@@ -34,6 +35,28 @@ const initSocket = (server) => {
             if (rideId) {
                 socket.join(rideId);
                 console.log(`Socket ${socket.id} joined ride room: ${rideId}`);
+            }
+        });
+
+        // Update Fare and Notify User
+        socket.on("update_fare", async (data) => {
+            const { rideId, amount, newFare } = data;
+            try {
+                // Update in database
+                await Booking.findByIdAndUpdate(rideId, { fare: newFare });
+                
+                // Notify user in the ride room
+                io.to(rideId).emit("fare_increased", {
+                    rideId,
+                    amount,
+                    newFare,
+                    message: `Driver has increased the fare by ₹${amount}. New fare is ₹${newFare}.`
+                });
+                
+                console.log(`Fare updated for ride ${rideId}: +${amount} (Total: ${newFare})`);
+            } catch (error) {
+                console.error("Error updating fare:", error);
+                socket.emit("fare_error", { error: "Failed to update fare" });
             }
         });
 

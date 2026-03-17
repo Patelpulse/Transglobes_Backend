@@ -26,18 +26,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _initChat();
+  }
+
+  void _initChat() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userProfile = ref.read(fullUserProfileProvider).value;
-      final userId = userProfile?.id; // This is the MongoDB _id
+      final userProfile = ref.read(fullUserProfileProvider).asData?.value;
+      final userId = userProfile?.id;
+      final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
       
-      if (userId != null && userId.isNotEmpty) {
-        ref.read(chatProvider.notifier).initChat(widget.receiverId, userId);
-      } else {
-        // Fallback to Firebase UID
-        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
-        if (firebaseId != null) {
-          ref.read(chatProvider.notifier).initChat(widget.receiverId, firebaseId);
-        }
+      final effectiveUserId = (userId != null && userId.isNotEmpty) ? userId : firebaseId;
+      
+      if (effectiveUserId != null) {
+        ref.read(chatProvider.notifier).initChat(widget.receiverId, effectiveUserId);
       }
     });
   }
@@ -78,6 +79,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.listen<List<ChatMessage>>(chatProvider, (prev, next) {
       if (prev != null && next.length > prev.length) {
         _scrollToBottom();
+      }
+    });
+
+    // Re-init chat if MongoDB ID becomes available later
+    ref.listen(fullUserProfileProvider, (prev, next) {
+      final oldId = prev?.asData?.value?.id;
+      final newId = next.asData?.value?.id;
+      if (newId != null && newId.isNotEmpty && oldId != newId) {
+        _initChat();
       }
     });
 
@@ -155,6 +165,13 @@ class _ChatBubble extends StatelessWidget {
   final ChatMessage msg;
 
   const _ChatBubble({required this.msg});
+  
+  String _formatTime(DateTime time) {
+    String hour = (time.hour % 12 == 0 ? 12 : time.hour % 12).toString().padLeft(2, '0');
+    String minute = time.minute.toString().padLeft(2, '0');
+    String period = time.hour >= 12 ? 'PM' : 'AM';
+    return "$hour:$minute $period";
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,19 +190,26 @@ class _ChatBubble extends StatelessWidget {
           ),
           border: msg.isUser ? null : Border.all(color: context.theme.dividerColor.withOpacity(0.1)),
         ),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
         child: Column(
           crossAxisAlignment: msg.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(
-              msg.text,
-              style: TextStyle(
-                color: msg.isUser ? Colors.white : context.colors.textPrimary,
-                fontSize: 14,
+            if (msg.type == ChatMessageType.voice)
+               _VoiceMessageBubble(msg: msg, isUser: msg.isUser)
+            else
+              Text(
+                msg.text,
+                style: TextStyle(
+                  color: msg.isUser ? Colors.white : context.colors.textPrimary,
+                  fontSize: 14,
+                  fontStyle: msg.isDeleted ? FontStyle.italic : FontStyle.normal,
+                ),
               ),
-            ),
             const SizedBox(height: 4),
             Text(
-              '${msg.time.hour}:${msg.time.minute.toString().padLeft(2, '0')}',
+              _formatTime(msg.time),
               style: TextStyle(
                 color: msg.isUser ? Colors.white70 : Colors.grey,
                 fontSize: 10,
@@ -193,6 +217,90 @@ class _ChatBubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _VoiceMessageBubble extends StatefulWidget {
+  final ChatMessage msg;
+  final bool isUser;
+  const _VoiceMessageBubble({required this.msg, required this.isUser});
+
+  @override
+  State<_VoiceMessageBubble> createState() => _VoiceMessageBubbleState();
+}
+
+class _VoiceMessageBubbleState extends State<_VoiceMessageBubble> {
+  bool _isPlaying = false;
+  double _progress = 0.0;
+
+  void _togglePlay() async {
+    if (_isPlaying) {
+      if (mounted) setState(() => _isPlaying = false);
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isPlaying = true;
+        _progress = 0.0;
+      });
+    }
+
+    final duration = 5; 
+    for (int i = 0; i <= 100; i++) {
+      if (!_isPlaying || !mounted) break;
+      await Future.delayed(Duration(milliseconds: (duration * 10)));
+      if (mounted) setState(() => _progress = i / 100);
+    }
+    
+    if (mounted) setState(() => _isPlaying = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.isUser ? Colors.white : Theme.of(context).primaryColor;
+    final secondaryColor = widget.isUser ? Colors.white70 : Colors.grey;
+
+    return Container(
+      width: 200,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: _togglePlay,
+            icon: Icon(_isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: color, size: 32),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  children: [
+                    Container(height: 3, decoration: BoxDecoration(color: secondaryColor.withOpacity(0.2), borderRadius: BorderRadius.circular(2))),
+                    FractionallySizedBox(
+                      widthFactor: _progress,
+                      child: Container(height: 3, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('0:05', style: TextStyle(color: secondaryColor, fontSize: 10)),
+                    Icon(Icons.mic, size: 12, color: secondaryColor),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

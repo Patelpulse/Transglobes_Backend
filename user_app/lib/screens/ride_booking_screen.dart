@@ -43,6 +43,13 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   String? _currentRideId;
   String? _currentOtp;
 
+  double _parseDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -51,12 +58,12 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
     }
 
     final pickupPos = LatLng(
-      (widget.pickup['lat'] as num).toDouble(),
-      (widget.pickup['lng'] as num).toDouble(),
+      _parseDouble(widget.pickup['lat']),
+      _parseDouble(widget.pickup['lng']),
     );
     final dropoffPos = LatLng(
-      (widget.dropoff['lat'] as num).toDouble(),
-      (widget.dropoff['lng'] as num).toDouble(),
+      _parseDouble(widget.dropoff['lat']),
+      _parseDouble(widget.dropoff['lng']),
     );
 
     _routePoints = [pickupPos, dropoffPos];
@@ -102,12 +109,12 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
 
   Future<void> _loadRoute() async {
     final pickupPos = LatLng(
-      (widget.pickup['lat'] as num).toDouble(),
-      (widget.pickup['lng'] as num).toDouble(),
+      _parseDouble(widget.pickup['lat']),
+      _parseDouble(widget.pickup['lng']),
     );
     final dropoffPos = LatLng(
-      (widget.dropoff['lat'] as num).toDouble(),
-      (widget.dropoff['lng'] as num).toDouble(),
+      _parseDouble(widget.dropoff['lat']),
+      _parseDouble(widget.dropoff['lng']),
     );
 
     final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
@@ -194,41 +201,8 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
 
     return [
       {
-        'id': 'bike_saver',
-        'name': 'Bike Saver',
-        'icon': Icons.two_wheeler,
-        'capacity': '1',
-        'price': (20 + (_routeDistance * 8)).toStringAsFixed(
-          0,
-        ), // Rounded to whole number for cleaner look
-        'oldPrice': (25 + (_routeDistance * 8)).toStringAsFixed(0),
-        'eta': '2 min away',
-        'time': "$timeStr • $tripDurationDisplay",
-      },
-      {
-        'id': 'bike',
-        'name': 'Bike',
-        'icon': Icons.two_wheeler,
-        'capacity': '1',
-        'price': (25 + (_routeDistance * 10)).toStringAsFixed(0),
-        'oldPrice': (30 + (_routeDistance * 10)).toStringAsFixed(0),
-        'eta': '1 min away',
-        'time': "$timeStr • $tripDurationDisplay",
-        'label': 'Faster',
-      },
-      {
-        'id': 'auto',
-        'name': 'Auto',
-        'icon': Icons.electric_rickshaw,
-        'capacity': '3',
-        'price': (30 + (_routeDistance * 12)).toStringAsFixed(0),
-        'oldPrice': (40 + (_routeDistance * 12)).toStringAsFixed(0),
-        'eta': '2 min away',
-        'time': "$timeStr • $tripDurationDisplay",
-      },
-      {
         'id': 'economy',
-        'name': 'Transglobal Go',
+        'name': 'Transglobe',
         'icon': Icons.directions_car,
         'capacity': '4',
         'price': (50 + (_routeDistance * 15)).toStringAsFixed(0),
@@ -367,12 +341,12 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   @override
   Widget build(BuildContext context) {
     final pickupPos = LatLng(
-      (widget.pickup['lat'] as num).toDouble(),
-      (widget.pickup['lng'] as num).toDouble(),
+      _parseDouble(widget.pickup['lat']),
+      _parseDouble(widget.pickup['lng']),
     );
     final dropoffPos = LatLng(
-      (widget.dropoff['lat'] as num).toDouble(),
-      (widget.dropoff['lng'] as num).toDouble(),
+      _parseDouble(widget.dropoff['lat']),
+      _parseDouble(widget.dropoff['lng']),
     );
 
     return Scaffold(
@@ -423,8 +397,8 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                   child: LeafletMap(
                     mapController: _mapController,
                     location: {
-                      'lat': (widget.pickup['lat'] as num).toDouble(),
-                      'lng': (widget.pickup['lng'] as num).toDouble(),
+                      'lat': _parseDouble(widget.pickup['lat']),
+                      'lng': _parseDouble(widget.pickup['lng']),
                     },
                     polylines: [
                       Polyline(
@@ -498,35 +472,44 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Promotion
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Choose a ride",
+                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.black),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Rides we think you'll like",
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black.withOpacity(0.7)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Promotion
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
+                            color: const Color(0xFFE6F4EA),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
-                                Icons.local_offer,
-                                color: Colors.green,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                "₹2.00 promotion applied",
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
+                              const Icon(Icons.local_offer, color: Color(0xFF1E8E3E), size: 18),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text(
+                                  "100% off your next 2 rides. Up to ₹300 per ri...",
+                                  style: TextStyle(color: Color(0xFF1E8E3E), fontWeight: FontWeight.bold, fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.info_outline,
-                                color: Colors.grey[600],
-                                size: 16,
-                              ),
+                              const Icon(Icons.info_outline, color: Color(0xFF1E8E3E), size: 16),
                             ],
                           ),
                         ),
@@ -541,123 +524,48 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                               final v = _vehicles[index];
                               final isSelected = _selectedVehicle == v['id'];
                               return GestureDetector(
-                                onTap: () =>
-                                    setState(() => _selectedVehicle = v['id']),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
+                                onTap: () => setState(() => _selectedVehicle = v['id']),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                                   decoration: BoxDecoration(
-                                    border: isSelected
-                                        ? Border.all(
-                                            color: Colors.black,
-                                            width: 2,
-                                          )
-                                        : null,
+                                    border: isSelected ? Border.all(color: Colors.black, width: 2) : Border.all(color: Colors.transparent, width: 2),
                                     borderRadius: BorderRadius.circular(12),
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.transparent,
+                                    color: isSelected ? Colors.white : Colors.transparent,
                                   ),
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
-                                  ),
+                                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                                   child: Row(
                                     children: [
-                                      Icon(
-                                        v['icon'] as IconData,
-                                        size: 32,
-                                        color: Colors.black87,
-                                      ),
+                                      Icon(v['icon'] as IconData, size: 48, color: Colors.black87),
                                       const SizedBox(width: 16),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Row(
                                               children: [
-                                                Text(
-                                                  v['name'],
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                const Icon(
-                                                  Icons.person,
-                                                  size: 14,
-                                                  color: Colors.black54,
-                                                ),
-                                                Text(
-                                                  v['capacity'] ?? "1",
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.black54,
-                                                  ),
-                                                ),
-                                                if (v['label'] != null) ...[
-                                                  const SizedBox(width: 8),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 6,
-                                                          vertical: 2,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.blue[600],
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            4,
-                                                          ),
-                                                    ),
-                                                    child: Text(
-                                                      v['label'],
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
+                                                Text(v['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                                const SizedBox(width: 6),
+                                                Icon(Icons.person, size: 14, color: Colors.black.withOpacity(0.6)),
+                                                Text(v['capacity'] ?? "1", style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6), fontWeight: FontWeight.bold)),
                                               ],
                                             ),
+                                            const SizedBox(height: 2),
                                             Text(
-                                              "${v['time']} • ${v['eta']}",
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontSize: 14,
-                                              ),
+                                              "${v['eta']} • ${v['time'].split('•')[0]}",
+                                              style: TextStyle(color: Colors.black.withOpacity(0.6), fontSize: 13, fontWeight: FontWeight.w500),
                                             ),
+                                            if (v['id'] == 'economy')
+                                              const Text("Wait a little for discounted rides", style: TextStyle(color: Colors.grey, fontSize: 13)),
                                           ],
                                         ),
                                       ),
                                       Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
+                                        crossAxisAlignment: CrossAxisAlignment.end,
                                         children: [
-                                          Text(
-                                            "₹${v['price']}",
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
+                                          Text("₹${v['price']}", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
                                           if (v['oldPrice'] != null)
-                                            Text(
-                                              "₹${v['oldPrice']}",
-                                              style: TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 12,
-                                                decoration:
-                                                    TextDecoration.lineThrough,
-                                              ),
-                                            ),
+                                            Text("₹${v['oldPrice']}", style: const TextStyle(color: Colors.grey, fontSize: 12, decoration: TextDecoration.lineThrough)),
                                         ],
                                       ),
                                     ],
@@ -703,8 +611,9 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
                               minimumSize: const Size(double.infinity, 56),
+                              elevation: 0,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                             child: Text(
@@ -713,7 +622,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                                   : "Choose ${_selectedVehicleData['name']}",
                               style: const TextStyle(
                                 fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
                           ),
@@ -733,52 +642,110 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   }
 
   Widget _buildMapLabel(String name, bool isPickup) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 8,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  name.split(',')[0],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.black,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+    if (isPickup) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
-              ),
-              const Icon(Icons.chevron_right, size: 18, color: Colors.black),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    border: Border(right: BorderSide(color: Colors.white.withOpacity(0.2), width: 1)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text("2", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
+                      Text("min", style: TextStyle(color: Colors.white, fontSize: 8)),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        "From ${name.split(',')[0]}",
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right, color: Colors.white, size: 14),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: Colors.black,
-            shape: isPickup ? BoxShape.circle : BoxShape.rectangle,
-            border: Border.all(color: Colors.white, width: 2),
+          Container(width: 2, height: 6, color: Colors.black),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
+    } else {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "To ${name.split(',')[0]}",
+                  style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, color: Colors.black, size: 14),
+              ],
+            ),
+          ),
+          Container(width: 2, height: 6, color: Colors.black),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              shape: BoxShape.rectangle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+          ),
+        ],
+      );
+    }
   }
 
   void _showPaymentPicker() {

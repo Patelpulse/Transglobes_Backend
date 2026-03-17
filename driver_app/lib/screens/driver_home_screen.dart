@@ -174,24 +174,37 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
              vType = 'bus';
            }
 
+           double parseDouble(dynamic val) {
+             if (val == null) return 0.0;
+             if (val is num) return val.toDouble();
+             if (val is String) return double.tryParse(val) ?? 0.0;
+             return 0.0;
+           }
+           double? parseOptionalDouble(dynamic val) {
+             if (val == null) return null;
+             if (val is num) return val.toDouble();
+             if (val is String) return double.tryParse(val);
+             return null;
+           }
+
            final newBooking = BookingModel(
-             id: data['id'],
+             id: data['id']?.toString() ?? '',
              userName: data['userName'] ?? 'Customer',
              userPhone: data['phone'] ?? '',
              pickupAddress: data['pick'] ?? '',
              dropAddress: data['drop'] ?? '',
-             fare: (data['fare'] as num?)?.toDouble() ?? 0.0,
+             fare: parseDouble(data['fare']),
              distanceKm: double.tryParse(data['distance']?.toString().replaceAll(' km', '') ?? '0') ?? 0.0,
-             etaMinutes: 2, // 2 mins away in UI
+             etaMinutes: 2, 
              vehicleType: vType,
              subType: data['rideMode']?.toString().toUpperCase() ?? 'ECONOMY',
              status: data['status'] ?? 'pending',
              createdAt: DateTime.now(),
              otp: data['otp']?.toString(),
-             pickupLat: (data['pickupLat'] as num?)?.toDouble(),
-             pickupLng: (data['pickupLng'] as num?)?.toDouble(),
-             dropLat: (data['dropLat'] as num?)?.toDouble(),
-             dropLng: (data['dropLng'] as num?)?.toDouble(),
+             pickupLat: parseOptionalDouble(data['pickupLat']),
+             pickupLng: parseOptionalDouble(data['pickupLng']),
+             dropLat: parseOptionalDouble(data['dropLat']),
+             dropLng: parseOptionalDouble(data['dropLng']),
              userId: data['userId']?.toString(),
            );
 
@@ -220,12 +233,20 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
           ref.read(currentRideRequestProvider.notifier).setRide(updatedRide);
           
           // Also update in BookingNotifier
-          ref.read(bookingProvider.notifier).updateBookingFare(data['rideId'], (data['newFare'] as num).toDouble());
+          final newFareVal = data['newFare'];
+          double newFareDouble = 0.0;
+          if (newFareVal is num) {
+            newFareDouble = newFareVal.toDouble();
+          } else if (newFareVal is String) {
+            newFareDouble = double.tryParse(newFareVal) ?? 0.0;
+          }
+          
+          ref.read(bookingProvider.notifier).updateBookingFare(data['rideId'], newFareDouble);
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Ride fare increased to ₹${data['newFare']}!'),
+                content: Text('Ride fare increased to ₹$newFareVal!'),
                 backgroundColor: Colors.orange,
                 behavior: SnackBarBehavior.floating,
               ),
