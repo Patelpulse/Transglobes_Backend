@@ -18,7 +18,7 @@ class TransglobeAdminApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Transglobe Admin',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
       routerConfig: goRouter,
     );
   }

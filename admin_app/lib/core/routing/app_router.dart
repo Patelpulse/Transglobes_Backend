@@ -12,6 +12,13 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/vehicles/presentation/screens/logistics_management_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../shared/widgets/admin_scaffold.dart';
+import '../../features/dashboard/presentation/screens/admin_dashboard_screen.dart';
+import '../../features/vehicles/presentation/screens/logistics_booking_screen.dart';
+import '../../features/vehicles/domain/models/logistics_booking.dart';
+import '../../features/vehicles/presentation/screens/fleet_screen.dart';
+import '../../features/users/presentation/screens/user_form_screen.dart';
+import '../../features/drivers/presentation/screens/driver_form_screen.dart';
+import '../../features/settings/presentation/screens/country_code_management_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -60,7 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return AdminScaffold(child: child);
         },
         routes: [
-          GoRoute(path: '/', builder: (context, state) => const FleetScreen()),
+          GoRoute(path: '/', builder: (context, state) => const AdminDashboardScreen()),
           GoRoute(
             path: '/users',
             builder: (context, state) => const UsersScreen(),
@@ -70,13 +77,49 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DriversScreen(),
           ),
           GoRoute(
+            path: '/users/new',
+            builder: (context, state) => const UserFormScreen(),
+          ),
+          GoRoute(
+            path: '/drivers/new',
+            builder: (context, state) => const DriverFormScreen(),
+          ),
+          GoRoute(
+            path: '/country-code',
+            builder: (context, state) => const CountryCodeManagementScreen(),
+          ),
+          GoRoute(
+            path: '/trips',
+            builder: (context, state) => const FleetScreen(), // Mapping trips to fleet for now
+          ),
+          GoRoute(
             path: '/vehicles',
             builder: (context, state) =>
                 const Center(child: Text('Vehicles Management')),
           ),
           GoRoute(
             path: '/logistics',
-            builder: (context, state) => const LogisticsManagementScreen(),
+            builder: (context, state) => const LogisticsBookingScreen(),
+          ),
+          GoRoute(
+            path: '/logistics/pending',
+            builder: (context, state) => const LogisticsBookingScreen(filterStatus: LogisticsBookingStatus.pending),
+          ),
+          GoRoute(
+            path: '/logistics/processing',
+            builder: (context, state) => const LogisticsBookingScreen(filterStatus: LogisticsBookingStatus.processing),
+          ),
+          GoRoute(
+            path: '/logistics/in-transit',
+            builder: (context, state) => const LogisticsBookingScreen(filterStatus: LogisticsBookingStatus.inTransit),
+          ),
+          GoRoute(
+            path: '/logistics/completed',
+            builder: (context, state) => const LogisticsBookingScreen(filterStatus: LogisticsBookingStatus.completed),
+          ),
+          GoRoute(
+            path: '/logistics/alerts', // Maps to Delayed/Alerts
+            builder: (context, state) => const LogisticsBookingScreen(filterStatus: LogisticsBookingStatus.delayed),
           ),
           GoRoute(
             path: '/services',
@@ -104,6 +147,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: '/super-admin',
+            builder: (context, state) =>
+                const Center(child: Text('Super Admin Management')),
           ),
         ],
       ),

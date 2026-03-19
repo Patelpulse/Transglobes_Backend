@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/admin_user_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/network_avatar.dart';
@@ -31,31 +32,46 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     final usersAsyncValue = ref.watch(usersProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColorDark,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
         title: const Text(
-          'Community',
+          'User Management',
           style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
+            color: Color(0xFF1E293B),
+            fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: () {
-              // Toggle search visibility
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            width: 300,
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search users...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
+              onChanged: (value) {
+                // Implement search logic if needed
+              },
+            ),
           ),
         ],
-        backgroundColor: AppTheme.backgroundColorDark,
-        elevation: 0,
-        centerTitle: false,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/users/new'),
+        backgroundColor: AppTheme.primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: SafeArea(
         child: Column(
@@ -184,13 +200,16 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryColor : AppTheme.surfaceColorDark,
-          borderRadius: BorderRadius.circular(20),
+          color: isSelected ? AppTheme.primaryColor : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppTheme.primaryColor : const Color(0xFFE2E8F0),
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : AppTheme.textPrimaryLight,
+            color: isSelected ? Colors.white : const Color(0xFF64748B),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
             fontSize: 14,
           ),

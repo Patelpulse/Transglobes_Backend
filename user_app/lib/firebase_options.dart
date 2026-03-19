@@ -44,21 +44,21 @@ class DefaultFirebaseOptions {
 
   // Final Web Firebase Configuration
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBcc-cYJ-xfLYwo8Jyc6eZmgk918j0WL28',
-    appId: '1:1072284227316:web:f7c08816b810cc00cd30a1',
-    messagingSenderId: '1072284227316',
-    projectId: 'mera-ubar',
-    authDomain: 'mera-ubar.firebaseapp.com',
-    storageBucket: 'mera-ubar.firebasestorage.app',
-    measurementId: 'G-1BETFQFRZV',
+    apiKey: 'AIzaSyDwPby0nbxfE12jWfeN1CNT9PifXE-a7C4',
+    appId: '1:531372125872:web:348b0f06ba434b74021575',
+    messagingSenderId: '531372125872',
+    projectId: 'transgolbe-a1eeb',
+    authDomain: 'transgolbe-a1eeb.firebaseapp.com',
+    storageBucket: 'transgolbe-a1eeb.firebasestorage.app',
+    measurementId: 'G-RW1D2MLE7Z',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBcc-cYJ-xfLYwo8Jyc6eZmgk918j0WL28',
-    appId: '1:1072284227316:android:967e253fa09ff7e4cd30a1',
-    messagingSenderId: '1072284227316',
-    projectId: 'mera-ubar',
-    storageBucket: 'mera-ubar.firebasestorage.app',
+    apiKey: 'AIzaSyDwPby0nbxfE12jWfeN1CNT9PifXE-a7C4',
+    appId: '1:531372125872:android:af3635b777528f73021575',
+    messagingSenderId: '531372125872',
+    projectId: 'transgolbe-a1eeb',
+    storageBucket: 'transgolbe-a1eeb.firebasestorage.app',
   );
 
   // TODO: Replace with your actual Firebase iOS configuration

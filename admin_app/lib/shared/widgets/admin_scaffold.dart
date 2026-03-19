@@ -15,13 +15,20 @@ class AdminScaffold extends ConsumerWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith('/users')) return 1;
-    if (location.startsWith('/drivers')) return 2;
-    if (location.startsWith('/finance')) return 3;
-    if (location.startsWith('/alerts')) return 4;
-    if (location.startsWith('/settings')) return 5;
-    if (location.startsWith('/logistics')) return 6;
-    return 0; // Fleet / Dashboard
+    if (location.startsWith('/trips')) return 1;
+    if (location.startsWith('/country-code')) return 2;
+    if (location.startsWith('/page')) return 3;
+    if (location.startsWith('/faq')) return 4;
+    if (location.startsWith('/vehicle')) return 5;
+    if (location.startsWith('/coupon')) return 6;
+    if (location.startsWith('/riders')) return 7;
+    if (location.startsWith('/payouts')) return 8;
+    if (location.startsWith('/payments')) return 9;
+    if (location.startsWith('/users')) return 10;
+    if (location.startsWith('/super-admin')) return 11;
+    if (location.startsWith('/logistics/modes')) return 13;
+    if (location.startsWith('/logistics')) return 12;
+    return 0; // Dashboard
   }
 
   void _onItemTapped(int index, BuildContext context) {
@@ -30,22 +37,28 @@ class AdminScaffold extends ConsumerWidget {
         context.go('/');
         break;
       case 1:
-        context.go('/users');
+        context.go('/trips');
         break;
       case 2:
+        context.go('/country-code');
+        break;
+      case 7:
         context.go('/drivers');
         break;
-      case 3:
-        context.go('/finance');
+      case 10:
+        context.go('/users');
         break;
-      case 4:
-        context.go('/alerts');
+      case 11:
+        context.go('/super-admin');
         break;
-      case 5:
-        context.go('/settings');
-        break;
-      case 6:
+      case 12:
         context.go('/logistics');
+        break;
+      case 13:
+        context.go('/logistics/modes');
+        break;
+      default:
+        // Other routes to be implemented
         break;
     }
   }
@@ -76,7 +89,7 @@ class AdminScaffold extends ConsumerWidget {
               if (isDesktop) _buildSidebar(context, ref, currentIndex, unreadCount),
               Expanded(
                 child: Container(
-                  color: AppTheme.backgroundColorDark,
+                  color: const Color(0xFFF8F9FA), // Light gray background for content
                   child: child,
                 ),
               ),
@@ -164,9 +177,9 @@ class AdminScaffold extends ConsumerWidget {
   Widget _buildSidebar(BuildContext context, WidgetRef ref, int currentIndex, int unreadCount) {
     return Container(
       width: 260,
-      decoration: const BoxDecoration(
-        color: AppTheme.backgroundColorDark,
-        border: Border(right: BorderSide(color: AppTheme.borderDark, width: 1)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Colors.grey.withOpacity(0.1), width: 1)),
       ),
       child: Column(
         children: [
@@ -174,14 +187,19 @@ class AdminScaffold extends ConsumerWidget {
             height: 70,
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: const Text(
-              'TRANSGLOBE',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.5,
-              ),
+            child: Row(
+              children: [
+                const Icon(Icons.dashboard_rounded, color: AppTheme.primaryColor),
+                const SizedBox(width: 12),
+                Text(
+                  'Dashboard',
+                  style: TextStyle(
+                    color: Colors.grey[800],
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -190,47 +208,122 @@ class AdminScaffold extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 _SidebarItem(
-                  icon: Icons.directions_car,
-                  title: 'Fleet & Analytics',
+                  icon: Icons.dashboard,
+                  title: 'Dashboard',
                   isSelected: currentIndex == 0,
                   onTap: () => _onItemTapped(0, context),
                 ),
                 _SidebarItem(
-                  icon: Icons.people,
-                  title: 'Users Management',
+                  icon: Icons.bolt,
+                  title: 'Trips List',
                   isSelected: currentIndex == 1,
                   onTap: () => _onItemTapped(1, context),
+                  subItems: [
+                    _SidebarSubItem(title: 'Pending Trips', count: 979, color: const Color(0xFF4ADE80)),
+                    _SidebarSubItem(title: 'Accepted Trips', count: 0, color: const Color(0xFFA855F7)),
+                    _SidebarSubItem(title: 'Reach Loc. Trips', count: 0, color: const Color(0xFFFB923C)),
+                    _SidebarSubItem(title: 'Start Ride Trips', count: 0, color: const Color(0xFFA855F7)),
+                    _SidebarSubItem(title: 'Completed Trips', count: 2, color: const Color(0xFF4ADE80)),
+                    _SidebarSubItem(title: 'Cancelled Trips', count: 0, color: const Color(0xFFF43F5E)),
+                  ],
                 ),
                 _SidebarItem(
-                  icon: Icons.assignment_ind,
-                  title: 'Drivers Management',
+                  icon: Icons.phone,
+                  title: 'Country Code',
                   isSelected: currentIndex == 2,
                   onTap: () => _onItemTapped(2, context),
                 ),
                 _SidebarItem(
-                  icon: Icons.account_balance_wallet,
-                  title: 'Finance & Pricing',
+                  icon: Icons.pages,
+                  title: 'Page',
                   isSelected: currentIndex == 3,
                   onTap: () => _onItemTapped(3, context),
                 ),
                 _SidebarItem(
-                  icon: Icons.notifications,
-                  title: 'Alerts & Support',
+                  icon: Icons.help_outline,
+                  title: 'FAQ',
                   isSelected: currentIndex == 4,
-                  badgeCount: unreadCount,
                   onTap: () => _onItemTapped(4, context),
                 ),
                 _SidebarItem(
-                  icon: Icons.settings,
-                  title: 'Settings',
+                  icon: Icons.local_shipping,
+                  title: 'Vehicle',
                   isSelected: currentIndex == 5,
                   onTap: () => _onItemTapped(5, context),
                 ),
                 _SidebarItem(
-                  icon: Icons.local_shipping,
-                  title: 'Logistics Modes',
+                  icon: Icons.card_giftcard,
+                  title: 'Coupon',
                   isSelected: currentIndex == 6,
                   onTap: () => _onItemTapped(6, context),
+                ),
+                _SidebarItem(
+                  icon: Icons.person_add_alt,
+                  title: 'Rider List',
+                  isSelected: currentIndex == 7,
+                  onTap: () => _onItemTapped(7, context),
+                ),
+                _SidebarItem(
+                  icon: Icons.account_balance_wallet,
+                  title: 'Payout List',
+                  isSelected: currentIndex == 8,
+                  onTap: () => _onItemTapped(8, context),
+                ),
+                _SidebarItem(
+                  icon: Icons.credit_card,
+                  title: 'Payment Gateway List',
+                  isSelected: currentIndex == 9,
+                  onTap: () => _onItemTapped(9, context),
+                ),
+                _SidebarItem(
+                  icon: Icons.people_outline,
+                  title: 'User List',
+                  isSelected: currentIndex == 10,
+                  onTap: () => _onItemTapped(10, context),
+                ),
+                _SidebarItem(
+                  icon: Icons.admin_panel_settings,
+                  title: 'Super Admin',
+                  isSelected: currentIndex == 11,
+                  onTap: () => _onItemTapped(11, context),
+                ),
+                _SidebarItem(
+                  icon: Icons.local_shipping_outlined,
+                  title: 'Logistics & Shipping Management',
+                  isSelected: currentIndex == 12,
+                  onTap: () => _onItemTapped(12, context),
+                  subItems: [
+                    _SidebarSubItem(
+                      title: 'Logistics on Pending', 
+                      count: 0, 
+                      color: const Color(0xFFFBBF24),
+                      onTap: () => context.go('/logistics/pending'),
+                    ),
+                    _SidebarSubItem(
+                      title: 'Logistics on Processing', 
+                      count: 0, 
+                      color: const Color(0xFF60A5FA),
+                      onTap: () => context.go('/logistics/processing'),
+                    ),
+                    _SidebarSubItem(
+                      title: 'In-Transit / Out for Delivery', 
+                      count: 0, 
+                      color: const Color(0xFF818CF8),
+                      onTap: () => context.go('/logistics/in-transit'),
+                    ),
+                    _SidebarSubItem(
+                      title: 'Logistic Complete on Location', 
+                      count: 0, 
+                      color: const Color(0xFF34D399),
+                      onTap: () => context.go('/logistics/completed'),
+                    ),
+                    _SidebarSubItem(
+                      title: 'Delayed/Alerts', 
+                      count: 0, 
+                      color: const Color(0xFFF43F5E),
+                      onTap: () => context.go('/logistics/alerts'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -389,6 +482,15 @@ class AdminScaffold extends ConsumerWidget {
               Navigator.pop(context);
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings_outlined,
+                color: AppTheme.textMutedLight),
+            title: const Text('Super Admin Management', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              context.go('/super-admin');
+              Navigator.pop(context);
+            },
+          ),
           const Spacer(),
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -408,51 +510,165 @@ class AdminScaffold extends ConsumerWidget {
   }
 }
 
-class _SidebarItem extends StatelessWidget {
+class _SidebarItem extends StatefulWidget {
   final IconData icon;
   final String title;
   final bool isSelected;
-  final int badgeCount; // Added badgeCount
+  final int badgeCount;
   final VoidCallback onTap;
+  final List<_SidebarSubItem>? subItems;
 
   const _SidebarItem({
     required this.icon,
     required this.title,
     required this.isSelected,
     required this.onTap,
-    this.badgeCount = 0, // Default value for badgeCount
+    this.badgeCount = 0,
+    this.subItems,
   });
 
   @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    if (widget.subItems != null && widget.subItems!.isNotEmpty) {
+      return Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            decoration: BoxDecoration(
+              color: widget.isSelected || _isExpanded
+                  ? AppTheme.primaryColor.withOpacity(0.08)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ListTile(
+              dense: true,
+              onTap: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+                widget.onTap();
+              },
+              leading: Icon(
+                widget.icon,
+                color: widget.isSelected || _isExpanded
+                    ? AppTheme.primaryColor
+                    : Colors.grey[600],
+                size: 20,
+              ),
+              title: Text(
+                widget.title,
+                style: TextStyle(
+                  color: widget.isSelected || _isExpanded
+                      ? AppTheme.primaryColor
+                      : Colors.grey[700],
+                  fontSize: 13,
+                  fontWeight: widget.isSelected || _isExpanded
+                      ? FontWeight.bold
+                      : FontWeight.w500,
+                ),
+              ),
+              trailing: Icon(
+                _isExpanded ? Icons.expand_less : Icons.expand_more,
+                size: 18,
+                color: _isExpanded ? AppTheme.primaryColor : Colors.grey[400],
+              ),
+            ),
+          ),
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 32, bottom: 8),
+              child: Column(
+                children: widget.subItems!.map((subItem) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 2),
+                    child: ListTile(
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      onTap: subItem.onTap,
+                      leading: Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              subItem.title,
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: subItem.color,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              subItem.count.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      );
+    }
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
-        color: isSelected
-            ? AppTheme.primaryColor.withOpacity(0.1)
+        color: widget.isSelected
+            ? AppTheme.primaryColor.withOpacity(0.08)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
+        dense: true,
         leading: Icon(
-          icon,
-          color: isSelected ? AppTheme.primaryColor : AppTheme.textMutedLight,
+          widget.icon,
+          color: widget.isSelected ? AppTheme.primaryColor : Colors.grey[600],
+          size: 20,
         ),
         title: Row(
           children: [
             Expanded(
               child: Text(
-                title,
+                widget.title,
                 style: TextStyle(
-                  color: isSelected
+                  color: widget.isSelected
                       ? AppTheme.primaryColor
-                      : AppTheme.textPrimaryLight,
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      : Colors.grey[700],
+                  fontSize: 13,
+                  fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.w500,
                 ),
               ),
             ),
-            if (badgeCount > 0)
+            if (widget.badgeCount > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -460,7 +676,7 @@ class _SidebarItem extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  badgeCount.toString(),
+                  widget.badgeCount.toString(),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,
@@ -472,8 +688,22 @@ class _SidebarItem extends StatelessWidget {
         ),
         hoverColor: Colors.white.withOpacity(0.05),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        onTap: onTap,
+        onTap: widget.onTap,
       ),
     );
   }
+}
+
+class _SidebarSubItem {
+  final String title;
+  final int count;
+  final Color color;
+  final VoidCallback? onTap;
+
+  _SidebarSubItem({
+    required this.title,
+    required this.count,
+    required this.color,
+    this.onTap,
+  });
 }

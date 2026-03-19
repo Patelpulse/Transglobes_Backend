@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../domain/models/driver_model.dart';
 import '../providers/driver_provider.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -17,31 +18,42 @@ class DriversScreen extends ConsumerWidget {
     final filteredDrivers = ref.watch(filteredDriversProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColorDark,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
         title: const Text(
-          'Community',
+          'Driver Management',
           style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
+            color: Color(0xFF1E293B),
+            fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: () {
-              // Toggle search visibility or open search delegate
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            width: 300,
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search drivers...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
+            ),
           ),
         ],
-        backgroundColor: AppTheme.backgroundColorDark,
-        elevation: 0,
-        centerTitle: false,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/drivers/new'),
+        backgroundColor: AppTheme.primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: SafeArea(
         child: Column(
@@ -117,20 +129,20 @@ class DriversScreen extends ConsumerWidget {
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: isSelected ? AppTheme.primaryColor : AppTheme.surfaceColorDark,
-                borderRadius: BorderRadius.circular(20),
+            decoration: BoxDecoration(
+                color: isSelected ? AppTheme.primaryColor : Colors.white,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? AppTheme.primaryColor : AppTheme.borderDark,
+                  color: isSelected ? AppTheme.primaryColor : const Color(0xFFE2E8F0),
                 ),
               ),
               child: Center(
                 child: Text(
                   item.$2,
                   style: TextStyle(
-                    color: isSelected ? Colors.white : AppTheme.textSecondaryLight,
+                    color: isSelected ? Colors.white : const Color(0xFF64748B),
                     fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                   ),
                 ),
               ),

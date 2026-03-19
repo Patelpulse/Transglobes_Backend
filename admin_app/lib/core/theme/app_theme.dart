@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class AppTheme {
   // Brand Colors
   static const Color primaryColor = Color(0xFF135BEC);
+  static const Color accentColor = Color(0xFF3B82F6);
   static const Color backgroundColorDark = Color(0xFF101622);
   static const Color backgroundColorLight = Color(0xFFF6F6F8);
 
@@ -26,10 +27,9 @@ class AppTheme {
       primaryColor: primaryColor,
       colorScheme: const ColorScheme.dark(
         primary: primaryColor,
-        background: backgroundColorDark,
+        secondary: accentColor,
         surface: surfaceColorDark,
         onPrimary: Colors.white,
-        onBackground: textPrimaryLight,
         onSurface: textPrimaryLight,
         error: danger,
       ),
@@ -47,20 +47,39 @@ class AppTheme {
         ),
       ),
       dividerTheme: const DividerThemeData(color: borderDark, thickness: 1),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: backgroundColorDark,
-        selectedItemColor: primaryColor,
-        unselectedItemColor: textMutedLight,
-        type: BottomNavigationBarType.fixed,
+    );
+  }
+
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+      primaryColor: primaryColor,
+      colorScheme: const ColorScheme.light(
+        primary: primaryColor,
+        secondary: accentColor,
+        surface: Colors.white,
+        onPrimary: Colors.white,
+        onSurface: Color(0xFF1E293B),
+        error: danger,
+      ),
+      textTheme: GoogleFonts.manropeTextTheme(ThemeData.light().textTheme),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
         elevation: 0,
-        selectedLabelStyle: TextStyle(
+        centerTitle: false,
+        iconTheme: IconThemeData(color: Color(0xFF1E293B)),
+        titleTextStyle: TextStyle(
+          color: Color(0xFF1E293B),
+          fontSize: 18,
           fontWeight: FontWeight.bold,
-          fontSize: 10,
+          fontFamily: 'Manrope',
         ),
-        unselectedLabelStyle: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 10,
-        ),
+      ),
+      dividerTheme: const DividerThemeData(color: Color(0xFFE2E8F0), thickness: 1),
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: Colors.white,
       ),
     );
   }
