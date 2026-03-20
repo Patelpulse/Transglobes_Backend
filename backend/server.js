@@ -13,15 +13,30 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = initSocket(server);
 
+// Trust proxy (needed for Railway/Heroku to correctly handle headers behind their proxy)
+app.set('trust proxy', 1);
+
 // Middleware
-const corsOptions = {
-    origin: '*', // Allow all origins for now
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-    credentials: true,
-};
-app.use(cors(corsOptions));
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+    } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    next();
+});
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Attach io to req object
 app.use((req, res, next) => {
