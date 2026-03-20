@@ -33,16 +33,15 @@ class MockUser {
 
 class AuthService {
   // Only initialize FirebaseAuth when NOT in demo mode
-  FirebaseAuth? _auth;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   static final MockUser _mockUser = MockUser();
 
   FirebaseAuth get auth {
-    _auth ??= FirebaseAuth.instance;
-    // Enable reCAPTCHA bypass for testing in debug mode on Web
-    if (kIsWeb && kDebugMode) {
-      _auth!.setSettings(appVerificationDisabledForTesting: true);
+    // Disable app verification (reCAPTCHA) on web for development
+    if (kIsWeb) {
+      _auth.setSettings(appVerificationDisabledForTesting: true);
     }
-    return _auth!;
+    return _auth;
   }
 
   dynamic get currentUser => kDemoMode ? _mockUser : auth.currentUser;

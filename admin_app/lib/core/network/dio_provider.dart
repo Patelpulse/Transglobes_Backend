@@ -4,8 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
-    // baseUrl: 'https://transglove-backend.onrender.com/api/admin',
-    baseUrl: 'http://localhost:8000/api/admin',
+    baseUrl: 'https://transglobesbackend-production.up.railway.app/api/admin',
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

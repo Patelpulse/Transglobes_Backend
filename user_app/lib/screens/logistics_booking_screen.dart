@@ -17,6 +17,9 @@ import 'package:image_picker/image_picker.dart';
 import '../core/config.dart';
 import '../services/auth_service.dart';
 import 'dart:async';
+import 'address_book_screen.dart';
+import '../models/address_model.dart';
+import 'my_logistics_bookings_screen.dart';
 
 // ─── Helper cost per person ─────────────────────────────
 const double _helperCostPerPerson = 800.0; // ₹800 per helper
@@ -87,6 +90,10 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   // Coupon
   String? _appliedCoupon;
   double _discountAmount = 0.0;
+
+  // Selected addresses from address book
+  AddressEntry? _selectedPickupAddress;
+  AddressEntry? _selectedDeliveryAddress;
 
   // Booking loader
   bool _isSavingGood = false;
@@ -378,17 +385,19 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   // ─── Add item to list ────────────────────────────────────
   Future<void> _addItemToList() async {
     final name = _itemNameController.text.trim();
-    if (name.isEmpty || _selectedGoodType == null) {
+    if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter item name and select goods type')),
+        const SnackBar(content: Text('Please enter item name')),
       );
       return;
     }
 
     String goodTypeName = 'General';
     ref.read(typeGoodsProvider).whenData((goods) {
-      final sel = goods.where((g) => g.id == _selectedGoodType).toList();
-      if (sel.isNotEmpty) goodTypeName = sel.first.name;
+      if (_selectedGoodType != null) {
+        final sel = goods.where((g) => g.id == _selectedGoodType).toList();
+        if (sel.isNotEmpty) goodTypeName = sel.first.name;
+      }
     });
 
     setState(() => _isAddingItem = true);
@@ -447,7 +456,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     final userId = authService.currentUser?.uid as String? ?? 'guest';
     final token = await authService.getIdToken();
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/logistic-goods/upload-image');
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistic-goods/upload-image');
     final request = http.MultipartRequest('POST', uri);
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
     request.fields['userId'] = userId;
@@ -471,7 +480,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
     for (final item in _addedItems) {
       try {
-        final uri = Uri.parse('${AppConfig.apiBaseUrl}/logistic-goods');
+        final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistic-goods');
         final request = http.MultipartRequest('POST', uri);
         if (token != null) request.headers['Authorization'] = 'Bearer $token';
         request.fields['userId'] = userId;
@@ -489,6 +498,67 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
       } catch (e) {
         debugPrint('Error saving item "${item.name}": $e');
       }
+    }
+  }
+
+  // ─── POST full logistics booking to MongoDB ───────────
+  Future<String> _saveLogisticsBooking({
+    required String goodTypeName,
+    Map<String, dynamic>? pickupAddress,
+    Map<String, dynamic>? receivedAddress,
+  }) async {
+    final authService = ref.read(authServiceProvider);
+    final userId = authService.currentUser?.uid as String? ?? 'guest';
+    final token = await authService.getIdToken();
+
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings');
+    final headers = {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+
+    final body = json.encode({
+      'userId': userId,
+      'pickup': {
+        'name':    _pickup!['name'],
+        'address': _pickup!['address'],
+        'lat':     _parseDouble(_pickup!['lat']),
+        'lng':     _parseDouble(_pickup!['lng']),
+      },
+      'dropoff': {
+        'name':    _dropoff!['name'],
+        'address': _dropoff!['address'],
+        'lat':     _parseDouble(_dropoff!['lat']),
+        'lng':     _parseDouble(_dropoff!['lng']),
+      },
+      'distanceKm':     _distance,
+      'vehicleType':    _selectedVehicle ?? 'General',
+      'vehiclePrice':   _vehiclePrice,
+      'items': _addedItems.map((item) => {
+        'itemName': item.name,
+        'type':     item.type,
+        'length':   item.length,
+        'height':   item.height,
+        'width':    item.width,
+        'unit':     item.unit,
+      }).toList(),
+      'helperCount':    _helperCount,
+      'helperCost':     _helperCost,
+      'discountAmount': _discountAmount,
+      'totalPrice':     _totalPrice,
+      'appliedCoupon':  _appliedCoupon,
+      'pickupAddress':  pickupAddress,
+      'receivedAddress': receivedAddress,
+    });
+
+    final response = await http.post(uri, headers: headers, body: body);
+    final data = json.decode(response.body);
+
+    if (response.statusCode == 201 && data['success'] == true) {
+      debugPrint('Logistics booking saved: ${data['bookingId']}');
+      return data['bookingId'] as String? ?? '';
+    } else {
+      throw Exception('Failed to save booking: ${data['message']}');
     }
   }
 
@@ -912,65 +982,6 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           ),
                           const SizedBox(height: 16),
 
-                          // Image Upload (Gallery + Camera)
-                          GestureDetector(
-                            onTap: _showImageSourceDialog,
-                            child: Container(
-                              width: double.infinity,
-                              height: _currentImageBytes != null ? 160 : 80,
-                              decoration: BoxDecoration(
-                                color: context.theme.primaryColor.withAlpha(13),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: context.theme.primaryColor.withAlpha(100),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: _currentImageBytes != null
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          Image.memory(_currentImageBytes!,
-                                              fit: BoxFit.cover),
-                                          Positioned(
-                                            top: 8,
-                                            right: 8,
-                                            child: GestureDetector(
-                                              onTap: () => setState(() {
-                                                _currentImageBytes = null;
-                                                _currentImageName = null;
-                                              }),
-                                              child: Container(
-                                                decoration: const BoxDecoration(
-                                                    color: Colors.red,
-                                                    shape: BoxShape.circle),
-                                                padding: const EdgeInsets.all(4),
-                                                child: const Icon(Icons.close,
-                                                    color: Colors.white, size: 16),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  : Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.add_photo_alternate_outlined,
-                                            size: 32,
-                                            color: context.theme.primaryColor),
-                                        const SizedBox(height: 4),
-                                        Text('Gallery or Camera',
-                                            style: TextStyle(
-                                                color: context.theme.primaryColor,
-                                                fontWeight: FontWeight.w600)),
-                                      ],
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
 
                           // Add Item Button
                           SizedBox(
@@ -1114,6 +1125,42 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                     ),
                   ),
 
+                  // ── Pickup Address Selector ──────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 28, 16, 8),
+                    child: _buildAddressSelector(
+                      title: 'Pickup Address',
+                      subtitle: 'Select saved home/office address',
+                      selected: _selectedPickupAddress,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AddressBookScreen(
+                            onSelect: (addr) => setState(() => _selectedPickupAddress = addr),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // ── Delivery Address Selector ──────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: _buildAddressSelector(
+                      title: 'Delivery Address',
+                      subtitle: 'Select saved destination address',
+                      selected: _selectedDeliveryAddress,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AddressBookScreen(
+                            onSelect: (addr) => setState(() => _selectedDeliveryAddress = addr),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 120),
                 ],
               ),
@@ -1247,61 +1294,56 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
                               await _saveAllItemsAndBook(goodTypeName);
 
-                              final ride =
-                                  await ref.read(rideServiceProvider).createRideRequest(
-                                    locations: {
-                                      'pickup': {
-                                        'title': _pickup!['name'] ?? 'Pickup',
-                                        'address': _pickup!['address'] ??
-                                            _pickup!['name'] ??
-                                            '',
-                                        'latitude': _parseDouble(_pickup!['lat']),
-                                        'longitude': _parseDouble(_pickup!['lng']),
-                                      },
-                                      'dropoff': {
-                                        'title': _dropoff!['name'] ?? 'Dropoff',
-                                        'address': _dropoff!['address'] ??
-                                            _dropoff!['name'] ??
-                                            '',
-                                        'latitude': _parseDouble(_dropoff!['lat']),
-                                        'longitude': _parseDouble(_dropoff!['lng']),
-                                      },
-                                    },
-                                    rideMode: 'Logistics',
-                                    fare: _totalPrice,
-                                    vehicleType: _selectedVehicle ?? 'Logistics',
-                                    typeOfGood: goodTypeName,
-                                    helperCount: _helperCount,
-                                    logisticItems: _addedItems
-                                        .map((item) => {
-                                              'name': item.name,
-                                              'type': item.type,
-                                              'length': item.length,
-                                              'height': item.height,
-                                              'width': item.width,
-                                              'imageUrl': item.savedImageUrl,
-                                            })
-                                        .toList(),
-                                  );
+                              // Save the full booking to MongoDB
+                              await _saveLogisticsBooking(
+                                goodTypeName: goodTypeName,
+                                pickupAddress: _selectedPickupAddress != null ? {
+                                  'label': _selectedPickupAddress!.label,
+                                  'fullAddress': _selectedPickupAddress!.fullAddress,
+                                  'houseNumber': _selectedPickupAddress!.houseNumber,
+                                  'floorNumber': _selectedPickupAddress!.floorNumber,
+                                  'landmark': _selectedPickupAddress!.landmark,
+                                  'city': _selectedPickupAddress!.city,
+                                  'pincode': _selectedPickupAddress!.pincode,
+                                  'phone': _selectedPickupAddress!.phone,
+                                  'email': _selectedPickupAddress!.email,
+                                } : null,
+                                receivedAddress: _selectedDeliveryAddress != null ? {
+                                  'label': _selectedDeliveryAddress!.label,
+                                  'fullAddress': _selectedDeliveryAddress!.fullAddress,
+                                  'houseNumber': _selectedDeliveryAddress!.houseNumber,
+                                  'floorNumber': _selectedDeliveryAddress!.floorNumber,
+                                  'landmark': _selectedDeliveryAddress!.landmark,
+                                  'city': _selectedDeliveryAddress!.city,
+                                  'pincode': _selectedDeliveryAddress!.pincode,
+                                  'phone': _selectedDeliveryAddress!.phone,
+                                  'email': _selectedDeliveryAddress!.email,
+                                } : null,
+                              );
 
                               if (mounted) {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => RideTrackingScreen(
-                                      pickup: _pickup!,
-                                      dropoff: _dropoff!,
-                                      vehicle: {
-                                        'name': _selectedVehicle ?? 'Logistics',
-                                        'type': 'Truck',
-                                        'price': _totalPrice,
-                                      },
-                                      rideId: ride.id,
-                                      otp: ride.otp,
-                                    ),
+                                Navigator.pop(context); // Close the loading dialog
+                                
+                                // Show success snackbar
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('🎉 Logistics booking successful! Redirecting to your bookings...'),
+                                    backgroundColor: Colors.green,
+                                    duration: Duration(seconds: 3),
                                   ),
                                 );
+
+                                // Wait for 3 seconds as requested
+                                await Future.delayed(const Duration(seconds: 3));
+
+                                if (mounted) {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const MyLogisticsBookingsScreen(),
+                                    ),
+                                  );
+                                }
                               }
                             } catch (e) {
                               if (mounted) {
@@ -1517,6 +1559,85 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: const Text('Apply'),
+      ),
+    );
+  }
+
+  Widget _buildAddressSelector({
+    required String title,
+    required String subtitle,
+    required AddressEntry? selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: context.theme.cardColor,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected != null 
+                ? context.theme.primaryColor 
+                : context.theme.primaryColor.withOpacity(0.3),
+            width: selected != null ? 2.0 : 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: context.theme.primaryColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                selected?.icon ?? Icons.location_on_rounded,
+                color: context.theme.primaryColor,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selected?.label ?? title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: context.colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    selected?.fullAddress ?? subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.colors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              selected != null ? Icons.check_circle_rounded : Icons.arrow_forward_ios_rounded,
+              size: 20,
+              color: context.theme.primaryColor,
+            ),
+          ],
+        ),
       ),
     );
   }

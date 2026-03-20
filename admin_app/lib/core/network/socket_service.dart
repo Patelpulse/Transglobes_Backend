@@ -26,7 +26,7 @@ class SocketService {
     }
 
     _socket = IO.io(
-      "http://localhost:8000",
+      "https://transglobesbackend-production.up.railway.app",
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()

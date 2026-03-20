@@ -4,10 +4,10 @@ class AppConfig {
   static const String appName = 'Transglobal';
   static String get apiBaseUrl {
     if (kDebugMode) {
-      if (kIsWeb) return 'http://localhost:8000';
-      return 'http://10.0.2.2:8000';
+      if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app';
+      return 'https://transglobesbackend-production.up.railway.app';
     }
-    return 'https://transglove-backend.onrender.com';
+    return 'https://transglobesbackend-production.up.railway.app';
   }
 
 

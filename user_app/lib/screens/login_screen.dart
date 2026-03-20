@@ -273,7 +273,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               // Country Code
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
+                                  horizontal: 10,
                                   vertical: 18,
                                 ),
                                 decoration: BoxDecoration(
@@ -284,27 +284,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     ),
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      '🇮🇳',
-                                      style: TextStyle(fontSize: 20),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '+91',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: context.colors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      Icons.keyboard_arrow_down,
-                                      color: context.colors.textSecondary,
-                                      size: 20,
-                                    ),
-                                  ],
+                                child: Text(
+                                  '+91',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    color: context.colors.textPrimary,
+                                  ),
                                 ),
                               ),
                               // Phone Field

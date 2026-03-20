@@ -26,17 +26,17 @@ class LogisticsProvider with ChangeNotifier {
   
   // Web needs backend proxy to avoid CORS. Android/iOS can call Google directly.
   static String get _geocodeBaseUrl {
-    if (kIsWeb) return 'http://localhost:8000/api/maps/geocode';
+    if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app/api/maps/geocode';
     return 'https://maps.googleapis.com/maps/api/geocode/json';
   }
 
   static String get _directionsBaseUrl {
-    if (kIsWeb) return 'http://localhost:8000/api/maps/directions';
+    if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app/api/maps/directions';
     return 'https://maps.googleapis.com/maps/api/directions/json';
   }
 
   static String get _autocompleteBaseUrl {
-    if (kIsWeb) return 'http://localhost:8000/api/maps/autocomplete';
+    if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app/api/maps/autocomplete';
     return 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
   }
 

@@ -21,12 +21,12 @@ app.use((req, res, next) => {
     } else {
         res.setHeader('Access-Control-Allow-Origin', '*');
     }
-    
+
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
-    
+
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -54,6 +54,7 @@ const mapsRoutes = require('./routes/mapsRoutes');
 const typeGoodRoutes = require('./routes/typeGoodRoutes');
 const logisticsVehicleRoutes = require('./routes/logisticsVehicleRoutes');
 const logisticGoodRoutes = require('./routes/logisticGoodRoutes');
+const logisticsBookingRoutes = require('./routes/logisticsBookingRoutes');
 
 // Root & Health Check Routes
 app.get('/', (req, res) => res.send('API is running with Socket.io...'));
@@ -68,6 +69,7 @@ app.use('/api/maps', mapsRoutes);
 app.use('/api/typegood', typeGoodRoutes);
 app.use('/api/logistics-vehicles', logisticsVehicleRoutes);
 app.use('/api/logistic-goods', logisticGoodRoutes);
+app.use('/api/logistics-bookings', logisticsBookingRoutes);
 
 // Database Connection
 connectDB();
@@ -75,13 +77,13 @@ connectDB();
 // Error Handling Middleware
 app.use((err, req, res, next) => {
     console.error('SERVER ERROR:', err.stack);
-    res.status(500).json({ 
-        message: 'Internal Server Error', 
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    res.status(500).json({
+        message: 'Internal Server Error',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`>>> Server is active and listening on port ${PORT}`);
 });

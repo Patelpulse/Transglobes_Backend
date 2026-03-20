@@ -285,7 +285,7 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> _signUpApi(String name, String email, String password, String aadhar, String pan) async {
-    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000'}/api/driver/register');
+    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'https://transglobesbackend-production.up.railway.app'}/api/driver/register');
     final response = await _post(url, {
       'name': name,
       'email': email,
@@ -297,7 +297,7 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> _signInApi(String email, String password) async {
-    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000'}/api/driver/login');
+    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'https://transglobesbackend-production.up.railway.app'}/api/driver/login');
     final response = await _post(url, {
       'email': email,
       'password': password,
