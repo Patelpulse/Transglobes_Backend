@@ -3,10 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final Dio _dio = Dio(BaseOptions(
-    // baseUrl: 'https://transglove-backend.onrender.com/api/admin',
-    baseUrl: 'http://localhost:8000/api/admin',
-    connectTimeout: const Duration(seconds: 5),
-    receiveTimeout: const Duration(seconds: 3),
+    baseUrl: 'https://transglobesbackend-production.up.railway.app/api/admin',
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
   ));
 
   Future<Map<String, dynamic>> login(String email, String password) async {
