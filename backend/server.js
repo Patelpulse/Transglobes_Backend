@@ -14,7 +14,14 @@ const server = http.createServer(app);
 const io = initSocket(server);
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+    origin: '*', // Allow all origins for now
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    credentials: true,
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle preflight for all routes
 app.use(express.json());
 
 // Attach io to req object
@@ -55,6 +62,6 @@ app.use((err, req, res, next) => {
     res.status(500).send({ message: 'Internal Server Error' });
 });
 
-const PORT = 8000;
+const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`)); // Server is active and listening..
 
