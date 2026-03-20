@@ -21,7 +21,6 @@ const corsOptions = {
     credentials: true,
 };
 app.use(cors(corsOptions));
-app.options('(.*)', cors(corsOptions)); // Handle preflight for all routes - fixed for Express 5
 app.use(express.json());
 
 // Attach io to req object
