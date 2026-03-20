@@ -1,33 +1,31 @@
-require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
+require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const connectDB = require('./config/db');
-
 const http = require('http');
 const initSocket = require('./socket/socketHandler');
 
-// Initialize Express
 const app = express();
-const server = http.createServer(app);
 
-// Initialize Socket.io
-const io = initSocket(server);
-
-// Trust proxy (needed for Railway/Heroku to correctly handle headers behind their proxy)
+// Trust proxy for Railway/Heroku
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
-// Middleware
+// Robust Manual CORS Middleware
 app.use((req, res, next) => {
     const origin = req.headers.origin;
+    // Mirror the origin if it exists, otherwise fallback to wildcard
+    // Using mirrored origin is required when credentials: true
     if (origin) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Vary', 'Origin');
     } else {
         res.setHeader('Access-Control-Allow-Origin', '*');
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -38,18 +36,13 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Attach io to req object
+const server = http.createServer(app);
+const io = initSocket(server);
+
+// Attach socket.io to request object
 app.use((req, res, next) => {
     req.io = io;
     next();
-});
-
-// Connect to MongoDB
-connectDB();
-
-// Basic Route
-app.get('/', (req, res) => {
-    res.send('API is running with Socket.io...');
 });
 
 // Import Routes
@@ -61,6 +54,12 @@ const mapsRoutes = require('./routes/mapsRoutes');
 const typeGoodRoutes = require('./routes/typeGoodRoutes');
 const logisticsVehicleRoutes = require('./routes/logisticsVehicleRoutes');
 const logisticGoodRoutes = require('./routes/logisticGoodRoutes');
+
+// Root & Health Check Routes
+app.get('/', (req, res) => res.send('API is running with Socket.io...'));
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date() }));
+
+// Register Routes
 app.use('/api/user', userRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/admin', adminRoutes);
@@ -70,12 +69,19 @@ app.use('/api/typegood', typeGoodRoutes);
 app.use('/api/logistics-vehicles', logisticsVehicleRoutes);
 app.use('/api/logistic-goods', logisticGoodRoutes);
 
+// Database Connection
+connectDB();
+
 // Error Handling Middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send({ message: 'Internal Server Error' });
+    console.error('SERVER ERROR:', err.stack);
+    res.status(500).json({ 
+        message: 'Internal Server Error', 
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
 });
 
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`)); // Server is active and listening..
-
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`>>> Server is active and listening on port ${PORT}`);
+});
