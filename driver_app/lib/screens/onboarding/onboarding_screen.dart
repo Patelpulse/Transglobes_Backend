@@ -215,7 +215,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         final db = ref.read(databaseServiceProvider);
         final email = auth.currentUser?.email;
         if (email != null) {
-          await db.sendOTP(email);
+          final res = await db.sendOTP(email);
+          if (res['otp'] != null) {
+             if (mounted) {
+               _otpCtrl.text = res['otp'].toString(); 
+               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('DEV MODE: Cloud Email Failed/Blocked. Your OTP is: ${res['otp']}'),
+                  backgroundColor: Colors.blueAccent,
+                  duration: const Duration(seconds: 8)
+               ));
+             }
+          }
         } else {
           throw Exception('User email not found');
         }

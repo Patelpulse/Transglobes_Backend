@@ -197,7 +197,7 @@ class DatabaseService {
     }
   }
 
-  Future<void> sendOTP(String email) async {
+  Future<Map<String, dynamic>> sendOTP(String email) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/otp/send');
       final response = await http.post(
@@ -209,6 +209,7 @@ class DatabaseService {
         final error = json.decode(response.body);
         throw Exception(error['message'] ?? 'Failed to send OTP');
       }
+      return json.decode(response.body) as Map<String, dynamic>;
     } catch (e) {
       print('Error sending OTP: $e');
       rethrow;
