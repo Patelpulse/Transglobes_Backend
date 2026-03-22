@@ -306,6 +306,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       ref.invalidate(driverProfileProvider);
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Welcome to the transglob'),
+            backgroundColor: AppTheme.neonGreen,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
         Navigator.pushReplacementNamed(context, AppRouter.home);
       }
     } catch (e) {
