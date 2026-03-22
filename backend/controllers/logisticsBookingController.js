@@ -102,14 +102,14 @@ exports.getAllBookings = async (req, res) => {
                 $addFields: {
                     userName: { 
                         $ifNull: [ 
-                            "$userName", 
-                            { $ifNull: [ { $arrayElemAt: ['$userInfo.name', 0] }, '$userId' ] } 
+                            { $arrayElemAt: ['$userInfo.name', 0] },
+                            { $ifNull: [ "$userName", "$userId" ] }
                         ] 
                     },
                     userPhone: {
                         $ifNull: [
-                            "$userPhone",
-                            { $ifNull: [ { $arrayElemAt: ['$userInfo.mobileNumber', 0] }, "" ] }
+                            { $arrayElemAt: ['$userInfo.mobileNumber', 0] },
+                            { $ifNull: [ "$userPhone", "" ] }
                         ]
                     }
                 }
