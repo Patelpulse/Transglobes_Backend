@@ -394,7 +394,13 @@ const verifyOTP = async (req, res) => {
         }
 
         // Mark driver as verified
-        const driver = await Driver.findOne({ uid });
+        let driver = await Driver.findOne({ uid });
+
+        // Dev mode fallback – search by email since UID might be a generic dev-only string
+        if (!driver || uid === 'dev-user-uid') {
+           driver = await Driver.findOne({ email });
+        }
+
         if (driver) {
             driver.isEmailVerified = true;
             await driver.save();

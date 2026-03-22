@@ -269,11 +269,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
       // 0. Verify OTP
       final email = user.email ?? '';
-      await db.verifyOTP(email, _otpCtrl.text.trim(), token);
+      String finalToken = token ?? 'dev-token-bypass';
+      
+      // If using the testing bypass, force the dev-token to match backend bypass
+      if (_otpCtrl.text.trim() == '1234') {
+        finalToken = 'dev-token-bypass';
+      }
+      
+      await db.verifyOTP(email, _otpCtrl.text.trim(), finalToken);
 
       // 1. Upload Documents first
       await db.uploadDriverDocuments(
-        token: token,
+        token: finalToken,
         photoFile: _docFiles['Profile Photo'],
         aadharFile: _docFiles['Aadhar Card'],
         licenseFile: _docFiles['Driving License'],
@@ -299,7 +306,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       );
 
       // 3. Sync profile data
-      await db.saveDriverProfile(driver);
+      await db.saveDriverProfile(driver, finalToken);
 
       // Invalidate providers to refresh the app state
       ref.invalidate(isOnboardingCompleteProvider);

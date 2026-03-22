@@ -38,7 +38,7 @@ class DatabaseService {
   }
 
   // Save driver profile to Backend
-  Future<void> saveDriverProfile(DriverModel driver) async {
+  Future<void> saveDriverProfile(DriverModel driver, [String? token]) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
       final response = await http.post(
