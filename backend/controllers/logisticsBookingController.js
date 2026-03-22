@@ -52,6 +52,17 @@ exports.createBooking = async (req, res) => {
         });
 
         await booking.save();
+        
+        // --- Push Notification To Drivers ---
+        const { notifyAllDrivers } = require('../utils/notificationService');
+        notifyAllDrivers({
+            title: "New Logistics Shipment",
+            body: `New ${vehicleType} Shipment available via ${pickup.address}.`,
+            data: {
+                bookingId: booking._id.toString(),
+                type: 'NEW_LOGISTICS'
+            }
+        });
 
         return res.status(201).json({
             success: true,
@@ -161,6 +172,25 @@ exports.updateStatus = async (req, res) => {
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found.' });
         }
+
+        // --- Push Notification To User ---
+        const { notifyUser } = require('../utils/notificationService');
+        let bodyText = `Your shipment is now: ${status.toUpperCase()}`;
+        if (status === 'confirmed') bodyText = "Your shipment has been confirmed by our team.";
+        if (status === 'in_transit') bodyText = "Your shipment is now in transit!";
+        if (status === 'delivered') bodyText = "Your shipment has been delivered successfully. Thank you for using Transglobe!";
+        if (status === 'cancelled') bodyText = "Your shipment has been cancelled.";
+
+        notifyUser(booking.userId, {
+            title: "Shipment Update",
+            body: bodyText,
+            data: {
+                bookingId: booking._id.toString(),
+                status: booking.status,
+                type: 'SHIPMENT_UPDATE'
+            }
+        });
+
         return res.status(200).json({ success: true, message: 'Status updated.', data: booking });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });

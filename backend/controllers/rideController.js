@@ -450,6 +450,23 @@ exports.updateRideStatus = async (req, res) => {
             });
         }
 
+        // --- Push Notification to User ---
+        const { notifyUser } = require('../utils/notificationService');
+        let bodyText = `Your ride status is now: ${ride.status.toUpperCase()}`;
+        if (status === 'arrived') bodyText = "Your driver has arrived at the pickup location!";
+        if (status === 'completed') bodyText = "Your ride is complete. Thank you for riding with Transglobe!";
+        if (status === 'cancelled') bodyText = "Your ride has been cancelled.";
+
+        notifyUser(ride.userId, {
+            title: "Ride Update",
+            body: bodyText,
+            data: {
+                rideId: ride._id.toString(),
+                status: ride.status,
+                type: 'STATUS_UPDATE'
+            }
+        });
+
         res.json({ success: true, ride });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -482,6 +499,18 @@ exports.verifyRideOtp = async (req, res) => {
                 status: "ongoing"
             });
         }
+
+        // Push notification to user
+        const { notifyUser } = require('../utils/notificationService');
+        notifyUser(ride.userId, {
+            title: "Ride Started",
+            body: "OTP Verified. Your journey has begun!",
+            data: {
+                rideId: ride._id.toString(),
+                status: "ongoing",
+                type: 'STATUS_UPDATE'
+            }
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
