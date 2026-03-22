@@ -207,37 +207,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         _showError('Please enter the year of manufacture.');
         return;
       }
-    } else if (_currentPage == 4) { // Review Step
-      // Trigger OTP sending when user finishes review and clicks continue
-      setState(() => _isSubmitting = true);
-      try {
-        final auth = ref.read(authServiceProvider);
-        final db = ref.read(databaseServiceProvider);
-        final email = auth.currentUser?.email;
-        if (email != null) {
-          final res = await db.sendOTP(email);
-          if (res['otp'] != null) {
-             if (mounted) {
-               _otpCtrl.text = res['otp'].toString(); 
-               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('DEV MODE: Cloud Email Failed/Blocked. Your OTP is: ${res['otp']}'),
-                  backgroundColor: Colors.blueAccent,
-                  duration: const Duration(seconds: 8)
-               ));
-             }
-          }
-        } else {
-          throw Exception('User email not found');
-        }
-      } catch (e) {
-        _showError('Failed to send verification code: $e');
-        setState(() => _isSubmitting = false);
-        return; 
-      }
-      setState(() => _isSubmitting = false);
     }
-
-    if (_currentPage < 5) {
+    
+    if (_currentPage < 4) {
       _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
       setState(() => _currentPage++);
     } else {
@@ -267,16 +239,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       final token = await user.getIdToken();
       if (token == null) throw Exception('Could not get authentication token');
 
-      // 0. Verify OTP
-      final email = user.email ?? '';
-      String finalToken = token ?? 'dev-token-bypass';
-      
-      // If using the testing bypass, force the dev-token to match backend bypass
-      if (_otpCtrl.text.trim() == '1234') {
-        finalToken = 'dev-token-bypass';
-      }
-      
-      await db.verifyOTP(email, _otpCtrl.text.trim(), finalToken);
+      // 0. Verification is skipped as per request
+      final finalToken = token ?? 'dev-token-bypass';
 
       // 1. Upload Documents first
       await db.uploadDriverDocuments(
@@ -417,10 +381,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   const SizedBox(height: 20),
                   // Step progress
                   Row(
-                    children: List.generate(6, (i) => Expanded(
+                    children: List.generate(5, (i) => Expanded(
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
-                        margin: EdgeInsets.only(right: i < 5 ? 6 : 0),
+                        margin: EdgeInsets.only(right: i < 4 ? 6 : 0),
                         height: 4,
                         decoration: BoxDecoration(
                           color: i <= _currentPage ? AppTheme.neonGreen : AppTheme.darkDivider,
@@ -433,7 +397,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Step ${_currentPage + 1} of 6', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12)),
+                      Text('Step ${_currentPage + 1} of 5', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12)),
                       Text(_stepTitle(_currentPage), style: TextStyle(color: AppTheme.neonGreen, fontSize: 12, fontWeight: FontWeight.w700)),
                     ],
                   ),
@@ -452,7 +416,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   _buildDocumentUploadStep(),
                   _buildVehicleDetailsStep(),
                   _buildReviewStep(),
-                  _buildOTPStep(),
                 ],
               ),
             ),
@@ -486,7 +449,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   String _stepTitle(int step) {
-    return ['Vehicle Type', 'Personal Info', 'Documents', 'Vehicle Details', 'Review', 'Verify Email'][step];
+    return ['Vehicle Type', 'Personal Info', 'Documents', 'Vehicle Details', 'Review'][step];
   }
 
   Widget _buildVehicleTypeStep() {

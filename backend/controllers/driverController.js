@@ -41,7 +41,8 @@ const syncDriverData = async (req, res) => {
                 name,
                 email,
                 mobileNumber: mobileNumber || undefined,
-                status: 'pending'
+                status: 'pending',
+                isEmailVerified: true // Automatically verify since UI step is removed
             });
         }
 
@@ -436,6 +437,7 @@ const register = async (req, res) => {
             name,
             email,
             password,
+            isEmailVerified: true, // Default to true as per request to skip verification
             aadharCardNumber: aadharCard,
             panCardNumber: panCard
         });
