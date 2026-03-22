@@ -41,9 +41,15 @@ class DatabaseService {
   Future<void> saveDriverProfile(DriverModel driver, [String? token]) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      headers['Authorization'] = 'Bearer ${token ?? ''}';
+      if (token == 'dev-token-bypass') {
+        headers['x-dev-uid'] = driver.firebaseId;
+      }
+      
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode({
           'uid': driver.firebaseId,
           'name': driver.name,
@@ -101,12 +107,16 @@ class DatabaseService {
     XFile? aadharFile,
     XFile? licenseFile,
     XFile? signatureFile,
+    String? uid,
   }) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/upload');
       var request = http.MultipartRequest('POST', url);
       
       request.headers['Authorization'] = 'Bearer $token';
+      if (token == 'dev-token-bypass' && uid != null) {
+        request.headers['x-dev-uid'] = uid;
+      }
 
       if (photoFile != null) {
         final bytes = await photoFile.readAsBytes();

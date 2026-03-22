@@ -233,14 +233,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       final auth = ref.read(authServiceProvider);
       final db = ref.read(databaseServiceProvider);
       final user = auth.currentUser;
-
       if (user == null) throw Exception('User not logged in');
       
       final token = await user.getIdToken();
-      if (token == null) throw Exception('Could not get authentication token');
 
-      // 0. Verification is skipped as per request
-      final finalToken = token ?? 'dev-token-bypass';
+      // 0. Use dev bypass if token is null or if we are targeting localhost (to avoid Firebase verification issues during dev)
+      final bool isLocal = AppConfig.apiBaseUrl.contains('localhost') || AppConfig.apiBaseUrl.contains('127.0.0.1');
+      final finalToken = isLocal ? 'dev-token-bypass' : (token ?? 'dev-token-bypass');
 
       // 1. Upload Documents first
       await db.uploadDriverDocuments(
@@ -249,6 +248,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         aadharFile: _docFiles['Aadhar Card'],
         licenseFile: _docFiles['Driving License'],
         signatureFile: _docFiles['Signature'],
+        uid: user.uid,
       );
 
       // 2. Prepare Driver Model for sync (text fields)

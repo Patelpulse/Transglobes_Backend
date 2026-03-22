@@ -13,7 +13,8 @@ const verifyToken = async (req, res, next) => {
 
     // Dev Bypass
     if (token === 'dev-token-bypass') {
-        req.user = { uid: 'dev-user-uid', email: 'dev@example.com' };
+        const devUid = req.headers['x-dev-uid'] || req.headers['x-dev-id'];
+        req.user = { uid: devUid || 'dev-user-uid', email: 'dev@example.com' };
         return next();
     }
 
