@@ -1,6 +1,8 @@
 const admin = require('../config/firebase');
 const jwt = require('jsonwebtoken');
 
+console.log("!!! AUTH MIDDLEWARE LOADED !!!");
+
 const verifyToken = async (req, res, next) => {
     let token = req.headers.authorization;
     if (token && token.startsWith('Bearer ')) {
