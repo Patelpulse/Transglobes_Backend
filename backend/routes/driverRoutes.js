@@ -60,7 +60,10 @@ router.post('/upload', (req, res, next) => {
     { name: 'photo', maxCount: 1 },
     { name: 'aadharCard', maxCount: 1 },
     { name: 'drivingLicense', maxCount: 1 },
-    { name: 'signature', maxCount: 1 }
+    { name: 'signature', maxCount: 1 },
+    { name: 'panCard', maxCount: 1 },
+    { name: 'rcBook', maxCount: 1 },
+    { name: 'insurance', maxCount: 1 }
 ]), uploadDocuments);
 
 // POST /api/driver/fcm-token - Update FCM token

@@ -107,6 +107,9 @@ class DatabaseService {
     XFile? aadharFile,
     XFile? licenseFile,
     XFile? signatureFile,
+    XFile? panFile,
+    XFile? rcBookFile,
+    XFile? insuranceFile,
     String? uid,
   }) async {
     try {
@@ -150,8 +153,20 @@ class DatabaseService {
           filename: signatureFile.name,
         ));
       }
+      if (panFile != null) {
+        final bytes = await panFile.readAsBytes();
+        request.files.add(http.MultipartFile.fromBytes('panCard', bytes, filename: panFile.name));
+      }
+      if (rcBookFile != null) {
+        final bytes = await rcBookFile.readAsBytes();
+        request.files.add(http.MultipartFile.fromBytes('rcBook', bytes, filename: rcBookFile.name));
+      }
+      if (insuranceFile != null) {
+        final bytes = await insuranceFile.readAsBytes();
+        request.files.add(http.MultipartFile.fromBytes('insurance', bytes, filename: insuranceFile.name));
+      }
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 120));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode != 200) {

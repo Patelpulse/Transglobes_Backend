@@ -249,6 +249,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         aadharFile: _docFiles['Aadhar Card'],
         licenseFile: _docFiles['Driving License'],
         signatureFile: _docFiles['Signature'],
+        panFile: _docFiles['PAN Card'],
+        rcBookFile: _docFiles['RC Book'],
+        insuranceFile: _docFiles['Insurance'],
         uid: user.uid,
       );
 

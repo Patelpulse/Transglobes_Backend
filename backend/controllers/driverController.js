@@ -248,6 +248,33 @@ const uploadDocuments = async (req, res) => {
             driver.signature = uploadedUrls.signature;
         }
 
+        if (files.panCard && files.panCard[0]) {
+            uploadedUrls.panCard = await uploadToImageKit(
+                files.panCard[0].buffer,
+                `pan_${uid}_${Date.now()}`,
+                '/TRANSGLOBE/pan'
+            );
+            driver.panCardImage = uploadedUrls.panCard;
+        }
+
+        if (files.rcBook && files.rcBook[0]) {
+            uploadedUrls.rcBook = await uploadToImageKit(
+                files.rcBook[0].buffer,
+                `rc_${uid}_${Date.now()}`,
+                '/TRANSGLOBE/rc'
+            );
+            driver.rcBook = uploadedUrls.rcBook;
+        }
+
+        if (files.insurance && files.insurance[0]) {
+            uploadedUrls.insurance = await uploadToImageKit(
+                files.insurance[0].buffer,
+                `insurance_${uid}_${Date.now()}`,
+                '/TRANSGLOBE/insurance'
+            );
+            driver.insurance = uploadedUrls.insurance;
+        }
+
         // Change status to pending approval or active depending on your logic
         await driver.save();
 

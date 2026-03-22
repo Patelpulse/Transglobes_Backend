@@ -112,6 +112,18 @@ const driverSchema = new mongoose.Schema({
     isOnline: {
         type: Boolean,
         default: false
+    },
+    panCardImage: {
+        type: String,
+        default: ''
+    },
+    rcBook: {
+        type: String,
+        default: ''
+    },
+    insurance: {
+        type: String,
+        default: ''
     }
 }, { timestamps: true });
 
