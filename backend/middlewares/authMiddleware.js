@@ -11,8 +11,14 @@ const verifyToken = async (req, res, next) => {
         return res.status(401).json({ message: 'No token provided' });
     }
 
+    console.log(`[AUTH-DEBUG] Received Token: "${token}" (Length: ${token.length})`);
+
+    console.log(`[AUTH-DEBUG] Auth Header: "${req.headers.authorization}"`);
+    console.log(`[AUTH-DEBUG] Received Token: "${token}" (Length: ${token ? token.length : 0})`);
+
     // Dev Bypass
-    if (token === 'dev-token-bypass') {
+    const isDevToken = token && token.toLowerCase().trim() === 'dev-token-bypass';
+    if (isDevToken) {
         const devUid = req.headers['x-dev-uid'] || req.headers['x-dev-id'];
         req.user = { uid: devUid || 'dev-user-uid', email: 'dev@example.com' };
         return next();

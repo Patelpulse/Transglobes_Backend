@@ -238,8 +238,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       final token = await user.getIdToken();
 
       // 0. Use dev bypass if token is null or if we are targeting localhost (to avoid Firebase verification issues during dev)
-      final bool isLocal = AppConfig.apiBaseUrl.contains('localhost') || AppConfig.apiBaseUrl.contains('127.0.0.1');
+      final bool isLocal = AppConfig.apiBaseUrl.toLowerCase().contains('localhost') || AppConfig.apiBaseUrl.toLowerCase().contains('127.0.0.1');
       final finalToken = isLocal ? 'dev-token-bypass' : (token ?? 'dev-token-bypass');
+      debugPrint('[AUTH-DEBUG] Target: ${AppConfig.apiBaseUrl}, IsLocal: $isLocal, FinalToken: $finalToken');
 
       // 1. Upload Documents first
       await db.uploadDriverDocuments(
