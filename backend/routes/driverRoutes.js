@@ -22,6 +22,12 @@ router.post('/otp/send', sendOTP);
 // POST /api/driver/otp/verify - Verify OTP and mark email as verified
 router.post('/otp/verify', verifyToken, verifyOTP);
 
+// GET /api/driver/check-email - Check if email exists
+router.get('/check-email', (req, res, next) => {
+    const { checkEmailAvailability } = require('../controllers/driverController');
+    checkEmailAvailability(req, res, next);
+});
+
 // POST /api/driver/sync - To sync driver basic data to DB
 router.post('/sync', syncDriverData);
 router.post('/register', register);

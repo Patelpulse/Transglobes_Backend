@@ -313,20 +313,24 @@ const sendOTP = async (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000);
         const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
+        const existing = otpStore[email];
+        const now = Date.now();
+        if (existing && (now - (existing.expires - 10 * 60 * 1000) < 60000)) {
+            return res.status(429).json({ message: 'Please wait 60 seconds before requesting another code.' });
+        }
+
         otpStore[email] = { otp, expires };
 
-        // Nodemailer configuration (User requested 587/TLS config)
+        // Nodemailer configuration
         const transporter = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 587,
-            secure: false, // TLS
+            service: 'gmail',
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS
             },
-            tls: {
-                rejectUnauthorized: false
-            }
+            connectionTimeout: 5000, // 5 seconds to prevent hanging
+            greetingTimeout: 5000,
+            socketTimeout: 5000
         });
 
         const mailOptions = {
@@ -345,15 +349,20 @@ const sendOTP = async (req, res) => {
             if (process.env.SMTP_USER && process.env.SMTP_PASS) {
                 const info = await transporter.sendMail(mailOptions);
                 console.log(`[SMTP] Email sent successfully: ${info.messageId}`);
+                res.status(200).json({ message: 'OTP sent successfully' });
             } else {
-                console.warn('[SMTP] SMTP_USER or SMTP_PASS missing in .env. Skipping real mail send.');
+                console.warn('[SMTP] SMTP_USER or SMTP_PASS missing in .env');
+                return res.status(500).json({ message: 'Email service configuration missing. Please contact support.' });
             }
         } catch (mailErr) {
             console.error('[SMTP ERROR]:', mailErr.message);
-            // We don't return error 500 here because the OTP is still logged in console for dev use
+            // Fallback for demo so onboarding is not broken when SMTP is blocked (e.g. on Railway)
+            return res.status(200).json({ 
+                message: 'OTP generated (Email failed, check terminal logs)',
+                otp: otp, // Sending back OTP only for dev fallback
+                error: mailErr.message 
+            });
         }
-
-        res.status(200).json({ message: 'OTP sent successfully' });
     } catch (error) {
         console.error('Error sending OTP:', error);
         res.status(500).json({ message: 'Server error' });
@@ -425,8 +434,16 @@ const register = async (req, res) => {
 
         await driver.save();
 
+        // Generate Token
+        const token = jwt.sign(
+            { id: driver._id, email: driver.email },
+            process.env.JWT_SECRET || 'your_secret_key',
+            { expiresIn: '7d' }
+        );
+
         res.status(201).json({
             message: "Driver registered successfully",
+            token,
             driver: {
                 id: driver._id,
                 name: driver.name,
@@ -473,6 +490,17 @@ const login = async (req, res) => {
     } catch (error) {
         console.error('Driver Login error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+const checkEmailAvailability = async (req, res) => {
+    try {
+        const { email } = req.query;
+        if (!email) return res.status(400).json({ message: 'Email is required' });
+        const driver = await Driver.findOne({ email: email.toLowerCase() });
+        res.status(200).json({ exists: !!driver });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
 

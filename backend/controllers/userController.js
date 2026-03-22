@@ -42,7 +42,7 @@ exports.saveSavedLocation = async (req, res) => {
 // Step 1: Save phone number to DB after OTP verification
 exports.registerPhone = async (req, res) => {
     try {
-        let { mobileNumber } = req.body;
+        let { mobileNumber, uid } = req.body;
 
         if (!mobileNumber) {
             return res.status(400).json({ message: 'mobileNumber is required' });
@@ -56,21 +56,22 @@ exports.registerPhone = async (req, res) => {
         if (user) {
             // User already exists, update lastActive and return
             user.lastActive = Date.now();
+            if (uid) user.uid = uid; // Save/update Firebase UID
             await user.save();
             return res.status(200).json({
                 message: 'User already exists',
-                user: { id: user._id, name: user.name, mobileNumber: user.mobileNumber },
+                user: { id: user._id, uid: user.uid, name: user.name, mobileNumber: user.mobileNumber },
                 isNewUser: false
             });
         }
 
-        // Create new user with phone number only
-        user = new User({ mobileNumber });
+        // Create new user with phone number and optional uid
+        user = new User({ mobileNumber, uid });
 
         await user.save();
         return res.status(201).json({
             message: 'Phone number registered successfully',
-            user: { id: user._id, name: user.name, mobileNumber: user.mobileNumber },
+            user: { id: user._id, uid: user.uid, name: user.name, mobileNumber: user.mobileNumber },
             isNewUser: true
         });
     } catch (error) {

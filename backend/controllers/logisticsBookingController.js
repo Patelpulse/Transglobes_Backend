@@ -6,6 +6,8 @@ exports.createBooking = async (req, res) => {
     try {
         const {
             userId,
+            userName,
+            userPhone,
             pickup,
             dropoff,
             distanceKm,
@@ -31,6 +33,8 @@ exports.createBooking = async (req, res) => {
 
         const booking = new LogisticsBooking({
             userId,
+            userName:       userName       ?? "Guest User",
+            userPhone:      userPhone      ?? "",
             pickup,
             dropoff,
             distanceKm:     distanceKm     ?? 0,
@@ -83,7 +87,42 @@ exports.getUserBookings = async (req, res) => {
 // Get all bookings (Admin)
 exports.getAllBookings = async (req, res) => {
     try {
-        const bookings = await LogisticsBooking.find().sort({ createdAt: -1 });
+        // Use aggregation to join with the User collection
+        // Since userId is a string, we lookup in the User collection's _id or uid field
+        const bookings = await LogisticsBooking.aggregate([
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'userId',
+                    foreignField: 'uid', // Match with Firebase UID
+                    as: 'userInfo'
+                }
+            },
+            {
+                $addFields: {
+                    userName: { 
+                        $ifNull: [ 
+                            "$userName", 
+                            { $ifNull: [ { $arrayElemAt: ['$userInfo.name', 0] }, '$userId' ] } 
+                        ] 
+                    },
+                    userPhone: {
+                        $ifNull: [
+                            "$userPhone",
+                            { $ifNull: [ { $arrayElemAt: ['$userInfo.mobileNumber', 0] }, "" ] }
+                        ]
+                    }
+                }
+            },
+            {
+                $sort: { createdAt: -1 }
+            },
+            {
+                $project: { userInfo: 0 } // remove temporary join data
+            }
+        ]);
+
+        console.log(`[LOGISTICS] Backend found ${bookings.length} total bookings with enriched user names.`);
         return res.status(200).json({ success: true, data: bookings });
     } catch (error) {
         console.error('Error fetching all bookings:', error);

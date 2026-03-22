@@ -56,35 +56,40 @@ router.delete('/:id', async (req, res) => {
 // Seed initial data
 router.post('/seed', async (req, res) => {
     try {
-        const count = await LogisticsVehicle.countDocuments();
-        if (count === 0) {
-            const initialVehicles = [
-                {
-                    name: 'Train',
-                    capacity: '50 tons',
-                    basePrice: 5000,
-                    pricePerKm: 2,
-                    imageUrl: 'https://cdn-icons-png.flaticon.com/512/3112/3112932.png'
-                },
-                {
-                    name: 'Flight',
-                    capacity: '10 tons',
-                    basePrice: 15000,
-                    pricePerKm: 50,
-                    imageUrl: 'https://cdn-icons-png.flaticon.com/512/3125/3125713.png'
-                },
-                {
-                    name: 'Sea',
-                    capacity: '500 tons',
-                    basePrice: 25000,
-                    pricePerKm: 5,
-                    imageUrl: 'https://cdn-icons-png.flaticon.com/512/3125/3125816.png'
-                }
-            ];
-            await LogisticsVehicle.insertMany(initialVehicles);
-            return res.json({ message: 'Logistics vehicles seeded successfully' });
+        const initialVehicles = [
+            {
+                name: 'Train',
+                capacity: '50 tons',
+                basePrice: 5000,
+                pricePerKm: 2,
+                pricePerPiece: 150,
+                imageUrl: 'https://cdn-icons-png.flaticon.com/512/3112/3112932.png',
+                isActive: true
+            },
+            {
+                name: 'Flight',
+                capacity: '10 tons',
+                basePrice: 15000,
+                pricePerKm: 50,
+                pricePerPiece: 500,
+                imageUrl: 'https://cdn-icons-png.flaticon.com/512/3125/3125713.png',
+                isActive: true
+            },
+            {
+                name: 'Sea cargo',
+                capacity: '500 tons',
+                basePrice: 25000,
+                pricePerKm: 5,
+                pricePerPiece: 300,
+                imageUrl: 'https://cdn-icons-png.flaticon.com/512/3125/3125816.png',
+                isActive: true
+            }
+        ];
+
+        for (const v of initialVehicles) {
+            await LogisticsVehicle.findOneAndUpdate({ name: v.name }, v, { upsert: true, new: true });
         }
-        res.json({ message: 'Already seeded' });
+        res.json({ message: 'Logistics vehicles seeded/updated successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

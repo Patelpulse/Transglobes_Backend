@@ -19,6 +19,10 @@ const logisticsVehicleSchema = new mongoose.Schema({
         required: true,
         default: 10
     },
+    pricePerPiece: {
+        type: Number,
+        default: 50
+    },
     imageUrl: {
         type: String,
         required: true

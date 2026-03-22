@@ -38,6 +38,14 @@ const logisticsBookingSchema = new mongoose.Schema({
         required: true,
         index: true,
     },
+    userName: {
+        type: String,
+        default: "",
+    },
+    userPhone: {
+        type: String,
+        default: "",
+    },
 
     // Pickup & Drop locations (from map search)
     pickup: { type: locationSchema, required: true },
