@@ -311,6 +311,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
+      appBar: AppBar(
+        title: const Text('Driver Onboarding'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await ref.read(authServiceProvider).signOut();
+            },
+            icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
+            label: const Text('Logout', style: TextStyle(color: Colors.white70)),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [

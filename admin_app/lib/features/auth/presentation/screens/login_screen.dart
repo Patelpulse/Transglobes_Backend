@@ -345,7 +345,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                                       color: Colors.black,
                                     ),
                                   )
-                                else
+                                else ...[
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.black,
@@ -367,6 +367,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(height: 16),
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.black,
+                                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      minimumSize: const Size(double.infinity, 50),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: () async {
+                                      final success = await ref.read(authStateProvider.notifier).signInWithGoogle();
+                                      if (success && mounted) context.go('/');
+                                    },
+                                    icon: Image.asset('assets/images/google_logo.png', height: 20, errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 24)),
+                                    label: const Text(
+                                      'Continue with Google',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             )),
                           ],

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
@@ -55,6 +56,48 @@ class AuthService {
     photoURL: null,
   );
 
+  MockUser? _localUser;
+  late final StreamController<dynamic> _authStateController;
+
+  AuthService() {
+    _authStateController = StreamController<dynamic>.broadcast(
+      onListen: () => _authStateController.add(currentUser),
+    );
+    // 1. Initialize local storage check
+    _initializeLocalAuth();
+
+    // 2. Listen for future Firebase changes
+    auth.authStateChanges().listen((user) {
+      _authStateController.add(user ?? _localUser);
+    });
+  }
+
+  Future<void> _initializeLocalAuth() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final userData = prefs.getString('user_data');
+      
+      if (token != null && userData != null) {
+        final data = json.decode(userData);
+        _localUser = MockUser(
+          uid: data['id'] ?? data['_id'] ?? data['uid'] ?? '',
+          email: data['email'],
+          displayName: data['name'],
+        );
+        // Only broadcast if Firebase hasn't already found a user
+        if (auth.currentUser == null) {
+          _authStateController.add(_localUser);
+        }
+      } else if (auth.currentUser == null) {
+        _authStateController.add(null);
+      }
+    } catch (e) {
+      debugPrint('Error initializing local auth: $e');
+      if (auth.currentUser == null) _authStateController.add(null);
+    }
+  }
+
   FirebaseAuth get auth {
     _auth ??= FirebaseAuth.instance;
     // Enable reCAPTCHA bypass for testing in debug mode on Web
@@ -64,25 +107,37 @@ class AuthService {
     return _auth!;
   }
 
-  dynamic get currentUser => kDemoMode ? _mockUser : auth.currentUser;
+  dynamic get currentUser {
+    if (kDemoMode) return _mockUser;
+    // Prefer Firebase user if available, otherwise return local custom user
+    return auth.currentUser ?? _localUser;
+  }
 
-  Stream<dynamic> get authStateChanges =>
-      kDemoMode ? Stream.value(_mockUser) : auth.authStateChanges();
+  Stream<dynamic> get authStateChanges => _authStateController.stream.distinct((prev, next) {
+    // Basic comparison to prevent flickering
+    if (prev == null && next == null) return true;
+    if (prev != null && next != null) {
+      final prevId = (prev is User) ? prev.uid : (prev as MockUser).uid;
+      final nextId = (next is User) ? next.uid : (next as MockUser).uid;
+      return prevId == nextId;
+    }
+    return false;
+  });
 
   Future<String?> getIdToken() async {
     if (kDemoMode) return 'demo-token-for-testing';
     
-    // Check local storage first for a cached token if needed, 
-    // but Firebase already does this. We'll ensure it's available.
+    // 1. Check SharedPreferences first for local JWT (custom login)
+    final prefs = await SharedPreferences.getInstance();
+    final localToken = prefs.getString('auth_token');
+    if (localToken != null && localToken.isNotEmpty) {
+      return localToken;
+    }
+
+    // 2. Fallback to Firebase
     final user = auth.currentUser;
     if (user != null) {
-      final token = await user.getIdToken();
-      if (token != null) {
-        // Optionally save to local storage for quick access
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', token);
-      }
-      return token;
+      return await user.getIdToken();
     }
     return null;
   }
@@ -231,6 +286,9 @@ class AuthService {
     await _persistLoginState(false);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+    await prefs.remove('user_data');
+    _localUser = null;
+    _authStateController.add(null);
     
     if (!kDemoMode) {
       await auth.signOut();
@@ -263,6 +321,16 @@ class AuthService {
         await _persistLoginState(true);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', response['token'] ?? '');
+        
+        // Save user data and update state
+        final userData = response['user'];
+        await prefs.setString('user_data', json.encode(userData));
+        _localUser = MockUser(
+           uid: userData['id'] ?? userData['_id'] ?? '',
+           email: userData['email'],
+           displayName: userData['name'],
+        );
+        _authStateController.add(_localUser);
       }
       return response;
     } catch (e) {
@@ -277,6 +345,16 @@ class AuthService {
         await _persistLoginState(true);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', response['token']);
+        
+        // Save user data and update state
+        final userData = response['user'];
+        await prefs.setString('user_data', json.encode(userData));
+        _localUser = MockUser(
+           uid: userData['id'] ?? userData['_id'] ?? '',
+           email: userData['email'],
+           displayName: userData['name'],
+        );
+        _authStateController.add(_localUser);
       }
       return response;
     } catch (e) {

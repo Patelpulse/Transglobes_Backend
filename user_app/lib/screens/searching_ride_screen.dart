@@ -141,7 +141,8 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
       final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
       if (mounted) {
         setState(() {
-          _routePoints = routeData['points'] ?? [];
+          final List<dynamic> rawPoints = routeData['points'] ?? [];
+          _routePoints = rawPoints.map((p) => LatLng(p[0], p[1])).toList();
         });
         _fitBounds();
       }

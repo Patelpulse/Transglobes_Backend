@@ -20,6 +20,7 @@ import 'dart:async';
 import 'address_book_screen.dart';
 import '../models/address_model.dart';
 import 'my_logistics_bookings_screen.dart';
+import '../providers/user_provider.dart';
 
 // ─── Helper cost per person ─────────────────────────────
 const double _helperCostPerPerson = 800.0; // ₹800 per helper
@@ -244,6 +245,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     if (_pickup != null && _dropoff != null) {
       total += _selectedVehicleData!.pricePerKm * _distance;
     }
+    // Add cost per piece
+    total += _selectedVehicleData!.pricePerPiece * _addedItems.length;
     return total;
   }
 
@@ -508,7 +511,16 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     Map<String, dynamic>? receivedAddress,
   }) async {
     final authService = ref.read(authServiceProvider);
-    final userId = authService.currentUser?.uid as String? ?? 'guest';
+    final user = authService.currentUser;
+    final userId = user?.uid as String? ?? 'guest';
+    final userPhone = (user is MockUser) ? user.phoneNumber ?? '' : user?.phoneNumber ?? '';
+    
+    // Attempt to get name from the provider first (most reliable Mongo data)
+    String userName = ref.read(userProfileProvider).value ?? '';
+    if (userName.isEmpty || userName == 'Transglobal User') {
+       userName = (user is MockUser) ? user.displayName ?? 'User' : user?.displayName ?? 'User';
+    }
+    
     final token = await authService.getIdToken();
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings');
@@ -519,6 +531,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
     final body = json.encode({
       'userId': userId,
+      'userName': userName,
+      'userPhone': userPhone,
       'pickup': {
         'name':    _pickup!['name'],
         'address': _pickup!['address'],
@@ -675,18 +689,21 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: vehiclesAsync.when(
-                      data: (vehicles) => Row(
-                        children: vehicles.map((vehicle) {
-                          final isSelected = _selectedVehicle == vehicle.name;
-                          return Expanded(
-                            child: GestureDetector(
+                      data: (vehicles) => SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: vehicles.map((vehicle) {
+                            final isSelected = _selectedVehicle == vehicle.name;
+                            return GestureDetector(
                               onTap: () => setState(() {
                                 _selectedVehicle = vehicle.name;
                                 _selectedVehicleData = vehicle;
                               }),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                width: 140,
+                                margin: const EdgeInsets.only(right: 12),
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: isSelected
@@ -716,7 +733,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                     const SizedBox(height: 8),
                                     Text(vehicle.name,
                                         style: TextStyle(
-                                            fontSize: 11,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.bold,
                                             color: context.colors.textPrimary),
                                         textAlign: TextAlign.center,
@@ -724,21 +741,21 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                         overflow: TextOverflow.ellipsis),
                                     Text(vehicle.capacity,
                                         style: TextStyle(
-                                            fontSize: 9,
-                                            color: context.colors.textSecondary)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                        '₹${vehicle.basePrice.toInt()} + ₹${vehicle.pricePerKm.toInt()}/km',
-                                        style: TextStyle(
                                             fontSize: 10,
+                                            color: context.colors.textSecondary)),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                        '₹${vehicle.basePrice.toInt()} + ₹${vehicle.pricePerKm.toInt()}/km + ₹${vehicle.pricePerPiece.toInt()}/pc',
+                                        style: TextStyle(
+                                            fontSize: 9,
                                             fontWeight: FontWeight.bold,
                                             color: context.theme.primaryColor)),
                                   ],
                                 ),
                               ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                       loading: () => const Center(child: CircularProgressIndicator()),
                       error: (err, _) => Text('Error: $err'),
@@ -1207,11 +1224,17 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (_vehiclePrice > 0)
-                                Text('Vehicle: ₹${_vehiclePrice.toInt()}',
+                              if (_selectedVehicleData != null)
+                                Text(
+                                    'Vehicle: ₹${(_selectedVehicleData!.basePrice + _selectedVehicleData!.pricePerKm * _distance).toInt()}',
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: context.colors.textSecondary)),
+                              if (_addedItems.isNotEmpty && _selectedVehicleData != null)
+                                Text(
+                                    'Items (${_addedItems.length}): +₹${(_selectedVehicleData!.pricePerPiece * _addedItems.length).toInt()}',
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Colors.blueAccent)),
                               if (_helperCount > 0)
                                 Text(
                                     'Helpers (${_helperCount}): +₹${_helperCost.toInt()}',

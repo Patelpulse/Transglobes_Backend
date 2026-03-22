@@ -7,7 +7,7 @@ class VehicleRepository {
 
   Future<List<Vehicle>> getVehicles() async {
     try {
-      final response = await _dio.get('/vehicles');
+      final response = await _dio.get('admin/vehicles');
       if (response.statusCode == 200) {
         final List<dynamic> vehiclesData = response.data['vehicles'];
         return vehiclesData.map((json) => Vehicle.fromMap(json)).toList();

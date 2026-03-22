@@ -94,6 +94,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         final aadhar = _aadharController.text.trim();
         final pan = _panController.text.trim().toUpperCase();
 
+        // 1. Proactive check if email is already in Mongo
+        final exists = await dbService.checkEmailAvailability(email);
+        if (exists) {
+           setState(() {
+             _isLogin = true; // Switch to login tab
+             _showEmailForm = true; // Show the email/password fields
+             _errorMessage = "Email registered previously. Please enter your password to login.";
+             _isLoading = false;
+           });
+           return;
+        }
+
         final response = await authService.signUpCustom(
           name: name,
           email: email,

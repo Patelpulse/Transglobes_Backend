@@ -12,11 +12,13 @@ final authStateProvider = StreamProvider<dynamic>((ref) {
 });
 
 class MockUser {
+  String? uid;
   String? displayName;
   String? email;
   String? phoneNumber;
 
   MockUser({
+    this.uid = "demo-uid-123",
     this.displayName = "Yogesh Thakur",
     this.email = "yogesh@example.com",
     this.phoneNumber = "+91 98765 43210",

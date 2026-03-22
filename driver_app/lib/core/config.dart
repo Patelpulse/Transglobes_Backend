@@ -12,9 +12,9 @@ class AppConfig {
     }
     
     // For local development
-    if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app';
+    if (kIsWeb) return 'http://localhost:8080'; // Updated to localhost to bypass live SMTP blocking
     // 10.0.2.2 is the localhost address for Android emulators
-    return 'https://transglobesbackend-production.up.railway.app';
+    return 'http://10.0.2.2:8080';
   }
   
   // Google Maps API Key

@@ -15,6 +15,10 @@ import 'support_screen.dart';
 import 'about_screen.dart';
 import 'logistics_booking_screen.dart';
 import 'bus_booking_screen.dart';
+import 'my_logistics_bookings_screen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../core/config.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -322,17 +326,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class HomeTab extends StatefulWidget {
+class HomeTab extends ConsumerStatefulWidget {
   const HomeTab({super.key});
 
   @override
-  State<HomeTab> createState() => _HomeTabState();
+  ConsumerState<HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<HomeTab> {
+class _HomeTabState extends ConsumerState<HomeTab> {
+  List<dynamic> _recentBookings = [];
+  bool _isLoadingBookings = false;
+
   @override
   void initState() {
     super.initState();
+    _fetchRecentBookings();
+  }
+
+  Future<void> _fetchRecentBookings() async {
+    try {
+      final auth = ref.read(authServiceProvider);
+      final userId = auth.currentUser?.uid;
+      if (userId == null) return;
+
+      if (mounted) setState(() => _isLoadingBookings = true);
+      
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings/user/$userId');
+      final token = await auth.getIdToken();
+      final response = await http.get(
+        url,
+        headers: {
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final data = json.decode(response.body);
+        setState(() {
+          // Just get the 3 most recent
+          final List all = data['data'] ?? [];
+          _recentBookings = all.take(3).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching recent bookings: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingBookings = false);
+    }
   }
 
   @override
@@ -697,7 +737,45 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
+
+              // 6. Recent Logistics History
+              if (_recentBookings.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Recent Logistics",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          // In a real app, this might switch the tab or nav to a screen
+                          Navigator.push(context, MaterialPageRoute(builder: (ctx) => const MyLogisticsBookingsScreen()));
+                        },
+                        child: const Text("See All"),
+                      ),
+                    ],
+                  ),
+                ),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _recentBookings.length,
+                  itemBuilder: (ctx, index) {
+                    return _buildRecentBookingCard(_recentBookings[index]);
+                  },
+                ),
+              ],
+
+              const SizedBox(height: 48),
             ],
           ),
         ),
@@ -767,6 +845,226 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
+  IconData _getVehicleIcon(String vehicle) {
+    final v = vehicle.toLowerCase();
+    if (v.contains('flight')) return Icons.flight_takeoff_rounded;
+    if (v.contains('train')) return Icons.train_rounded;
+    if (v.contains('sea')) return Icons.directions_boat_rounded;
+    return Icons.local_shipping_rounded;
+  }
+
+  Widget _buildRecentBookingCard(dynamic booking) {
+    final status = (booking['status'] ?? 'pending').toString();
+    final vehicle = booking['vehicleType'] ?? 'Logistics';
+    final items = booking['items'] as List? ?? [];
+    final pickup = booking['pickupAddress']?['label'] ?? booking['pickup']?['name'] ?? 'Pickup';
+    final drop = booking['receivedAddress']?['label'] ?? booking['dropoff']?['name'] ?? 'Delivery';
+    final date = DateTime.parse(booking['createdAt']).toLocal();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: InkWell(
+        onTap: () => _showBookingDetails(booking),
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4)],
+                ),
+                child: Icon(_getVehicleIcon(vehicle), color: Colors.black87, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(vehicle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _getHistoryStatusColor(status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(status.toUpperCase(), 
+                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 8, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    Text('$pickup → $drop', 
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('₹${booking['totalPrice']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('${date.day}/${date.month}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getHistoryStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'delivered': return Colors.green;
+      case 'cancelled': return Colors.red;
+      case 'in_transit': return Colors.orange;
+      default: return Colors.blue;
+    }
+  }
+
+  void _showBookingDetails(dynamic booking) {
+    final status = (booking['status'] ?? 'pending').toString();
+    final vehicle = booking['vehicleType'] ?? 'Logistics';
+    final items = booking['items'] as List? ?? [];
+    final pAddr = booking['pickupAddress'];
+    final rAddr = booking['receivedAddress'];
+    final pLoc  = booking['pickup'];
+    final dLoc  = booking['dropoff'];
+    final date = DateTime.parse(booking['createdAt']).toLocal();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(vehicle, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                            Text('Booked on ${date.day}/${date.month}/${date.year}',
+                              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _getHistoryStatusColor(status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(status.toUpperCase(), 
+                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    const Text("Addresses", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    const SizedBox(height: 12),
+                    _locationDetailItem("Pickup", pAddr?['fullAddress'] ?? pLoc?['address'] ?? ''),
+                    const SizedBox(height: 12),
+                    _locationDetailItem("Delivery", rAddr?['fullAddress'] ?? dLoc?['address'] ?? ''),
+                    
+                    const SizedBox(height: 24),
+                    Text("Items (${items.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    const SizedBox(height: 12),
+                    ...items.map((it) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.inventory_2_outlined, size: 18, color: Colors.grey),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(it['itemName'] ?? 'Item', style: const TextStyle(fontWeight: FontWeight.w500))),
+                          if (it['length'] != null)
+                            Text('${it['length']}x${it['height']}x${it['width']} ${it['unit'] ?? 'cm'}', 
+                              style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        ],
+                      ),
+                    )),
+
+                    const SizedBox(height: 24),
+                    const Text("Amount Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    const SizedBox(height: 12),
+                    _amountRow("Vehicle Fare", booking['vehiclePrice'] ?? 0),
+                    if ((booking['helperCost'] ?? 0) > 0)
+                      _amountRow("Helper Charges", booking['helperCost']),
+                    if ((booking['discountAmount'] ?? 0) > 0)
+                      _amountRow("Discount", -(booking['discountAmount'] ?? 0), isDiscount: true),
+                    const Divider(height: 24),
+                    _amountRow("Total Paid", booking['totalPrice'] ?? 0, isTotal: true),
+                    
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _locationDetailItem(String title, String addr) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+        Text(addr, style: const TextStyle(fontSize: 13, height: 1.4)),
+      ],
+    );
+  }
+
+  Widget _amountRow(String label, dynamic amount, {bool isDiscount = false, bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: isTotal ? 16 : 13, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
+          Text('₹$amount', style: TextStyle(
+            fontSize: isTotal ? 18 : 13, 
+            fontWeight: FontWeight.bold,
+            color: isDiscount ? Colors.green : (isTotal ? Colors.black : Colors.black87)
+          )),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSquareServiceCard(
     String imagePath,
     String label,
@@ -799,19 +1097,15 @@ class _HomeTabState extends State<HomeTab> {
                 child: Image.asset(imagePath, fit: BoxFit.cover),
               ),
             ),
-            const SizedBox(height: 10),
-            // Label Below Box
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black,
               ),
             ),
           ],

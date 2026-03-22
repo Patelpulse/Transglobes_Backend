@@ -7,7 +7,7 @@ class UserRepository {
 
   Future<List<AppUser>> getUsers() async {
     try {
-      final response = await _dio.get('/users');
+      final response = await _dio.get('admin/users');
       if (response.statusCode == 200) {
         final List<dynamic> usersData = response.data['users'];
         return usersData.map((json) => AppUser.fromMap(json)).toList();
@@ -23,7 +23,7 @@ class UserRepository {
     // Note: We could fetch this from backend if logs existed
     // For now, let's keep it but make it look more specific to current counts
     try {
-      final response = await _dio.get('/stats');
+      final response = await _dio.get('admin/stats');
       if (response.statusCode == 200) {
          return [
           SystemLog(
@@ -36,7 +36,7 @@ class UserRepository {
           SystemLog(
             id: 'log_2',
             title: 'Fleet Status Updated',
-            description: '${response.data['totalVehicles']} vehicles currently registered.',
+            description: '${response.data['totalFleets'] ?? "N/A"} vehicles currently registered.',
             timestamp: '5 mins ago',
             iconType: 'cab',
           ),
@@ -57,7 +57,7 @@ class UserRepository {
 
   Future<Map<String, dynamic>> getPlatformOverview() async {
     try {
-      final response = await _dio.get('/stats');
+      final response = await _dio.get('admin/stats');
       if (response.statusCode == 200) {
         return response.data;
       }

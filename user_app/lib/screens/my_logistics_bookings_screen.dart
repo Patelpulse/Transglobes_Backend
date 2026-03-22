@@ -167,7 +167,7 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
                         color: context.theme.primaryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.local_shipping_rounded, color: context.theme.primaryColor),
+                      child: Icon(_getVehicleIcon(vehicle), color: context.theme.primaryColor),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -195,9 +195,7 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
             ),
           ),
           InkWell(
-            onTap: () {
-              // Navigate to details or track
-            },
+            onTap: () => _showBookingDetails(booking),
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -241,5 +239,218 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
       case 'in_transit': return Colors.orange;
       default: return Colors.blue;
     }
+  }
+
+  IconData _getVehicleIcon(String vehicle) {
+    final v = vehicle.toLowerCase();
+    if (v.contains('flight')) return Icons.flight_takeoff_rounded;
+    if (v.contains('train')) return Icons.train_rounded;
+    if (v.contains('sea')) return Icons.directions_boat_rounded;
+    return Icons.local_shipping_rounded;
+  }
+
+  void _showBookingDetails(dynamic booking) {
+    final status = booking['status'] ?? 'pending';
+    final vehicle = booking['vehicleType'] ?? 'Logistics';
+    final items = booking['items'] as List? ?? [];
+    final pAddr = booking['pickupAddress'];
+    final rAddr = booking['receivedAddress'];
+    final pLoc  = booking['pickup'];
+    final dLoc  = booking['dropoff'];
+    final date = DateTime.parse(booking['createdAt']).toLocal();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.85,
+        decoration: BoxDecoration(
+          color: context.theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(vehicle, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                            Text('Booked on ${date.day}/${date.month}/${date.year} at ${date.hour}:${date.minute.toString().padLeft(2,'0')}',
+                              style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(status.toUpperCase(), 
+                            style: TextStyle(color: _getStatusColor(status), fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Addresses
+                    _sectionHeader('Addresses'),
+                    _detailLocationCard(
+                      title: 'Pickup',
+                      label: pAddr?['label'] ?? pLoc?['name'] ?? 'Pickup',
+                      fullAddress: pAddr?['fullAddress'] ?? pLoc?['address'] ?? '',
+                      icon: Icons.circle,
+                      color: Colors.green,
+                    ),
+                    const SizedBox(height: 12),
+                    _detailLocationCard(
+                      title: 'Delivery',
+                      label: rAddr?['label'] ?? dLoc?['name'] ?? 'Drop-off',
+                      fullAddress: rAddr?['fullAddress'] ?? dLoc?['address'] ?? '',
+                      icon: Icons.location_on,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Items
+                    _sectionHeader('Items (${items.length})'),
+                    if (items.isEmpty)
+                      const Text('No items specified', style: TextStyle(color: Colors.grey))
+                    else
+                      ...items.map((it) => _itemCard(it)),
+
+                    const SizedBox(height: 24),
+
+                    // Amount
+                    _sectionHeader('Price Breakdown'),
+                    _priceRow('Vehicle Price', booking['vehiclePrice'] ?? 0),
+                    if ((booking['helperCost'] ?? 0) > 0)
+                      _priceRow('Helper Cost', booking['helperCost']),
+                    if ((booking['discountAmount'] ?? 0) > 0)
+                      _priceRow('Discount', -(booking['discountAmount'] ?? 0), isDiscount: true),
+                    const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
+                    _priceRow('Total Amount', booking['totalPrice'] ?? 0, isTotal: true),
+                    
+                    const SizedBox(height: 48),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+    );
+  }
+
+  Widget _detailLocationCard({
+    required String title,
+    required String label,
+    required String fullAddress,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(fullAddress, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemCard(dynamic it) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: context.theme.primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            child: Icon(Icons.inventory_2_outlined, color: context.theme.primaryColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(it['itemName'] ?? 'Item', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(it['type'] ?? 'General', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          ),
+          if (it['length'] != null)
+            Text('${it['length']}x${it['height']}x${it['width']} ${it['unit'] ?? 'cm'}', 
+              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  Widget _priceRow(String label, dynamic amount, {bool isDiscount = false, bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(
+            fontSize: isTotal ? 18 : 14, 
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+            color: isTotal ? context.colors.textPrimary : context.colors.textSecondary
+          )),
+          Text('₹${amount.toString()}', style: TextStyle(
+            fontSize: isTotal ? 22 : 14, 
+            fontWeight: FontWeight.bold,
+            color: isDiscount ? Colors.green : (isTotal ? context.theme.primaryColor : context.colors.textPrimary)
+          )),
+        ],
+      ),
+    );
   }
 }

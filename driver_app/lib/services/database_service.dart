@@ -141,7 +141,7 @@ class DatabaseService {
         ));
       }
 
-      final streamedResponse = await request.send();
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode != 200) {
@@ -204,7 +204,7 @@ class DatabaseService {
         url,
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email}),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) {
         final error = json.decode(response.body);
         throw Exception(error['message'] ?? 'Failed to send OTP');
@@ -225,7 +225,7 @@ class DatabaseService {
           'Authorization': 'Bearer $token',
         },
         body: json.encode({'email': email, 'otp': otp}),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return true;
       } else {
@@ -267,6 +267,21 @@ class DatabaseService {
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<bool> checkEmailAvailability(String email) async {
+    try {
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/check-email?email=$email');
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['exists'] ?? false;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking email: $e');
+      return false;
     }
   }
 }

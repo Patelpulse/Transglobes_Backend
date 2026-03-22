@@ -120,9 +120,10 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
     final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
     if (mounted) {
       setState(() {
-        _routePoints = routeData['points'];
-        _routeDistance = routeData['distance'];
-        _routeDurationMin = routeData['duration'];
+        final List<dynamic> rawPoints = routeData['points'] ?? [];
+        _routePoints = rawPoints.map((p) => LatLng(p[0], p[1])).toList();
+        _routeDistance = routeData['distance'] ?? 0.0;
+        _routeDurationMin = routeData['duration'] ?? 0.0;
       });
       // Refit bounds once we have the detailed route
       _fitBounds();

@@ -9,6 +9,7 @@ class LogisticsVehicle {
   final String capacity;
   final double basePrice;
   final double pricePerKm;
+  final double pricePerPiece;
   final String imageUrl;
 
   LogisticsVehicle({
@@ -17,6 +18,7 @@ class LogisticsVehicle {
     required this.capacity,
     required this.basePrice,
     required this.pricePerKm,
+    required this.pricePerPiece,
     required this.imageUrl,
   });
 
@@ -27,6 +29,7 @@ class LogisticsVehicle {
       capacity: json['capacity'],
       basePrice: (json['basePrice'] as num).toDouble(),
       pricePerKm: (json['pricePerKm'] as num?)?.toDouble() ?? 0.0,
+      pricePerPiece: (json['pricePerPiece'] as num?)?.toDouble() ?? 0.0,
       imageUrl: json['imageUrl'],
     );
   }

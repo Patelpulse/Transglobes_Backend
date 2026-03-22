@@ -7,7 +7,8 @@ class DriverRepository {
 
   Future<List<Driver>> getDrivers() async {
     try {
-      final response = await _dio.get('/drivers');
+      // Hits http://127.0.0.1:8080/api/admin/drivers
+      final response = await _dio.get('admin/drivers');
       if (response.statusCode == 200) {
         final List<dynamic> driversData = response.data['drivers'];
         return driversData.map((json) => Driver.fromMap(json)).toList();
@@ -22,7 +23,7 @@ class DriverRepository {
   Future<bool> updateDriverStatus(String driverId, DriverStatus status) async {
     try {
       final response = await _dio.put(
-        '/drivers/$driverId/status',
+        'admin/drivers/$driverId/status',
         data: {'status': status.name},
       );
       return response.statusCode == 200;
@@ -34,7 +35,7 @@ class DriverRepository {
 
   Future<bool> deleteDriver(String driverId) async {
     try {
-      final response = await _dio.delete('/drivers/$driverId');
+      final response = await _dio.delete('admin/drivers/$driverId');
       return response.statusCode == 200;
     } catch (e) {
       print('Error deleting driver: $e');
@@ -45,7 +46,7 @@ class DriverRepository {
   Future<bool> warnDriver(String driverId, String reason) async {
     try {
       final response = await _dio.put(
-        '/drivers/$driverId/warn',
+        'admin/drivers/$driverId/warn',
         data: {'reason': reason},
       );
       return response.statusCode == 200;

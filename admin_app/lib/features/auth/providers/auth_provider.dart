@@ -43,6 +43,20 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(isLoading: false, isAuthenticated: isAuth);
   }
 
+  Future<bool> signInWithGoogle() async {
+    state = state.copyWith(isLoading: true, error: null);
+    final authService = ref.read(authServiceProvider);
+    final result = await authService.signInWithGoogle();
+
+    if (result['success']) {
+      state = state.copyWith(isLoading: false, isAuthenticated: true);
+      return true;
+    } else {
+      state = state.copyWith(isLoading: false, isAuthenticated: false, error: result['message']);
+      return false;
+    }
+  }
+
   Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     final authService = ref.read(authServiceProvider);

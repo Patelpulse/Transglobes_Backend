@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/logistics_booking_provider.dart';
 import '../../domain/models/logistics_booking.dart';
+import '../../../drivers/presentation/providers/driver_provider.dart';
+import '../../../drivers/domain/models/driver_model.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class LogisticsBookingScreen extends ConsumerWidget {
@@ -12,9 +14,9 @@ class LogisticsBookingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookings = ref.watch(filteredLogisticsBookingsProvider(filterStatus));
+    final bookingsAsync = ref.watch(filteredLogisticsBookingsProvider(filterStatus));
     final statusLabel = _getStatusLabel(filterStatus);
-
+    
     return Scaffold(
       backgroundColor: AppTheme.backgroundColorDark,
       appBar: AppBar(
@@ -24,102 +26,436 @@ class LogisticsBookingScreen extends ConsumerWidget {
         elevation: 0,
         actions: [
           IconButton(
+            onPressed: () => ref.invalidate(logisticsBookingsProvider),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+          ),
+          IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.search, color: AppTheme.primaryColor),
+            icon: const Icon(Icons.search, color: Colors.white),
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: bookings.isEmpty
-          ? Center(
+      body: bookingsAsync.when(
+        data: (bookings) => bookings.isEmpty
+          ? const Center(
               child: Text('No shipments found', 
-                style: TextStyle(color: AppTheme.textMutedLight)),
+                style: TextStyle(color: Colors.white70)),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: bookings.length,
-              itemBuilder: (context, index) {
-                final booking = bookings[index];
-                return _buildSimpleShipmentCard(booking);
-              },
+          : RefreshIndicator(
+              onRefresh: () async => ref.invalidate(logisticsBookingsProvider),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: bookings.length,
+                itemBuilder: (context, index) {
+                  final booking = bookings[index];
+                  return _buildSimpleShipmentCard(context, ref, booking);
+                },
+              ),
             ),
+        loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white70, size: 48),
+              const SizedBox(height: 16),
+              const Text('Failed to load bookings', style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(logisticsBookingsProvider),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildSimpleShipmentCard(LogisticsBooking booking) {
+  Widget _buildSimpleShipmentCard(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
     final statusColor = _getStatusColor(booking.status);
     final dateStr = DateFormat('MMM dd, hh:mm a').format(booking.createdAt);
 
+    return InkWell(
+      onTap: () => _showBookingDetailModal(context, ref, booking),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColorDark,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.borderDark),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'BOOKED BY: ${booking.userName.toUpperCase()} | ${booking.userPhone}',
+                  style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _getStatusLabel(booking.status).toUpperCase(),
+                    style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildRow('PICKUP:', booking.pickupName, Icons.location_on_outlined, const Color(0xFF4ADE80)),
+            const SizedBox(height: 12),
+            _buildRow('DROP:', booking.dropName, Icons.flag_outlined, const Color(0xFFF43F5E)),
+            const SizedBox(height: 16),
+            const Divider(color: AppTheme.borderDark, height: 1),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('MODE OF TRAVEL', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _getModeIcon(booking.modeOfTravel),
+                        const SizedBox(width: 6),
+                        Text(booking.modeOfTravel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('PRICE', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('₹${booking.price.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Ordered on: $dateStr', 
+                  style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                ElevatedButton.icon(
+                  onPressed: () => _showActiveDriversModal(context, ref),
+                  icon: const Icon(Icons.person_search_outlined, size: 16),
+                  label: const Text('SEARCH DRIVER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBookingDetailModal(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundColorDark,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (context, scrollController) => Stack(
+          children: [
+            Positioned(
+              top: 10,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Shipment Details', 
+                          style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 32, thickness: 1, color: Colors.white10),
+                    _buildDetailSection('GENERAL INFO', [
+                      _buildDetailRow('Client ID', booking.userId),
+                      _buildDetailRow('Client Name', booking.userName),
+                      _buildDetailRow('Client Phone', booking.userPhone),
+                      _buildDetailRow('Booking ID', booking.id),
+                      _buildDetailRow('Status', _getStatusLabel(booking.status).toUpperCase(), color: _getStatusColor(booking.status), isBold: true),
+                      _buildDetailRow('Date', DateFormat('MMMM dd, yyyy - hh:mm a').format(booking.createdAt)),
+                    ]),
+                    const SizedBox(height: 24),
+                    _buildDetailSection('LOGISTICS INFO', [
+                      _buildDetailRow('Mode', booking.modeOfTravel.toUpperCase()),
+                      _buildDetailRow('Distance', '${booking.distanceKm.toStringAsFixed(1)} KM'),
+                      _buildDetailRow('Helper Count', booking.helperCount.toString()),
+                    ]),
+                    const SizedBox(height: 24),
+                    _buildDetailSection('ROUTE', [
+                      _buildRouteDetail('Pickup', booking.pickupName, booking.pickupAddressDetails),
+                      const SizedBox(height: 24),
+                      _buildRouteDetail('Drop', booking.dropName, booking.receivedAddressDetails),
+                    ]),
+                    const SizedBox(height: 24),
+                    _buildDetailSection('BILLING', [
+                      _buildDetailRow('Vehicle Price', '₹${booking.vehiclePrice.toInt()}'),
+                      _buildDetailRow('Helper Cost', '₹${booking.helperCost.toInt()}'),
+                      if (booking.discountAmount > 0)
+                        _buildDetailRow('Discount Applied', '-₹${booking.discountAmount.toInt()}', color: AppTheme.success),
+                      _buildDetailRow('Total Amount', '₹${booking.price.toInt()}', isBold: true, color: Colors.white),
+                    ]),
+                    if (booking.items.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _buildDetailSection('ITEMS TO TRANSPORT', [
+                        ...booking.items.map((item) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.inventory_2_outlined, size: 18, color: Colors.white70),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item['itemName']?.toString().toUpperCase() ?? 'UNNAMED ITEM', 
+                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                    Text('Category: ${item['type'] ?? 'General'}', 
+                                      style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )).toList(),
+                      ]),
+                    ],
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showActiveDriversModal(context, ref),
+                        icon: const Icon(Icons.person_search_outlined),
+                        label: const Text('SEARCH ACTIVE DRIVER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1, fontFamily: 'Manrope')),
+        const SizedBox(height: 12),
+        ...children,
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? color, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'Manrope')),
+          Text(value, style: TextStyle(
+            color: color ?? Colors.white, 
+            fontSize: 14, 
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            fontFamily: 'Manrope',
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRouteDetail(String label, String name, Map<String, dynamic>? details) {
+    if (details == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          Text(name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ],
+      );
+    }
+
+    final String addressLabel = details['label']?.toString() ?? 'Address';
+    final String fullAddr = details['fullAddress']?.toString() ?? '';
+    final String houseNo = details['houseNumber']?.toString() ?? '';
+    final String floor = details['floorNumber']?.toString() ?? '';
+    final String landmark = details['landmark']?.toString() ?? '';
+    final String city = details['city']?.toString() ?? '';
+    final String pincode = details['pincode']?.toString() ?? '';
+    final String phone = details['phone']?.toString() ?? '';
+    final String email = details['email']?.toString() ?? '';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColorDark,
+        color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderDark),
+        border: Border.all(color: Colors.white10),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'BOOKED BY: ${booking.userName.toUpperCase()}',
-                style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 13),
-              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  color: AppTheme.primaryColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(
-                  _getStatusLabel(booking.status).toUpperCase(),
-                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
+                child: Text(label.toUpperCase(), 
+                  style: const TextStyle(color: AppTheme.primaryColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
               ),
+              const Spacer(),
+              if (addressLabel.isNotEmpty)
+                Text(addressLabel, style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildRow('PICKUP:', booking.pickupName, Icons.location_on_outlined, const Color(0xFF4ADE80)),
-          const SizedBox(height: 12),
-          _buildRow('DROP:', booking.dropName, Icons.flag_outlined, const Color(0xFFF43F5E)),
-          const SizedBox(height: 16),
-          const Divider(color: AppTheme.borderDark, height: 1),
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('MODE OF TRAVEL', style: TextStyle(color: AppTheme.textMutedLight, fontSize: 10, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      _getModeIcon(booking.modeOfTravel),
-                      const SizedBox(width: 6),
-                      Text(booking.modeOfTravel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('PRICE', style: TextStyle(color: AppTheme.textMutedLight, fontSize: 10, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text('₹${booking.price.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                ],
+              const Icon(Icons.location_pin, color: Colors.white70, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (fullAddr.isNotEmpty)
+                      Text(fullAddr, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, height: 1.4)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        if (houseNo.isNotEmpty) _buildAddressTag('House: $houseNo'),
+                        if (floor.isNotEmpty) _buildAddressTag('Floor: $floor'),
+                        if (city.isNotEmpty) _buildAddressTag(city),
+                        if (pincode.isNotEmpty) _buildAddressTag(pincode),
+                      ],
+                    ),
+                    if (landmark.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.assistant_navigation, size: 14, color: Colors.white38),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text('Near $landmark', style: const TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic))),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    const Divider(color: Colors.white12, height: 1),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        if (phone.isNotEmpty) 
+                          Expanded(
+                            child: Row(children: [
+                              const Icon(Icons.phone_outlined, size: 16, color: AppTheme.primaryColor),
+                              const SizedBox(width: 8),
+                              Text(phone, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                            ]),
+                          ),
+                        if (email.isNotEmpty)
+                          Expanded(
+                            child: Row(children: [
+                              const Icon(Icons.email_outlined, size: 16, color: Colors.white38),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(email, style: const TextStyle(color: Colors.white60, fontSize: 12), overflow: TextOverflow.ellipsis)),
+                            ]),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('Ordered on: $dateStr', 
-            style: TextStyle(color: AppTheme.textMutedLight, fontSize: 11)),
         ],
       ),
+    );
+  }
+
+  Widget _buildAddressTag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
     );
   }
 
@@ -133,9 +469,9 @@ class LogisticsBookingScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: AppTheme.textMutedLight, fontSize: 10, fontWeight: FontWeight.bold)),
+              Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Manrope')),
             ],
           ),
         ),
@@ -145,10 +481,10 @@ class LogisticsBookingScreen extends ConsumerWidget {
 
   Widget _getModeIcon(String mode) {
     switch (mode.toLowerCase()) {
-      case 'flight': return const Icon(Icons.airplanemode_active, size: 16, color: Colors.blueAccent);
-      case 'sea': return const Icon(Icons.directions_boat, size: 16, color: Colors.cyanAccent);
-      case 'train': return const Icon(Icons.train, size: 16, color: Colors.orangeAccent);
-      default: return const Icon(Icons.local_shipping, size: 16, color: AppTheme.primaryColor);
+      case 'flight': return const Icon(Icons.airplanemode_active, size: 16, color: Colors.white70);
+      case 'sea cargo': return const Icon(Icons.directions_boat, size: 16, color: Colors.white70);
+      case 'train': return const Icon(Icons.train, size: 16, color: Colors.white70);
+      default: return const Icon(Icons.local_shipping, size: 16, color: Colors.white70);
     }
   }
 
@@ -173,5 +509,128 @@ class LogisticsBookingScreen extends ConsumerWidget {
       case LogisticsBookingStatus.cancelled: return "Cancelled";
       case LogisticsBookingStatus.delayed: return "Delayed";
     }
+  }
+
+  void _showActiveDriversModal(BuildContext context, WidgetRef ref) {
+    // Set filter to active when showing the modal
+    Future.microtask(() {
+      ref.read(driverFilterProvider.notifier).setFilter(DriverFilter.active);
+    });
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundColorDark,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Consumer(
+        builder: (context, ref, child) {
+          final drivers = ref.watch(filteredDriversProvider);
+          final searchQuery = ref.watch(driverSearchProvider);
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.75,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Select Active Driver', 
+                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  onChanged: (val) => ref.read(driverSearchProvider.notifier).updateQuery(val),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search driver name or license...',
+                    hintStyle: const TextStyle(color: Colors.white60),
+                    prefixIcon: const Icon(Icons.search, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.08),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: drivers.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.person_off_outlined, color: Colors.white60, size: 48),
+                            const SizedBox(height: 16),
+                            Text('No active drivers found',
+                              style: TextStyle(color: Colors.white60)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: drivers.length,
+                        itemBuilder: (context, index) {
+                          final driver = drivers[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
+                                  child: Text(driver.name[0].toUpperCase(), 
+                                    style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(driver.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                      Text('License: ${driver.licenseNumber ?? "N/A"}', 
+                                        style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                                    ],
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Driver ${driver.name} selected')),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  ),
+                                  child: const Text('SET', style: TextStyle(fontSize: 12)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 }

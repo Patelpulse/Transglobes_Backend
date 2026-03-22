@@ -264,7 +264,8 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     try {
       final routeData = await LocationService.getRouteData(_pickupLatLng!, _dropoffLatLng!);
       setState(() {
-        _routePoints = routeData['points'];
+        final List<dynamic> rawPoints = routeData['points'] ?? [];
+        _routePoints = rawPoints.map((p) => LatLng(p[0], p[1])).toList();
       });
       
       if (_routePoints.isNotEmpty) {

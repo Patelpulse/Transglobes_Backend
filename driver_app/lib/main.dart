@@ -67,7 +67,7 @@ class DriverApp extends ConsumerWidget {
                       child: CircularProgressIndicator(color: AppTheme.neonGreen),
                     ),
                   ),
-                  error: (err, stack) => const OnboardingScreen(),
+                  error: (err, stack) => AuthScreen(),
                 );
           }
           return AuthScreen();

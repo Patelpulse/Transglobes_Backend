@@ -7,6 +7,8 @@ import '../../features/auth/providers/auth_provider.dart';
 import '../../core/network/socket_service.dart';
 import '../../features/auth/providers/admin_profile_provider.dart';
 import '../../features/support/providers/notification_provider.dart';
+import '../../features/vehicles/presentation/providers/logistics_booking_provider.dart';
+import '../../features/vehicles/domain/models/logistics_booking.dart';
 
 class AdminScaffold extends ConsumerWidget {
   final Widget child;
@@ -175,6 +177,12 @@ class AdminScaffold extends ConsumerWidget {
   }
 
   Widget _buildSidebar(BuildContext context, WidgetRef ref, int currentIndex, int unreadCount) {
+    final bookingsAsync = ref.watch(logisticsBookingsProvider);
+    final bookings = bookingsAsync.value ?? [];
+
+    int getCount(LogisticsBookingStatus status) => 
+        bookings.where((b) => b.status == status).length;
+
     return Container(
       width: 260,
       decoration: BoxDecoration(
@@ -289,37 +297,37 @@ class AdminScaffold extends ConsumerWidget {
                 ),
                 _SidebarItem(
                   icon: Icons.local_shipping_outlined,
-                  title: 'Logistics & Shipping Management',
+                  title: 'All Logistics Bookings',
                   isSelected: currentIndex == 12,
                   onTap: () => _onItemTapped(12, context),
                   subItems: [
                     _SidebarSubItem(
                       title: 'Logistics on Pending', 
-                      count: 0, 
+                      count: getCount(LogisticsBookingStatus.pending), 
                       color: const Color(0xFFFBBF24),
                       onTap: () => context.go('/logistics/pending'),
                     ),
                     _SidebarSubItem(
                       title: 'Logistics on Processing', 
-                      count: 0, 
+                      count: getCount(LogisticsBookingStatus.processing), 
                       color: const Color(0xFF60A5FA),
                       onTap: () => context.go('/logistics/processing'),
                     ),
                     _SidebarSubItem(
                       title: 'In-Transit / Out for Delivery', 
-                      count: 0, 
+                      count: getCount(LogisticsBookingStatus.inTransit), 
                       color: const Color(0xFF818CF8),
                       onTap: () => context.go('/logistics/in-transit'),
                     ),
                     _SidebarSubItem(
                       title: 'Logistic Complete on Location', 
-                      count: 0, 
+                      count: getCount(LogisticsBookingStatus.completed), 
                       color: const Color(0xFF34D399),
                       onTap: () => context.go('/logistics/completed'),
                     ),
                     _SidebarSubItem(
                       title: 'Delayed/Alerts', 
-                      count: 0, 
+                      count: getCount(LogisticsBookingStatus.delayed), 
                       color: const Color(0xFFF43F5E),
                       onTap: () => context.go('/logistics/alerts'),
                     ),

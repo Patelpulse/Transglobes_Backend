@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
+import '../services/auth_service.dart';
 import 'home_screen.dart';
 
 class NameInputScreen extends ConsumerStatefulWidget {
@@ -64,11 +65,22 @@ class _NameInputScreenState extends ConsumerState<NameInputScreen>
 
     try {
       final apiService = ref.read(apiServiceProvider);
+      final authService = ref.read(authServiceProvider);
 
       await apiService.post('/api/user/save-name', {
         'mobileNumber': widget.mobileNumber,
         'name': name,
       });
+
+      // Also update Firebase's displayName for local property access
+      final user = authService.currentUser;
+      if (user != null) {
+        if (user is MockUser) {
+           user.displayName = name;
+        } else {
+           await user.updateDisplayName(name);
+        }
+      }
 
       if (mounted) {
         // Refresh the user profile provider so header updates

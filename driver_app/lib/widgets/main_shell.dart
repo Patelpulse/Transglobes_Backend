@@ -11,6 +11,7 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/wallet/wallet_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../services/socket_service.dart';
+import '../services/auth_service.dart';
 
 class CurrentTabNotifier extends Notifier<int> {
   @override
@@ -80,8 +81,52 @@ class MainShell extends ConsumerWidget {
           floatingActionButtonLocation: FloatingActionButtonLocation.miniEndFloat,
         );
       },
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator(color: AppTheme.neonGreen))),
-      error: (err, stack) => Scaffold(body: Center(child: Text('Error: $err'))),
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.darkBg,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white70),
+              onPressed: () => ref.read(authServiceProvider).signOut(),
+            ),
+          ],
+        ),
+        body: const Center(child: CircularProgressIndicator(color: AppTheme.neonGreen)),
+      ),
+      error: (err, stack) => Scaffold(
+        backgroundColor: AppTheme.darkBg,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white70),
+              onPressed: () => ref.read(authServiceProvider).signOut(),
+            ),
+          ],
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: AppTheme.offlineRed, size: 60),
+                const SizedBox(height: 16),
+                Text('Error: $err', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(driverProfileProvider),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: AppTheme.darkBg),
+                  child: const Text('RETRY'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
