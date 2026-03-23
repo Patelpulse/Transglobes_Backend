@@ -11,10 +11,15 @@ class EarningsDashboard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final vehicleType = ref.watch(vehicleTypeProvider);
     final selectedSub = ref.watch(selectedSubVehicleProvider);
-    final currentOption = vehicleType.subOptions.firstWhere(
-      (o) => o.id == selectedSub,
-      orElse: () => vehicleType.subOptions.first,
-    );
+    final currentOption = vehicleType.subOptions.where((o) => o.id == selectedSub).firstOrNull ?? 
+                         (vehicleType.subOptions.isNotEmpty ? vehicleType.subOptions.first : vehicleType.subOptions.firstWhere((_) => true, orElse: () => vehicleType.subOptions.isEmpty ? VehicleOption(id: 'default', name: 'Standard', description: '', icon: Icons.minor_crash, basefare: '', perKm: '', color: Colors.blue) : vehicleType.subOptions.first));
+    
+    // Simpler fallback
+    final safeOption = vehicleType.subOptions.isEmpty 
+        ? const VehicleOption(id: 'default', name: 'Standard', description: '', icon: Icons.minor_crash, basefare: '', perKm: '', color: Colors.blue)
+        : (vehicleType.subOptions.any((o) => o.id == selectedSub) 
+            ? vehicleType.subOptions.firstWhere((o) => o.id == selectedSub)
+            : vehicleType.subOptions.first);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),

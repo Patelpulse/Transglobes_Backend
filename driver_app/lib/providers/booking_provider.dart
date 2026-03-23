@@ -23,7 +23,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       fetchBookings();
     });
   }

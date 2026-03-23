@@ -49,7 +49,20 @@
 </head>
 
 <body>
+  <!-- Recaptcha for Phone Auth -->
   <div id="recaptcha-container"></div>
+  
+  <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-messaging-compat.js"></script>
+  <script>
+    // Register the service worker early for FCM
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register("/firebase-messaging-sw.js");
+      });
+    }
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 

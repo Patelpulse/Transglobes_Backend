@@ -78,6 +78,9 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
       ref.read(socketServiceProvider).joinRide(widget.rideId);
 
       _acceptedSubscription = ref.read(socketServiceProvider).rideAcceptedStream.listen((data) {
+        print("🔍 [USER-DEBUG] Ride accepted socket received: ${data['rideId']}");
+        print("🔍 [USER-DEBUG] Driver Data: ${data['driver']}");
+        
         if (mounted && data['rideId'].toString() == widget.rideId.toString()) {
           _navigateToTracking(data);
         }

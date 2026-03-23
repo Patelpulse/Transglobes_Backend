@@ -149,30 +149,36 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
 
     // Listen to changes in the pendingBookingsProvider (POLLING results)
     ref.listenManual(pendingBookingsProvider, (previous, next) {
-      if (next.isNotEmpty && ref.read(driverStatusProvider) == DriverStatus.available) {
-        final currentRequest = ref.read(currentRideRequestProvider);
-        if (currentRequest == null) {
-          final first = next.first;
-          print("🔍 Polling found a pending ride - showing overlay: ${first.id}");
-          ref.read(currentRideRequestProvider.notifier).setRide({
-            'id': first.id,
-            'userName': first.userName,
-            'phone': first.userPhone,
-            'pick': first.pickupAddress,
-            'drop': first.dropAddress,
-            'fare': first.fare,
-            'distance': first.distanceKm,
-            'rideMode': first.subType,
-            'status': first.status,
-            'pickupLat': first.pickupLat,
-            'pickupLng': first.pickupLng,
-            'dropLat': first.dropLat,
-            'dropLng': first.dropLng,
-            'userId': first.userId,
-            'otp': first.otp,
-          });
-          ref.read(showRequestProvider.notifier).show();
+      try {
+        if (next.isNotEmpty && ref.read(driverStatusProvider) == DriverStatus.available) {
+          final currentRequest = ref.read(currentRideRequestProvider);
+          if (currentRequest == null) {
+            final firstRide = next[0]; // Safe index access
+            
+            print("🔍 [DEBUG] Polling handler activated for ride: ${firstRide.id}");
+            
+            ref.read(currentRideRequestProvider.notifier).setRide({
+              'id': firstRide.id,
+              'userName': firstRide.userName,
+              'phone': firstRide.userPhone,
+              'pick': firstRide.pickupAddress,
+              'drop': firstRide.dropAddress,
+              'fare': firstRide.fare,
+              'distance': firstRide.distanceKm,
+              'rideMode': firstRide.subType,
+              'status': firstRide.status,
+              'pickupLat': firstRide.pickupLat,
+              'pickupLng': firstRide.pickupLng,
+              'dropLat': firstRide.dropLat,
+              'dropLng': firstRide.dropLng,
+              'userId': firstRide.userId,
+              'otp': firstRide.otp,
+            });
+            ref.read(showRequestProvider.notifier).show();
+          }
         }
+      } catch (e) {
+        print("🔍 [DEBUG] Error in ride listener: $e");
       }
     });
 

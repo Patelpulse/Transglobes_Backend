@@ -82,7 +82,7 @@ class WalletNotifier extends Notifier<WalletState> {
       Transaction(id: 'T5', description: 'Payout to HDFC Bank', amount: 5000, isCredit: false, type: 'payout', time: DateTime.now().subtract(const Duration(days: 1))),
       Transaction(id: 'T6', description: 'Freight - Amit Kumar', amount: 2400, isCredit: true, type: 'ride', time: DateTime.now().subtract(const Duration(days: 1))),
       Transaction(id: 'T7', description: 'Incentive Bonus', amount: 300, isCredit: true, type: 'bonus', time: DateTime.now().subtract(const Duration(days: 2))),
-      Transaction(id: 'T8', description: 'Payout to HDFC Bank', amount: 8000, isCredit: false, type: 'payout', time: DateTime.now().subtract(const Duration(days: 3))),
+      Transaction(id: 'T8', description: 'Payout to HDFC Bank', amount: 8080, isCredit: false, type: 'payout', time: DateTime.now().subtract(const Duration(days: 3))),
     ];
 
     final bankAccounts = [
@@ -134,9 +134,13 @@ class WalletNotifier extends Notifier<WalletState> {
   }
 
   void requestPayout(double amount, [String? bankAccountId]) {
-    final bank = bankAccountId != null 
-        ? state.bankAccounts.firstWhere((b) => b.id == bankAccountId)
-        : state.bankAccounts.firstWhere((b) => b.isPrimary, orElse: () => state.bankAccounts.first);
+    final bank = (bankAccountId != null 
+        ? state.bankAccounts.where((b) => b.id == bankAccountId).firstOrNull
+        : null) ?? 
+        state.bankAccounts.where((b) => b.isPrimary).firstOrNull ?? 
+        (state.bankAccounts.isNotEmpty ? state.bankAccounts.first : const BankAccount(id: 'temp', bankName: 'Unknown', accountHolder: '', accountNumber: '', ifsc: ''));
+
+    if (bank.id == 'temp') return; // Cannot payout without account
 
     final newTxn = Transaction(
       id: 'T${state.transactions.length + 1}',
@@ -171,10 +175,13 @@ class WalletNotifier extends Notifier<WalletState> {
 
   void removeBankAccount(String id) {
     if (state.bankAccounts.length <= 1) return; // Keep at least one
+    final accountToRemove = state.bankAccounts.where((b) => b.id == id).firstOrNull;
+    if (accountToRemove == null) return;
+    
     final newAccounts = state.bankAccounts.where((b) => b.id != id).toList();
-    if (state.bankAccounts.firstWhere((b) => b.id == id).isPrimary) {
+    if (accountToRemove.isPrimary && newAccounts.isNotEmpty) {
       // Set the first remaining as primary
-      final first = newAccounts.first.copyWith(isPrimary: true);
+      final first = newAccounts[0].copyWith(isPrimary: true);
       newAccounts[0] = first;
     }
     state = _calculateState(

@@ -455,7 +455,7 @@ class _RegistrationFlowState extends ConsumerState<RegistrationFlow> {
         withData: kIsWeb,
       );
       
-      if (result != null) {
+      if (result != null && result.files.isNotEmpty) {
         onFilePicked(result.files.first);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

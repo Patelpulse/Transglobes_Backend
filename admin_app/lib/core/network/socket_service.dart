@@ -27,8 +27,7 @@ class SocketService {
     }
 
     const String prodUrl = "https://transglobesbackend-production.up.railway.app";
-    const String localUrl = "http://localhost:8000";
-    final String baseUrl = kDebugMode ? localUrl : prodUrl;
+    final String baseUrl = prodUrl;
 
     _socket = IO.io(
       baseUrl,

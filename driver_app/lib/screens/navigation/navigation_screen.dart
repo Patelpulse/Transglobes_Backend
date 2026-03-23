@@ -156,8 +156,9 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   void _fitBounds() {
     if (_mapController == null || _polylines.isEmpty) return;
     
-    final points = _polylines.first.points;
-    if (points.isEmpty) return;
+    final polyline = _polylines.firstOrNull;
+    if (polyline == null || polyline.points.isEmpty) return;
+    final points = polyline.points;
 
     double? minLat, maxLat, minLng, maxLng;
     for (final p in points) {

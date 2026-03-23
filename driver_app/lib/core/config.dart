@@ -7,14 +7,14 @@ class AppConfig {
   static String get apiBaseUrl {
     final envUrl = dotenv.env['API_BASE_URL'];
     // Default fallback
-    if (envUrl != null && envUrl.isNotEmpty && !kDebugMode) {
+    if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
     
     // For local development
-    if (kIsWeb) return 'http://localhost:8000'; // Matched with backend .env PORT=8000
+    if (kIsWeb) return 'http://localhost:8080'; // Matched with backend .env PORT=8080
     // 10.0.2.2 is the localhost address for Android emulators
-    return 'http://10.0.2.2:8000';
+    return 'http://10.0.2.2:8080';
   }
   
   // Google Maps API Key

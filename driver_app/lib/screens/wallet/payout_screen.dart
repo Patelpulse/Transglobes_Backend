@@ -23,7 +23,8 @@ class _PayoutScreenState extends ConsumerState<PayoutScreen> {
       final accounts = ref.read(walletProvider).bankAccounts;
       if (accounts.isNotEmpty) {
         setState(() {
-          _selectedAccount = accounts.firstWhere((b) => b.isPrimary, orElse: () => accounts.first);
+          _selectedAccount = accounts.where((b) => b.isPrimary).firstOrNull ?? 
+                             (accounts.isNotEmpty ? accounts.first : null);
         });
       }
     });

@@ -22,8 +22,31 @@ class BookingDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookings = [...ref.watch(pendingBookingsProvider), ...ref.watch(activeBookingsProvider), ...ref.watch(historyBookingsProvider)];
-    final booking = bookings.firstWhere((b) => b.id == bookingId);
+    final pending = ref.watch(pendingBookingsProvider);
+    final active = ref.watch(activeBookingsProvider);
+    final history = ref.watch(historyBookingsProvider);
+    final allBookings = [...pending, ...active, ...history];
+
+    final booking = allBookings.cast<BookingModel?>().firstWhere(
+      (b) => b?.id == bookingId,
+      orElse: () => null,
+    );
+
+    if (booking == null) {
+      return Scaffold(
+        backgroundColor: AppTheme.darkBg,
+        body: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppTheme.neonGreen),
+              SizedBox(height: 16),
+              Text('Loading trip details...', style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
@@ -247,7 +270,7 @@ class BookingDetailScreen extends ConsumerWidget {
           child: ElevatedButton(
             onPressed: () {
               // Logic to advance status
-              if (booking.status == 'arrived') {
+              if (['accepted', 'on_the_way', 'arrived'].contains(booking.status)) {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -256,9 +279,7 @@ class BookingDetailScreen extends ConsumerWidget {
                 );
               } else {
                 String nextStatus = '';
-                if (booking.status == 'accepted') nextStatus = 'on_the_way';
-                else if (booking.status == 'on_the_way') nextStatus = 'arrived';
-                else if (booking.status == 'ongoing') nextStatus = 'completed';
+                if (booking.status == 'ongoing') nextStatus = 'completed';
                 
                 if (nextStatus == 'completed') {
                   if (booking.paymentStatus == 'unpaid') {
@@ -272,8 +293,6 @@ class BookingDetailScreen extends ConsumerWidget {
                   } else {
                     _showCompleteTripDialog(context, ref, booking);
                   }
-                } else if (nextStatus.isNotEmpty) {
-                  ref.read(bookingProvider.notifier).updateStatus(booking.id, nextStatus);
                 }
               }
             },
@@ -355,9 +374,9 @@ class BookingDetailScreen extends ConsumerWidget {
 
   String _buttonLabel(String status, String paymentStatus) {
     switch (status) {
-      case 'accepted': return 'ON THE WAY';
-      case 'on_the_way': return 'I HAVE ARRIVED';
-      case 'arrived': return 'VERIFY OTP';
+      case 'accepted': 
+      case 'on_the_way': 
+      case 'arrived': return 'VERIFY OTP & START';
       case 'ongoing': return paymentStatus == 'paid' ? 'COMPLETE TRIP' : 'WAIT FOR PAYMENT';
       default: return 'CONTINUE';
     }

@@ -6,11 +6,10 @@ import 'package:flutter/foundation.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   // Synchronized with Backend and other Apps
-  const String localUrl = 'http://localhost:8000/api/';
   const String prodUrl = 'https://transglobesbackend-production.up.railway.app/api/';
   
   final dio = Dio(BaseOptions(
-    baseUrl: kDebugMode ? localUrl : prodUrl,
+    baseUrl: prodUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

@@ -26,35 +26,33 @@ class NotificationNotifier extends Notifier<List<AppNotification>> {
 
   @override
   List<AppNotification> build() {
-    // Listen for incoming messages globaly
-    _setupSocketListener();
+    // Watch profile once and setup listener
+    final profileAsync = ref.watch(driverProfileProvider);
+    final myId = profileAsync.value?.id;
+    
+    if (myId != null) {
+      _setupSocketListener(myId);
+    }
 
     return [
       AppNotification(id: 'N1', title: 'New Booking Request', body: 'Priya Sharma wants a Sedan ride to Pari Chowk.', category: 'booking', time: DateTime.now().subtract(const Duration(minutes: 2))),
-      AppNotification(id: 'N2', title: 'Earnings Credited', body: '₹2,450 has been added to your wallet for today.', category: 'earning', time: DateTime.now().subtract(const Duration(hours: 1)), isRead: true),
-      AppNotification(id: 'N3', title: 'Incentive Unlocked', body: 'You completed 10 rides! ₹500 bonus credited.', category: 'earning', time: DateTime.now().subtract(const Duration(hours: 3))),
-      AppNotification(id: 'N4', title: 'Document Verified', body: 'Your Driving License has been verified successfully.', category: 'system', time: DateTime.now().subtract(const Duration(days: 1)), isRead: true),
-      AppNotification(id: 'N5', title: 'Payout Processed', body: '₹5,000 has been transferred to your bank account.', category: 'earning', time: DateTime.now().subtract(const Duration(days: 1)), isRead: true),
-      AppNotification(id: 'N6', title: 'App Update Available', body: 'New version 2.4 is available with performance improvements.', category: 'system', time: DateTime.now().subtract(const Duration(days: 2)), isRead: true),
+      // ... default notifications
     ];
   }
 
-  void _setupSocketListener() {
+  void _setupSocketListener(String myId) {
     _socketSubscription?.cancel();
     
-    // We get the stream from socket service
-    final socketService = ref.watch(socketServiceProvider);
+    // Watch socket service
+    final socketService = ref.read(socketServiceProvider);
     
     _socketSubscription = socketService.messageStream.listen((data) {
-      final driverProfile = ref.read(driverProfileProvider).value;
-      if (driverProfile == null) return;
-
       final senderId = data['senderId'];
       final receiverId = data['receiverId'];
       final message = data['message'] ?? '';
 
       // If it's for us and not from us
-      if (receiverId == driverProfile.id && senderId != driverProfile.id) {
+      if (receiverId == myId && senderId != myId) {
         addNotification(AppNotification(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           title: data['senderName'] ?? 'New Message',

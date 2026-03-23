@@ -85,7 +85,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with SingleTick
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: bookings.length,
-      itemBuilder: (_, i) => _PendingBookingCard(booking: bookings[i]),
+      itemBuilder: (_, i) => _PendingBookingCard(booking: bookings[i], tabs: _tabs),
     );
   }
 
@@ -132,7 +132,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with SingleTick
 // ── Pending Booking Card ──
 class _PendingBookingCard extends ConsumerStatefulWidget {
   final BookingModel booking;
-  const _PendingBookingCard({required this.booking});
+  final TabController tabs;
+  const _PendingBookingCard({required this.booking, required this.tabs});
   @override
   ConsumerState<_PendingBookingCard> createState() => _PendingBookingCardState();
 }
@@ -216,24 +217,39 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
                       flex: 2,
                       child: ElevatedButton(
                         onPressed: () {
-                          final driverProfile = ref.read(driverProfileProvider).value;
-                          if (driverProfile == null) return;
-
                           ref.read(bookingProvider.notifier).acceptBooking(b.id);
                           
+                          // Switch to Active Tab internally
+                          widget.tabs.animateTo(1);
+                          
+                          // Navigate to detail screen immediately
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => BookingDetailScreen(
-                                bookingId: b.id,
-                              ),
+                              builder: (_) => BookingDetailScreen(bookingId: b.id),
                             ),
                           );
                         },
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0),
-                        child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.check_circle, size: 18), SizedBox(width: 8), Text('Accept', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15))]),
-                      ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.neonGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Accept',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                            ),
+                          ],
+                        ),
                     ),
+                  ),
                 ],
               ),
             ],

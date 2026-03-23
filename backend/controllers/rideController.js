@@ -29,22 +29,32 @@ exports.getRideTypes = async (req, res) => {
 exports.getDriverBookings = async (req, res) => {
     try {
         const Driver = require("../models/Driver");
+        const mongoose = require("mongoose");
         let currentDriver;
-        if (req.user && req.user.uid) {
-            currentDriver = await Driver.findOne({ uid: req.user.uid });
+        if (req.user) {
+            const identifier = req.user.uid || req.user.id;
+            console.log(`[BOOKINGS-DEBUG] Searching for driver with identifier: ${identifier}`);
+            if (mongoose.Types.ObjectId.isValid(identifier)) {
+                currentDriver = await Driver.findById(identifier);
+            } else {
+                currentDriver = await Driver.findOne({ uid: identifier });
+            }
+            console.log(`[BOOKINGS-DEBUG] Driver found: ${currentDriver ? currentDriver.name : 'NONE'}`);
         }
 
 
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const lookbackDays = 7;
+        const lookbackDate = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
 
         // Global filter: Only show rides from the last 24 hours
         // to keep the UI clean from old/stuck requests.
         const query = {
-            createdAt: { $gte: oneDayAgo },
+            createdAt: { $gte: lookbackDate },
             $or: [
                 { driverId: currentDriver?._id },
                 { "driverSnapshot.driver_id": currentDriver?._id },
-                { status: 'pending' }
+                { status: 'pending' },
+                { rejectedBy: currentDriver?._id }
             ]
         };
 
@@ -55,7 +65,7 @@ exports.getDriverBookings = async (req, res) => {
         if (currentDriver) {
             logistics = await LogisticsBooking.find({ 
                 driverId: currentDriver._id,
-                createdAt: { $gte: oneDayAgo }
+                createdAt: { $gte: lookbackDate }
             }).sort({ createdAt: -1 });
         }
 
@@ -89,7 +99,7 @@ exports.getDriverBookings = async (req, res) => {
             bookings: allBookings.map(b => {
                 let displayStatus = b.status;
                 // If I rejected it, show as 'rejected' for my personal history list
-                if (currentDriver && b.rejectedBy && b.rejectedBy.includes(currentDriver._id)) {
+                if (currentDriver && b.rejectedBy && b.rejectedBy.some(id => id.toString() === currentDriver._id.toString())) {
                     displayStatus = 'rejected';
                 }
 
@@ -370,6 +380,9 @@ exports.assignRide = async (req, res) => {
         await ride.save();
 
         if (req.io) {
+            console.log(`[RIDE-DEBUG] Emitting ride_accepted for ride ${ride._id.toString()}`);
+            console.log(`[RIDE-DEBUG] Driver Snapshot:`, JSON.stringify(ride.driverSnapshot, null, 2));
+
             // Emit to user's personal room AND the specific ride room
             req.io.to(ride.userId.toString()).to(ride._id.toString()).emit("ride_accepted", {
                 rideId: ride._id.toString(),
@@ -434,7 +447,7 @@ exports.rejectRide = async (req, res) => {
             }
             if (driver) {
                 if (!ride.rejectedBy) ride.rejectedBy = [];
-                if (!ride.rejectedBy.includes(driver._id)) {
+                if (!ride.rejectedBy.some(id => id.toString() === driver._id.toString())) {
                     ride.rejectedBy.push(driver._id);
                     // If assigned to me, clear assignment
                     if (ride.driverId && ride.driverId.toString() === driver._id.toString()) {
