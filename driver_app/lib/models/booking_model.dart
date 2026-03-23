@@ -117,8 +117,31 @@ class BookingModel {
           ? parseDouble(json['distanceKm'])
           : parseDouble(json['distance']?.toString().replaceAll(' km', '')),
       etaMinutes: parseInt(json['etaMinutes'], 10),
-      vehicleType: json['rideMode'] == 'truck' ? 'truck' : 'cab',
-      subType: json['rideMode']?.toString().toUpperCase() ?? 'SEDAN',
+    String deriveVehicleType(String? mode) {
+      if (mode == null) return 'cab';
+      final m = mode.toLowerCase();
+      if (['pickup', 'mini_truck', 'container', 'flatbed', 'ace', 'pickup8ft', '3wheeler', 'truck'].contains(m)) {
+        return 'truck';
+      }
+      if (['mini_bus', 'standard', 'luxury', 'sleeper', 'bus'].contains(m)) {
+        return 'bus';
+      }
+      return 'cab';
+    }
+
+    return BookingModel(
+      id: json['_id'] ?? json['id'] ?? '',
+      userName: json['userName'] ?? 'Customer',
+      userPhone: json['userPhone'] ?? json['phone'] ?? '',
+      pickupAddress: json['pickupAddress'] ?? json['pick'] ?? '',
+      dropAddress: json['dropAddress'] ?? json['drop'] ?? '',
+      fare: parseDouble(json['fare']),
+      distanceKm: (json['distanceKm'] != null)
+          ? parseDouble(json['distanceKm'])
+          : parseDouble(json['distance']?.toString().replaceAll(' km', '')),
+      etaMinutes: parseInt(json['etaMinutes'], 10),
+      vehicleType: deriveVehicleType(json['rideMode']?.toString()),
+      subType: json['rideMode']?.toString().toUpperCase() ?? 'ECONOMY',
       status: json['status'] ?? 'pending',
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       otp: json['otp']?.toString(),
