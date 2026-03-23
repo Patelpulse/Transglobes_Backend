@@ -35,6 +35,10 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
     try {
       final service = ref.read(driverServiceProvider);
       final list = await service.getDriverBookings();
+      print('🔍 [DEBUG] Fetched ${list.length} bookings from backend');
+      for (var b in list) {
+        print('   - ID: ${b.id}, Status: ${b.status}, Type: ${b.vehicleType}');
+      }
       state = list;
     } catch (e) {
       print('❗️ Error fetching bookings: $e');

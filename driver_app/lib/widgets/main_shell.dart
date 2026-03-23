@@ -10,6 +10,7 @@ import '../screens/chat/chat_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/wallet/wallet_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
+import '../providers/booking_provider.dart';
 import '../services/socket_service.dart';
 import '../services/auth_service.dart';
 
