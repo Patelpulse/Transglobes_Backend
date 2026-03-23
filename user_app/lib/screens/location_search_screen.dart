@@ -97,6 +97,26 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     _dropoffFocusNode.requestFocus();
     _pickupFocusNode.addListener(_onFocusChanged);
     _dropoffFocusNode.addListener(_onFocusChanged);
+    _fetchInitialLocation();
+  }
+
+  Future<void> _fetchInitialLocation() async {
+    try {
+      final pos = await LocationService.getCurrentLocation();
+      if (pos != null && mounted) {
+        final address = await LocationService.getAddressFromLatLng(pos.latitude, pos.longitude);
+        if (mounted) {
+          setState(() {
+            _pickupLatLng = LatLng(pos.latitude, pos.longitude);
+            _mapCenter = LatLng(pos.latitude, pos.longitude);
+            _pickupController.text = address;
+          });
+          _mapController.move(LatLng(pos.latitude, pos.longitude), 15.0);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching initial location: $e');
+    }
   }
 
   void _onFocusChanged() {
@@ -441,16 +461,55 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
                     ),
 
                     // ─── Suggestions List ───
-                    if (_showSuggestions && _searchResults.isNotEmpty)
+                    if (_showSuggestions)
                       Container(
-                        constraints: const BoxConstraints(maxHeight: 300),
+                        constraints: const BoxConstraints(maxHeight: 350),
                         child: ListView.separated(
                           padding: const EdgeInsets.only(top: 8, bottom: 8),
                           shrinkWrap: true,
-                          itemCount: _searchResults.length,
+                          itemCount: _searchResults.length + 1,
                           separatorBuilder: (_, __) => Divider(height: 1, indent: 56, color: Colors.grey[100]),
                           itemBuilder: (context, i) {
-                            final result = _searchResults[i];
+                            // First item is always "Use Current Location"
+                            if (i == 0) {
+                              return InkWell(
+                                onTap: _useCurrentLocation,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 36, height: 36,
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(Icons.my_location, color: Colors.blue[600], size: 18),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Use Current Location',
+                                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.blue),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Via GPS',
+                                              style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(Icons.gps_fixed, size: 16, color: Colors.blue[400]),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            final result = _searchResults[i - 1];
                             return InkWell(
                               onTap: () => _selectLocation(result),
                               child: Padding(
@@ -502,30 +561,6 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
                               ),
                             );
                           },
-                        ),
-                      ),
-
-                    // ─── No Suggestions: Current Location option ───
-                    if (_showSuggestions && _searchResults.isEmpty && !_isSearching)
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: InkWell(
-                          onTap: _useCurrentLocation,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.my_location, color: Colors.blue[600], size: 20),
-                                const SizedBox(width: 12),
-                                const Text('Use Current Location', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.blue)),
-                              ],
-                            ),
-                          ),
                         ),
                       ),
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:driver_app/services/socket_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,13 +30,21 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   bool _isVerifying = false;
   final MapController _mapController = MapController();
   List<LatLng> _routePoints = [];
+  StreamSubscription? _paymentSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadRoute();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(socketServiceProvider).joinRide(widget.booking.id);
+      final socketService = ref.read(socketServiceProvider);
+      socketService.joinRide(widget.booking.id);
+      
+      _paymentSubscription = socketService.paymentRequestedStream.listen((data) {
+        if (data['rideId']?.toString() == widget.booking.id.toString() && mounted) {
+          _showPaymentQR(context);
+        }
+      });
     });
   }
 
@@ -71,6 +81,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
 
   @override
   void dispose() {
+    _paymentSubscription?.cancel();
     for (var controller in _otpControllers) {
       controller.dispose();
     }

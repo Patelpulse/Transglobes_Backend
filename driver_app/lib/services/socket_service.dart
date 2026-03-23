@@ -15,6 +15,7 @@ class SocketService {
   final _rideAssignedController = StreamController<Map<String, dynamic>>.broadcast();
   final _fareUpdatedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
+  final _paymentRequestedController = StreamController<Map<String, dynamic>>.broadcast();
 
   IO.Socket? get socket => _socket;
 
@@ -24,6 +25,7 @@ class SocketService {
   Stream<Map<String, dynamic>> get rideAssignedStream => _rideAssignedController.stream;
   Stream<Map<String, dynamic>> get fareUpdatedStream => _fareUpdatedController.stream;
   Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
+  Stream<Map<String, dynamic>> get paymentRequestedStream => _paymentRequestedController.stream;
 
   void connect(String userId, {String? name}) {
     if (_socket != null) {
@@ -78,6 +80,11 @@ class SocketService {
     _socket?.on("fare_updated", (data) {
       print("Fare Updated via Socket: $data");
       _fareUpdatedController.add(Map<String, dynamic>.from(data));
+    });
+
+    _socket?.on("payment_requested", (data) {
+       print("Payment Requested via Socket: $data");
+       _paymentRequestedController.add(Map<String, dynamic>.from(data));
     });
 
     _socket?.onDisconnect((_) => print("Socket Disconnected"));
