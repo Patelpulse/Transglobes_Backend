@@ -63,6 +63,35 @@ class MainShell extends ConsumerWidget {
             title: Text(_getTitle(currentTab)),
             centerTitle: true,
             actions: [
+              // Manual Sync / Alarm Button
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.sync_problem_outlined, color: AppTheme.neonGreen),
+                    tooltip: 'Sync Bookings', 
+                    onPressed: () {
+                      ref.read(bookingProvider.notifier).fetchBookings();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Refreshing bookings...'), duration: Duration(seconds: 1), behavior: SnackBarBehavior.floating),
+                      );
+                    },
+                  ),
+                  Positioned(
+                    right: 12,
+                    top: 12,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.neonGreen,
+                        shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(color: AppTheme.neonGreen, blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               IconButton(
                 icon: Badge(
                   label: Text('$unread'),
