@@ -44,11 +44,7 @@ exports.getDriverBookings = async (req, res) => {
             $or: [
                 { driverId: currentDriver?._id },
                 { "driverSnapshot.driver_id": currentDriver?._id },
-                { rejectedBy: currentDriver?._id },
-                {
-                    status: 'pending',
-                    rejectedBy: { $ne: currentDriver?._id }
-                }
+                { status: 'pending' }
             ]
         };
 
@@ -238,18 +234,17 @@ exports.createRideRequest = async (req, res) => {
             req.io.emit("new_ride", {
                 id: newRide._id.toString(),
                 userName: user.name || 'Customer',
-                phone: user.mobileNumber,
-                pick: newRide.locations[0]?.address || '',
-                drop: newRide.locations[1]?.address || '',
+                phone: user.mobileNumber || newRide.mobileNumber || '',
+                pick: newRide.locations[0]?.address || 'Pickup',
+                drop: newRide.locations[1]?.address || 'Dropoff',
                 pickupLat: newRide.locations[0]?.latitude,
                 pickupLng: newRide.locations[0]?.longitude,
                 dropLat: newRide.locations[1]?.latitude,
                 dropLng: newRide.locations[1]?.longitude,
-                distance: newRide.distance,
-                fare: newRide.fare,
-                paymentMode: newRide.paymentMode,
-                rideMode: newRide.rideMode,
-                status: newRide.status,
+                distance: newRide.distance || 0,
+                fare: newRide.fare || 0,
+                rideMode: (newRide.rideMode || 'economy').toLowerCase(),
+                status: newRide.status || 'pending',
                 userId: newRide.userId?.toString()
             });
             console.log(`Socket emitted: new_ride for ${newRide._id}`);

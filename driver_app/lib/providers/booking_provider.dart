@@ -1,4 +1,4 @@
-// lib/providers/booking_provider.dart
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/driver_service.dart';
 import '../models/booking_model.dart';
@@ -7,11 +7,25 @@ import '../models/booking_model.dart';
 // BookingNotifier – handles state and backend sync
 // ---------------------------------------------------------------------------
 class BookingNotifier extends Notifier<List<BookingModel>> {
+  Timer? _pollingTimer;
+
   @override
   List<BookingModel> build() {
-    // Kick‑off async fetch; UI starts empty.
+    // Start polling immediately
     Future.microtask(() => fetchBookings());
+    _startPolling();
+    
+    // Clean up on dispose
+    ref.onDispose(() => _pollingTimer?.cancel());
+    
     return [];
+  }
+
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      fetchBookings();
+    });
   }
 
   // -----------------------------------------------------------------------
