@@ -7,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/network_avatar.dart';
 import '../../../../shared/widgets/community_card.dart';
 import '../../../support/presentation/screens/chat_screen.dart';
+import 'package:intl/intl.dart';
 
 class DriversScreen extends ConsumerWidget {
   const DriversScreen({super.key});
@@ -395,23 +396,25 @@ class _DriverDetailsModal extends StatelessWidget {
                 ),
                 const SizedBox(height: 32),
                 
-                const Text("BASIC INFORMATION", style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+                const Text("BASIC INFORMATION", style: TextStyle(color: AppTheme.warning, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5)),
                 const SizedBox(height: 16),
+                _buildInfoRow('Driver ID', driver.id),
                 _buildInfoRow('Status', driver.status.name.toUpperCase()),
                 _buildInfoRow('Email', driver.email),
                 _buildInfoRow('Phone', driver.mobileNumber ?? 'N/A'),
+                _buildInfoRow('Date of Birth', driver.dob != null ? DateFormat('dd MMM yyyy').format(driver.dob!) : 'N/A'),
                 _buildInfoRow('Rating', driver.rating.toStringAsFixed(1)),
                 _buildInfoRow('Wallet Balance', '₹${driver.walletBalance.toStringAsFixed(2)}'),
                 
                 const SizedBox(height: 32),
-                const Text("VEHICLE DETAILS", style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+                const Text("VEHICLE DETAILS", style: TextStyle(color: AppTheme.warning, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5)),
                 const SizedBox(height: 16),
                 _buildInfoRow('Model', driver.vehicleModel ?? 'N/A'),
                 _buildInfoRow('Number Plate', driver.vehicleNumberPlate ?? 'N/A'),
                 _buildInfoRow('Manufacture Year', driver.vehicleYear ?? 'N/A'),
                 
                 const SizedBox(height: 32),
-                const Text("VERIFICATION DOCUMENTS", style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+                const Text("VERIFICATION DOCUMENTS", style: TextStyle(color: AppTheme.warning, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5)),
                 const SizedBox(height: 16),
                 _buildInfoRow('Aadhar Number', driver.aadharCardNumber ?? 'N/A'),
                 _buildInfoRow('PAN Number', driver.panCardNumber ?? 'N/A'),
@@ -421,6 +424,9 @@ class _DriverDetailsModal extends StatelessWidget {
                 _buildDocumentSection("Aadhar Card", driver.aadharCardPhoto),
                 _buildDocumentSection("Driving License", driver.drivingLicensePhoto),
                 _buildDocumentSection("PAN Card", driver.panCardPhoto),
+                _buildDocumentSection("PAN Card (High-res)", driver.panCardImage),
+                _buildDocumentSection("RC Book", driver.rcBook),
+                _buildDocumentSection("Insurance", driver.insurance),
                 _buildDocumentSection("Signature", driver.signatureUrl),
                 
                 const SizedBox(height: 48),

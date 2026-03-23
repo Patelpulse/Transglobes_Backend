@@ -12,12 +12,29 @@ class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
 
+  Map<String, String> _getHeaders(String? token, {String? uid, bool isMultipart = false}) {
+    final headers = <String, String>{};
+    if (!isMultipart) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
+    // Auto-detect local for bypass
+    final bool isLocal = AppConfig.apiBaseUrl.toLowerCase().contains('localhost') || AppConfig.apiBaseUrl.toLowerCase().contains('127.0.0.1');
+    final String finalToken = isLocal ? 'dev-token-bypass' : (token ?? 'dev-token-bypass');
+    
+    headers['Authorization'] = 'Bearer $finalToken';
+    if (finalToken == 'dev-token-bypass' && uid != null) {
+      headers['x-dev-uid'] = uid;
+    }
+    return headers;
+  }
+
   Future<bool> saveDriverToBackend(dynamic user) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(null, uid: user.uid),
         body: json.encode({
           'uid': user.uid,
           'email': user.email ?? '',
@@ -26,7 +43,7 @@ class DatabaseService {
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        return data['hasDocs'] ?? false;
+        return (data['isRegistered'] == true) || (data['hasDocs'] == true);
       } else {
         final error = json.decode(response.body);
         throw Exception(error['message'] ?? 'Failed to sync with backend');
@@ -41,15 +58,10 @@ class DatabaseService {
   Future<void> saveDriverProfile(DriverModel driver, [String? token]) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      headers['Authorization'] = 'Bearer ${token ?? ''}';
-      if (token == 'dev-token-bypass') {
-        headers['x-dev-uid'] = driver.firebaseId;
-      }
       
       final response = await http.post(
         url,
-        headers: headers,
+        headers: _getHeaders(token, uid: driver.firebaseId),
         body: json.encode({
           'uid': driver.firebaseId,
           'name': driver.name,
@@ -116,10 +128,7 @@ class DatabaseService {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/upload');
       var request = http.MultipartRequest('POST', url);
       
-      request.headers['Authorization'] = 'Bearer $token';
-      if (token == 'dev-token-bypass' && uid != null) {
-        request.headers['x-dev-uid'] = uid;
-      }
+      request.headers.addAll(_getHeaders(token, uid: uid, isMultipart: true));
 
       if (photoFile != null) {
         final bytes = await photoFile.readAsBytes();
@@ -184,11 +193,8 @@ class DatabaseService {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile');
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+        headers: _getHeaders(token, uid: uid),
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return DriverModel.fromJson(data['driver']);
@@ -206,14 +212,13 @@ class DatabaseService {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/status');
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+        headers: _getHeaders(token, uid: uid),
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['hasDocs'] ?? false;
+        // If they are in the DB (isRegistered), we consider initial registration "complete"
+        // so we don't show the multi-step registration flow again.
+        return (data['isRegistered'] == true) || (data['hasDocs'] == true);
       }
       return false;
     } catch (e) {
@@ -246,10 +251,7 @@ class DatabaseService {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/otp/verify');
       final response = await http.post(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(token),
         body: json.encode({'email': email, 'otp': otp}),
       ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {

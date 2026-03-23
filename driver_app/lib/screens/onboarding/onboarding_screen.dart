@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/theme.dart';
 import '../../core/app_router.dart';
+import '../../core/config.dart';
 import '../../providers/vehicle_type_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';

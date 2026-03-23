@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/logistics_booking_provider.dart';
 import '../../domain/models/logistics_booking.dart';
 import '../../../drivers/presentation/providers/driver_provider.dart';
-import '../../../drivers/domain/models/driver_model.dart';
+
 import '../../../../core/theme/app_theme.dart';
 
 class LogisticsBookingScreen extends ConsumerWidget {
@@ -152,7 +152,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
                 Text('Ordered on: $dateStr', 
                   style: const TextStyle(color: Colors.white60, fontSize: 11)),
                 ElevatedButton.icon(
-                  onPressed: () => _showActiveDriversModal(context, ref),
+                  onPressed: () => _showActiveDriversModal(context, ref, booking.id),
                   icon: const Icon(Icons.person_search_outlined, size: 16),
                   label: const Text('SEARCH DRIVER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
@@ -282,7 +282,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton.icon(
-                        onPressed: () => _showActiveDriversModal(context, ref),
+                        onPressed: () => _showActiveDriversModal(context, ref, booking.id),
                         icon: const Icon(Icons.person_search_outlined),
                         label: const Text('SEARCH ACTIVE DRIVER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                         style: ElevatedButton.styleFrom(
@@ -363,274 +363,293 @@ class LogisticsBookingScreen extends ConsumerWidget {
         border: Border.all(color: Colors.white10),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(6),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(label.toUpperCase(), 
+                    style: const TextStyle(color: AppTheme.primaryColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                 ),
-                child: Text(label.toUpperCase(), 
-                  style: const TextStyle(color: AppTheme.primaryColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-              ),
-              const Spacer(),
-              if (addressLabel.isNotEmpty)
-                Text(addressLabel, style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.location_pin, color: Colors.white70, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (fullAddr.isNotEmpty)
-                      Text(fullAddr, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, height: 1.4)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
-                      children: [
-                        if (houseNo.isNotEmpty) _buildAddressTag('House: $houseNo'),
-                        if (floor.isNotEmpty) _buildAddressTag('Floor: $floor'),
-                        if (city.isNotEmpty) _buildAddressTag(city),
-                        if (pincode.isNotEmpty) _buildAddressTag(pincode),
-                      ],
-                    ),
-                    if (landmark.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.assistant_navigation, size: 14, color: Colors.white38),
-                            const SizedBox(width: 6),
-                            Expanded(child: Text('Near $landmark', style: const TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic))),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    const Divider(color: Colors.white12, height: 1),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        if (phone.isNotEmpty) 
-                          Expanded(
-                            child: Row(children: [
-                              const Icon(Icons.phone_outlined, size: 16, color: AppTheme.primaryColor),
-                              const SizedBox(width: 8),
-                              Text(phone, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                            ]),
-                          ),
-                        if (email.isNotEmpty)
-                          Expanded(
-                            child: Row(children: [
-                              const Icon(Icons.email_outlined, size: 16, color: Colors.white38),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(email, style: const TextStyle(color: Colors.white60, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                            ]),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAddressTag(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
-    );
-  }
-
-  Widget _buildRow(String label, String value, IconData icon, Color iconColor) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: iconColor),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Manrope')),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _getModeIcon(String mode) {
-    switch (mode.toLowerCase()) {
-      case 'flight': return const Icon(Icons.airplanemode_active, size: 16, color: Colors.white70);
-      case 'sea cargo': return const Icon(Icons.directions_boat, size: 16, color: Colors.white70);
-      case 'train': return const Icon(Icons.train, size: 16, color: Colors.white70);
-      default: return const Icon(Icons.local_shipping, size: 16, color: Colors.white70);
-    }
-  }
-
-  Color _getStatusColor(LogisticsBookingStatus status) {
-    switch (status) {
-      case LogisticsBookingStatus.pending: return const Color(0xFFFBBF24);
-      case LogisticsBookingStatus.processing: return const Color(0xFF60A5FA);
-      case LogisticsBookingStatus.inTransit: return const Color(0xFF818CF8);
-      case LogisticsBookingStatus.completed: return const Color(0xFF34D399);
-      case LogisticsBookingStatus.cancelled: return const Color(0xFF94A3B8);
-      case LogisticsBookingStatus.delayed: return const Color(0xFFF43F5E);
-    }
-  }
-
-  String _getStatusLabel(LogisticsBookingStatus? status) {
-    if (status == null) return "All Bookings";
-    switch (status) {
-      case LogisticsBookingStatus.pending: return "Pending";
-      case LogisticsBookingStatus.processing: return "Processing";
-      case LogisticsBookingStatus.inTransit: return "In-Transit";
-      case LogisticsBookingStatus.completed: return "Completed";
-      case LogisticsBookingStatus.cancelled: return "Cancelled";
-      case LogisticsBookingStatus.delayed: return "Delayed";
-    }
-  }
-
-  void _showActiveDriversModal(BuildContext context, WidgetRef ref) {
-    // Set filter to active when showing the modal
-    Future.microtask(() {
-      ref.read(driverFilterProvider.notifier).setFilter(DriverFilter.active);
-    });
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.backgroundColorDark,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => Consumer(
-        builder: (context, ref, child) {
-          final drivers = ref.watch(filteredDriversProvider);
-          final searchQuery = ref.watch(driverSearchProvider);
-
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.75,
-            padding: const EdgeInsets.all(24),
-            child: Column(
+                const Spacer(),
+                if (addressLabel.isNotEmpty)
+                  Text(addressLabel, style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Select Active Driver', 
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  onChanged: (val) => ref.read(driverSearchProvider.notifier).updateQuery(val),
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Search driver name or license...',
-                    hintStyle: const TextStyle(color: Colors.white60),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.08),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                const Icon(Icons.location_pin, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: drivers.isEmpty
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.person_off_outlined, color: Colors.white60, size: 48),
-                            const SizedBox(height: 16),
-                            Text('No active drivers found',
-                              style: TextStyle(color: Colors.white60)),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: drivers.length,
-                        itemBuilder: (context, index) {
-                          final driver = drivers[index];
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white12),
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
-                                  child: Text(driver.name[0].toUpperCase(), 
-                                    style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(driver.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                      Text('License: ${driver.licenseNumber ?? "N/A"}', 
-                                        style: const TextStyle(color: Colors.white60, fontSize: 11)),
-                                    ],
-                                  ),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Driver ${driver.name} selected')),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  ),
-                                  child: const Text('SET', style: TextStyle(fontSize: 12)),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (fullAddr.isNotEmpty)
+                        Text(fullAddr, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, height: 1.4)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 4,
+                        children: [
+                          if (houseNo.isNotEmpty) _buildAddressTag('House: $houseNo'),
+                          if (floor.isNotEmpty) _buildAddressTag('Floor: $floor'),
+                          if (city.isNotEmpty) _buildAddressTag(city),
+                          if (pincode.isNotEmpty) _buildAddressTag(pincode),
+                        ],
                       ),
+                      if (landmark.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.assistant_navigation, size: 14, color: Colors.white38),
+                              const SizedBox(width: 6),
+                              Expanded(child: Text('Near $landmark', style: const TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic))),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      const Divider(color: Colors.white12, height: 1),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          if (phone.isNotEmpty) 
+                            Expanded(
+                              child: Row(children: [
+                                const Icon(Icons.phone_outlined, size: 16, color: AppTheme.primaryColor),
+                                const SizedBox(width: 8),
+                                Text(phone, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                              ]),
+                            ),
+                          if (email.isNotEmpty)
+                            Expanded(
+                              child: Row(children: [
+                                const Icon(Icons.email_outlined, size: 16, color: Colors.white38),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(email, style: const TextStyle(color: Colors.white60, fontSize: 12), overflow: TextOverflow.ellipsis)),
+                              ]),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          );
-        },
-      ),
-    );
+          ],
+        ),
+      );
+    }
+  
+    Widget _buildAddressTag(String text) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
+      );
+    }
+  
+    Widget _buildRow(String label, String value, IconData icon, Color iconColor) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: iconColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Manrope')),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+  
+    Widget _getModeIcon(String mode) {
+      switch (mode.toLowerCase()) {
+        case 'flight': return const Icon(Icons.airplanemode_active, size: 16, color: Colors.white70);
+        case 'sea cargo': return const Icon(Icons.directions_boat, size: 16, color: Colors.white70);
+        case 'train': return const Icon(Icons.train, size: 16, color: Colors.white70);
+        default: return const Icon(Icons.local_shipping, size: 16, color: Colors.white70);
+      }
+    }
+  
+    Color _getStatusColor(LogisticsBookingStatus status) {
+      switch (status) {
+        case LogisticsBookingStatus.pending: return const Color(0xFFFBBF24);
+        case LogisticsBookingStatus.processing: return const Color(0xFF60A5FA);
+        case LogisticsBookingStatus.inTransit: return const Color(0xFF818CF8);
+        case LogisticsBookingStatus.completed: return const Color(0xFF34D399);
+        case LogisticsBookingStatus.cancelled: return const Color(0xFF94A3B8);
+        case LogisticsBookingStatus.delayed: return const Color(0xFFF43F5E);
+      }
+    }
+  
+    String _getStatusLabel(LogisticsBookingStatus? status) {
+      if (status == null) return "All Bookings";
+      switch (status) {
+        case LogisticsBookingStatus.pending: return "Pending";
+        case LogisticsBookingStatus.processing: return "Processing";
+        case LogisticsBookingStatus.inTransit: return "In-Transit";
+        case LogisticsBookingStatus.completed: return "Completed";
+        case LogisticsBookingStatus.cancelled: return "Cancelled";
+        case LogisticsBookingStatus.delayed: return "Delayed";
+      }
+    }
+  
+    void _showActiveDriversModal(BuildContext context, WidgetRef ref, String bookingId) {
+      // Set filter to active when showing the modal
+      Future.microtask(() {
+        ref.read(driverFilterProvider.notifier).setFilter(DriverFilter.active);
+      });
+  
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppTheme.backgroundColorDark,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (context) => Consumer(
+          builder: (context, ref, child) {
+            final drivers = ref.watch(filteredDriversProvider);
+  
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Select Active Driver', 
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    onChanged: (val) => ref.read(driverSearchProvider.notifier).updateQuery(val),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search driver name or license...',
+                      hintStyle: const TextStyle(color: Colors.white60),
+                      prefixIcon: const Icon(Icons.search, color: Colors.white),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.08),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: drivers.isEmpty
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.person_off_outlined, color: Colors.white60, size: 48),
+                              const SizedBox(height: 16),
+                              Text('No active drivers found',
+                                style: TextStyle(color: Colors.white60)),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: drivers.length,
+                          itemBuilder: (context, index) {
+                            final driver = drivers[index];
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white12),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
+                                    child: Text(driver.name[0].toUpperCase(), 
+                                      style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(driver.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        Text('License: ${driver.licenseNumber ?? "N/A"}', 
+                                          style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                                      ],
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      Navigator.pop(context);
+                                      
+                                      final success = await ref.read(logisticsBookingRepoProvider).assignDriver(bookingId, driver.id);
+                                      
+                                      if (success) {
+                                        ref.invalidate(logisticsBookingsProvider);
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Successfully assigned ${driver.name} to this shipment!'),
+                                              backgroundColor: AppTheme.success,
+                                            ),
+                                          );
+                                        }
+                                      } else {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Failed to assign driver. Please try again.'),
+                                              backgroundColor: AppTheme.danger,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.primaryColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    ),
+                                    child: const Text('SET', style: TextStyle(fontSize: 12)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    }
   }
-}

@@ -15,10 +15,14 @@ class Driver extends Equatable {
   final String? aadharCardPhoto;
   final String? drivingLicensePhoto;
   final String? panCardPhoto;
+  final String? panCardImage; // New high-res field
+  final String? rcBook;      // New field
+  final String? insurance;   // New field
   final String? signatureUrl;
   final String? vehicleModel;
   final String? vehicleNumberPlate;
   final String? vehicleYear;
+  final DateTime? dob; // Added Date of Birth
   final double rating;
   final double walletBalance;
   final String imageUrl;
@@ -37,10 +41,14 @@ class Driver extends Equatable {
     this.aadharCardPhoto,
     this.drivingLicensePhoto,
     this.panCardPhoto,
+    this.panCardImage,
+    this.rcBook,
+    this.insurance,
     this.signatureUrl,
     this.vehicleModel,
     this.vehicleNumberPlate,
     this.vehicleYear,
+    this.dob,
     this.rating = 0.0,
     required this.walletBalance,
     required this.imageUrl,
@@ -59,7 +67,7 @@ class Driver extends Equatable {
       id: map['_id']?.toString() ?? map['uid']?.toString() ?? '',
       name: map['name'] ?? '',
       email: map['email'] ?? '',
-      mobileNumber: map['mobileNumber']?.toString(),
+      mobileNumber: (map['mobileNumber'] ?? map['phoneNumber'] ?? map['phone'])?.toString(),
       status: _parseStatus(map['status']),
       licenseNumber: map['drivingLicenseNumber'] ?? map['licenseNumber'],
       vehicleInfo: vInfo,
@@ -68,10 +76,14 @@ class Driver extends Equatable {
       aadharCardPhoto: map['aadharCard'] ?? map['aadharCardPhoto'],
       drivingLicensePhoto: map['drivingLicense'] ?? map['drivingLicensePhoto'],
       panCardPhoto: map['panCard'] ?? map['panCardPhoto'],
+      panCardImage: map['panCardImage'],
+      rcBook: map['rcBook'],
+      insurance: map['insurance'],
       signatureUrl: map['signature'] ?? map['signatureUrl'],
       vehicleModel: map['vehicleModel']?.toString(),
       vehicleNumberPlate: map['vehicleNumberPlate']?.toString(),
       vehicleYear: map['vehicleYear']?.toString(),
+      dob: map['dob'] != null ? DateTime.parse(map['dob'].toString()) : null,
       rating: (map['rating'] ?? 0).toDouble(),
       walletBalance: (map['walletBalance'] ?? 0).toDouble(),
       imageUrl: (map['photo'] != null && map['photo'] != '') 
@@ -108,10 +120,14 @@ class Driver extends Equatable {
         aadharCardPhoto,
         drivingLicensePhoto,
         panCardPhoto,
+        panCardImage,
+        rcBook,
+        insurance,
         signatureUrl,
         vehicleModel,
         vehicleNumberPlate,
         vehicleYear,
+        dob,
         rating,
         walletBalance,
         imageUrl,

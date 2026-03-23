@@ -412,7 +412,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                     markers: [
                       Marker(
                         point: pickupPos,
-                        width: 200,
+                        width: 220,
                         height: 60,
                         child: _buildMapLabel(
                           widget.pickup['name'] ?? 'Pickup',
@@ -421,7 +421,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                       ),
                       Marker(
                         point: dropoffPos,
-                        width: 200,
+                        width: 220,
                         height: 60,
                         child: _buildMapLabel(
                           widget.dropoff['name'] == 'Current Location' &&
@@ -516,8 +516,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                         ),
 
                         // Vehicle List
-                        SizedBox(
-                          height: 300,
+                        Expanded(
                           child: ListView.builder(
                             itemCount: _vehicles.length,
                             padding: const EdgeInsets.symmetric(vertical: 0),
@@ -545,7 +544,13 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                                           children: [
                                             Row(
                                               children: [
-                                                Text(v['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                                Flexible(
+                                                  child: Text(
+                                                    v['name'], 
+                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
                                                 const SizedBox(width: 6),
                                                 Icon(Icons.person, size: 14, color: Colors.black.withOpacity(0.6)),
                                                 Text(v['capacity'] ?? "1", style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6), fontWeight: FontWeight.bold)),
@@ -555,12 +560,18 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                                             Text(
                                               "${v['eta']} • ${v['time'].split('•')[0]}",
                                               style: TextStyle(color: Colors.black.withOpacity(0.6), fontSize: 13, fontWeight: FontWeight.w500),
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                             if (v['id'] == 'economy')
-                                              const Text("Wait a little for discounted rides", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                                              const Text(
+                                                "Wait a little for discounted rides", 
+                                                style: TextStyle(color: Colors.grey, fontSize: 13),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                           ],
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
                                       Column(
                                         crossAxisAlignment: CrossAxisAlignment.end,
                                         children: [
@@ -594,11 +605,12 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                                   color: Colors.green
                                 ),
                                 const SizedBox(width: 12),
-                                Text(
-                                  _paymentMode.toUpperCase(),
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                Expanded(
+                                  child: Text(
+                                    _paymentMode.toUpperCase(),
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
                                 ),
-                                const Spacer(),
                                 const Icon(Icons.chevron_right),
                               ],
                             ),
@@ -669,25 +681,32 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                     color: Colors.black,
                     border: Border(right: BorderSide(color: Colors.white.withOpacity(0.2), width: 1)),
                   ),
-                  child: Column(
+                  child: const Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       Text("2", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
                       Text("min", style: TextStyle(color: Colors.white, fontSize: 8)),
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        "From ${name.split(',')[0]}",
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.chevron_right, color: Colors.white, size: 14),
-                    ],
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            "From ${name.split(',')[0]}",
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right, color: Colors.white, size: 14),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -725,9 +744,13 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  "To ${name.split(',')[0]}",
-                  style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                Flexible(
+                  child: Text(
+                    "To ${name.split(',')[0]}",
+                    style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 const Icon(Icons.chevron_right, color: Colors.black, size: 14),

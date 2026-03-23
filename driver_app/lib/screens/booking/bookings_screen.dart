@@ -10,7 +10,8 @@ import 'package:driver_app/screens/booking/booking_detail_screen.dart';
 import 'package:driver_app/screens/booking/active_ride_screen.dart';
 
 class BookingsScreen extends ConsumerStatefulWidget {
-  const BookingsScreen({super.key});
+  final String? filterVehicleType; // e.g., 'cab' or 'truck'
+  const BookingsScreen({super.key, this.filterVehicleType});
   @override
   ConsumerState<BookingsScreen> createState() => _BookingsScreenState();
 }
@@ -27,9 +28,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with SingleTick
 
   @override
   Widget build(BuildContext context) {
-    final pending = ref.watch(pendingBookingsProvider);
-    final active = ref.watch(activeBookingsProvider);
-    final history = ref.watch(historyBookingsProvider);
+    var pending = ref.watch(pendingBookingsProvider);
+    var active = ref.watch(activeBookingsProvider);
+    var history = ref.watch(historyBookingsProvider);
+
+    if (widget.filterVehicleType != null) {
+      pending = pending.where((b) => b.vehicleType == widget.filterVehicleType).toList();
+      active = active.where((b) => b.vehicleType == widget.filterVehicleType).toList();
+      history = history.where((b) => b.vehicleType == widget.filterVehicleType).toList();
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
@@ -53,9 +60,21 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with SingleTick
       body: TabBarView(
         controller: _tabs,
         children: [
-          _buildPendingList(pending),
-          _buildActiveList(active),
-          _buildHistoryList(history),
+          RefreshIndicator(
+            onRefresh: () => ref.read(bookingProvider.notifier).fetchBookings(),
+            color: AppTheme.neonGreen,
+            child: _buildPendingList(pending),
+          ),
+          RefreshIndicator(
+            onRefresh: () => ref.read(bookingProvider.notifier).fetchBookings(),
+            color: AppTheme.neonGreen,
+            child: _buildActiveList(active),
+          ),
+          RefreshIndicator(
+            onRefresh: () => ref.read(bookingProvider.notifier).fetchBookings(),
+            color: AppTheme.neonGreen,
+            child: _buildHistoryList(history),
+          ),
         ],
       ),
     );
@@ -89,14 +108,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with SingleTick
   }
 
   Widget _buildEmpty(String msg, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 56, color: AppTheme.darkDivider),
-          const SizedBox(height: 12),
-          Text(msg, style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 15)),
-        ],
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 56, color: AppTheme.darkDivider),
+                const SizedBox(height: 12),
+                Text(msg, style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 15)),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -160,55 +160,57 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       _newRideSub?.cancel();
       _newRideSub = socketService.newRideStream.listen((data) {
         print("Driver App Received New Ride Request: $data");
-        // Only show if driver is Online/Available
+        
+        // Map socket data to BookingModel
+        String vType = 'cab';
+        final mode = data['rideMode']?.toString().toLowerCase();
+        if (['pickup', 'mini_truck', 'container', 'flatbed', 'ace', 'pickup8ft', '3wheeler'].contains(mode)) {
+          vType = 'truck';
+        } else if (['mini_bus', 'standard', 'luxury', 'sleeper'].contains(mode)) {
+          vType = 'bus';
+        }
+
+        double parseDouble(dynamic val) {
+          if (val == null) return 0.0;
+          if (val is num) return val.toDouble();
+          if (val is String) return double.tryParse(val) ?? 0.0;
+          return 0.0;
+        }
+        double? parseOptionalDouble(dynamic val) {
+          if (val == null) return null;
+          if (val is num) return val.toDouble();
+          if (val is String) return double.tryParse(val);
+          return null;
+        }
+
+        final newBooking = BookingModel(
+          id: data['id']?.toString() ?? '',
+          userName: data['userName'] ?? 'Customer',
+          userPhone: data['phone'] ?? '',
+          pickupAddress: data['pick'] ?? '',
+          dropAddress: data['drop'] ?? '',
+          fare: parseDouble(data['fare']),
+          distanceKm: double.tryParse(data['distance']?.toString().replaceAll(' km', '') ?? '0') ?? 0.0,
+          etaMinutes: 2, 
+          vehicleType: vType,
+          subType: data['rideMode']?.toString().toUpperCase() ?? 'ECONOMY',
+          status: data['status'] ?? 'pending',
+          createdAt: DateTime.now(),
+          otp: data['otp']?.toString(),
+          pickupLat: parseOptionalDouble(data['pickupLat']),
+          pickupLng: parseOptionalDouble(data['pickupLng']),
+          dropLat: parseOptionalDouble(data['dropLat']),
+          dropLng: parseOptionalDouble(data['dropLng']),
+          userId: data['userId']?.toString(),
+        );
+
+        // Always add to booking provider so the Cabs/Logistics tabs stay updated
+        ref.read(bookingProvider.notifier).addBooking(newBooking);
+
+        // Only show the Request Overlay if driver is Online/Available
         if (ref.read(driverStatusProvider) == DriverStatus.available) {
            ref.read(currentRideRequestProvider.notifier).setRide(data);
            ref.read(showRequestProvider.notifier).show();
-           
-           // Map socket data to BookingModel
-           String vType = 'cab';
-           final mode = data['rideMode']?.toString().toLowerCase();
-           if (['pickup', 'mini_truck', 'container', 'flatbed'].contains(mode)) {
-             vType = 'truck';
-           } else if (['mini_bus', 'standard', 'luxury', 'sleeper'].contains(mode)) {
-             vType = 'bus';
-           }
-
-           double parseDouble(dynamic val) {
-             if (val == null) return 0.0;
-             if (val is num) return val.toDouble();
-             if (val is String) return double.tryParse(val) ?? 0.0;
-             return 0.0;
-           }
-           double? parseOptionalDouble(dynamic val) {
-             if (val == null) return null;
-             if (val is num) return val.toDouble();
-             if (val is String) return double.tryParse(val);
-             return null;
-           }
-
-           final newBooking = BookingModel(
-             id: data['id']?.toString() ?? '',
-             userName: data['userName'] ?? 'Customer',
-             userPhone: data['phone'] ?? '',
-             pickupAddress: data['pick'] ?? '',
-             dropAddress: data['drop'] ?? '',
-             fare: parseDouble(data['fare']),
-             distanceKm: double.tryParse(data['distance']?.toString().replaceAll(' km', '') ?? '0') ?? 0.0,
-             etaMinutes: 2, 
-             vehicleType: vType,
-             subType: data['rideMode']?.toString().toUpperCase() ?? 'ECONOMY',
-             status: data['status'] ?? 'pending',
-             createdAt: DateTime.now(),
-             otp: data['otp']?.toString(),
-             pickupLat: parseOptionalDouble(data['pickupLat']),
-             pickupLng: parseOptionalDouble(data['pickupLng']),
-             dropLat: parseOptionalDouble(data['dropLat']),
-             dropLng: parseOptionalDouble(data['dropLng']),
-             userId: data['userId']?.toString(),
-           );
-
-           ref.read(bookingProvider.notifier).addBooking(newBooking);
         }
       });
 

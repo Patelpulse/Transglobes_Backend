@@ -44,7 +44,8 @@ class MainShell extends ConsumerWidget {
 
         final screens = [
           const DriverHomeScreen(),
-          const BookingsScreen(),
+          const BookingsScreen(filterVehicleType: 'cab'),
+          const BookingsScreen(filterVehicleType: 'truck'),
           const EarningsScreen(),
           ChatScreen(
             receiverId: '69a2de748ab6043cb46fb7e2', // Admin ID
@@ -59,7 +60,8 @@ class MainShell extends ConsumerWidget {
           appBar: AppBar(
             backgroundColor: AppTheme.darkSurface,
             elevation: 0,
-            title: Text(currentTab == 0 ? 'Home' : (currentTab == 1 ? 'Bookings' : (currentTab == 2 ? 'Earnings' : (currentTab == 3 ? 'Chat' : 'Profile')))),
+            title: Text(_getTitle(currentTab)),
+            centerTitle: true,
             actions: [
               IconButton(
                 icon: Badge(
@@ -143,15 +145,28 @@ class MainShell extends ConsumerWidget {
           child: Row(
             children: [
               _NavItem(icon: Icons.map_outlined, activeIcon: Icons.map, label: 'Home', index: 0, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
-              _NavItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long, label: 'Bookings', index: 1, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
-              _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, label: 'Earnings', index: 2, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
-              _NavItem(icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble, label: 'Chat', index: 3, currentIndex: currentTab, badge: unread, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
-              _NavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile', index: 4, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
+              _NavItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long, label: 'Cabs', index: 1, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
+              _NavItem(icon: Icons.local_shipping_outlined, activeIcon: Icons.local_shipping, label: 'Logistics', index: 2, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
+              _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, label: 'Earnings', index: 3, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
+              _NavItem(icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble, label: 'Chat', index: 4, currentIndex: currentTab, badge: unread, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
+              _NavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile', index: 5, currentIndex: currentTab, onTap: (i) => ref.read(_currentTabProvider.notifier).set(i)),
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _getTitle(int index) {
+    switch (index) {
+      case 0: return 'Home';
+      case 1: return 'Cabs';
+      case 2: return 'Logistics';
+      case 3: return 'Earnings';
+      case 4: return 'Chat';
+      case 5: return 'Profile';
+      default: return 'RideShare';
+    }
   }
 
   Widget _buildWalletFab(BuildContext context) {

@@ -67,7 +67,10 @@ class DriverApp extends ConsumerWidget {
                       child: CircularProgressIndicator(color: AppTheme.neonGreen),
                     ),
                   ),
-                  error: (err, stack) => AuthScreen(),
+                  error: (err, stack) {
+                    print('[MAIN-DEBUG] Onboarding check failed, proceeding to registration: $err');
+                    return const OnboardingScreen();
+                  },
                 );
           }
           return AuthScreen();

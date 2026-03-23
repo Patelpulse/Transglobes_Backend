@@ -31,11 +31,13 @@ class LogisticsBookingRepository {
     }
   }
 
-  Future<void> updateBookingStatus(String id, String status) async {
+  Future<bool> assignDriver(String bookingId, String driverId) async {
     try {
-      await _dio.patch('/api/logistics-bookings/$id/status', data: {'status': status});
+      final response = await _dio.post('logistics-bookings/$bookingId/assign', data: {'driverId': driverId});
+      return response.statusCode == 200;
     } catch (e) {
-      print('Error updating booking status: $e');
+      print('Error assigning driver: $e');
+      return false;
     }
   }
 }
