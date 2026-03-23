@@ -2,13 +2,15 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter/foundation.dart';
+
 final dioProvider = Provider<Dio>((ref) {
-  // Point to the root API directory for consistency across all repositories
-  const String localUrl = 'http://127.0.0.1:8080/api/';
+  // Synchronized with Backend and other Apps
+  const String localUrl = 'http://localhost:8000/api/';
   const String prodUrl = 'https://transglobesbackend-production.up.railway.app/api/';
   
   final dio = Dio(BaseOptions(
-    baseUrl: localUrl, 
+    baseUrl: kDebugMode ? localUrl : prodUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

@@ -4,15 +4,15 @@ Use --no-wasm-dry-run to disable these warnings.
 Target dart2js failed: ProcessException: Process exited abnormally with exit code 1:
 lib/core/network/socket_service.dart:29:7:
 Error: Expected ';' after this.
-      "http://localhost:8000",
+      "http://localhost:8080",
       ^^^^^^^^^^^^^^^^^^^^^^^
 lib/core/network/socket_service.dart:29:30:
 Error: Expected an identifier, but got ','.
-      "http://localhost:8000",
+      "http://localhost:8080",
                              ^
 lib/core/network/socket_service.dart:29:30:
 Error: Unexpected token ';'.
-      "http://localhost:8000",
+      "http://localhost:8080",
                              ^
 lib/core/network/socket_service.dart:33:18:
 Error: Expected ';' after this.

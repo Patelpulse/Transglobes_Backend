@@ -1,5 +1,6 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 final socketServiceProvider = Provider<SocketService>((ref) {
@@ -25,8 +26,12 @@ class SocketService {
       return;
     }
 
+    const String prodUrl = "https://transglobesbackend-production.up.railway.app";
+    const String localUrl = "http://localhost:8000";
+    final String baseUrl = kDebugMode ? localUrl : prodUrl;
+
     _socket = IO.io(
-      "https://transglobesbackend-production.up.railway.app",
+      baseUrl,
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
