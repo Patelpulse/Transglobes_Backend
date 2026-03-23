@@ -12,7 +12,7 @@ import '../../widgets/delay_reason_sheet.dart';
 import '../navigation/navigation_screen.dart';
 import 'active_ride_screen.dart';
 
-class BookingDetailScreen extends ConsumerWidget {
+class BookingDetailScreen extends ConsumerStatefulWidget {
   final String bookingId;
 
   const BookingDetailScreen({
@@ -21,18 +21,33 @@ class BookingDetailScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookingDetailScreen> createState() => _BookingDetailScreenState();
+}
+
+class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
+  BookingModel? _cachedBooking;
+
+  @override
+  Widget build(BuildContext context) {
     final pending = ref.watch(pendingBookingsProvider);
     final active = ref.watch(activeBookingsProvider);
     final history = ref.watch(historyBookingsProvider);
     final allBookings = [...pending, ...active, ...history];
 
     final booking = allBookings.cast<BookingModel?>().firstWhere(
-      (b) => b?.id == bookingId,
+      (b) => b?.id == widget.bookingId,
       orElse: () => null,
     );
 
-    if (booking == null) {
+    // Update cache if we found a match
+    if (booking != null) {
+      _cachedBooking = booking;
+    }
+
+    // Use cached data if available, even if currently missing from provider
+    final displayBooking = booking ?? _cachedBooking;
+
+    if (displayBooking == null) {
       return Scaffold(
         backgroundColor: AppTheme.darkBg,
         appBar: AppBar(
@@ -84,17 +99,17 @@ class BookingDetailScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildStatusHeader(booking),
+            _buildStatusHeader(displayBooking),
             const SizedBox(height: 24),
-            _buildPassengerCard(context, ref, booking),
+            _buildPassengerCard(context, ref, displayBooking),
             const SizedBox(height: 24),
-            _buildRouteCard(booking),
+            _buildRouteCard(displayBooking),
             const SizedBox(height: 24),
-            _buildFareBreakdown(booking),
+            _buildFareBreakdown(displayBooking),
             const SizedBox(height: 40),
             
-            if (booking.status != 'completed' && booking.status != 'cancelled')
-              _buildActionButtons(context, ref, booking),
+            if (displayBooking.status != 'completed' && displayBooking.status != 'cancelled')
+              _buildActionButtons(context, ref, displayBooking),
           ],
         ),
       ),
