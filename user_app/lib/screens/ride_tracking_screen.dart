@@ -71,6 +71,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
     
     // Initialize driver data with Fallbacks
     _driver = {
+      'id': widget.driverData?['_id'] ?? widget.driverData?['driver_id'] ?? widget.driverData?['uid'],
       'name': widget.driverData?['name']?.toString() ??'Driver',
       'rating': '4.9',
       'vehicle': (widget.driverData?['vehicle_name'] ?? widget.driverData?['vehicle_model'] ?? widget.vehicle['name'] ?? 'Car').toString(),
@@ -121,6 +122,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
               _rideStatus = _mapStatusLabel(_rawStatus);
               if (data['driver'] != null) {
                 final d = data['driver'];
+                _driver['id'] = d['driver_id'] ?? d['_id'] ?? d['uid'] ?? _driver['id'];
                 _driver['name'] = d['name']?.toString() ?? _driver['name'];
                 _driver['plate'] = (d['vehicle_number'] ?? d['vichle_number'] ?? d['plate'] ?? _driver['plate']).toString();
                 _driver['phone'] = d['phone']?.toString() ?? _driver['phone'];
@@ -842,8 +844,6 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -1110,7 +1110,8 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   Widget _buildChatButton() {
     return GestureDetector(
       onTap: () {
-        final driverId = widget.driverData?['uid'] ?? widget.driverData?['_id'] ?? widget.driverData?['driver_id'];
+        // Preference: Use the ID we have in _driver first, then fallback to widget data
+        final driverId = _driver['id'] ?? widget.driverData?['_id'] ?? widget.driverData?['driver_id'] ?? widget.driverData?['uid'];
         if (driverId != null) {
           Navigator.push(
             context,

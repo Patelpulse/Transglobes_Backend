@@ -53,6 +53,28 @@ exports.createBooking = async (req, res) => {
 
         await booking.save();
         
+        // --- Socket.io Notification (Real-time) ---
+        if (req.io) {
+            req.io.emit("new_ride", {
+                id: booking._id.toString(),
+                userName: booking.userName || 'Customer',
+                phone: booking.userPhone || '',
+                pick: booking.pickup?.address || 'Pickup Location',
+                drop: booking.dropoff?.address || 'Dropoff Location',
+                pickupLat: booking.pickup?.latitude,
+                pickupLng: booking.pickup?.longitude,
+                dropLat: booking.dropoff?.latitude,
+                dropLng: booking.dropoff?.longitude,
+                distance: `${booking.distanceKm} km`,
+                fare: booking.totalPrice || booking.price || 0,
+                rideMode: booking.vehicleType || 'flatbed', // Maps to truck type in Driver App
+                status: 'pending',
+                userId: booking.userId?.toString(),
+                type: 'LOGISTICS'
+            });
+            console.log(`[LOGISTICS] Socket emitted: new_ride for ${booking._id}`);
+        }
+
         // --- Push Notification To Drivers ---
         const { notifyAllDrivers } = require('../utils/notificationService');
         notifyAllDrivers({
@@ -257,6 +279,37 @@ exports.assignDriver = async (req, res) => {
         });
     } catch (error) {
         console.error('Error assigning driver:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+// ─── PATCH /api/logistics-bookings/:id/railway-station ───
+// Assign a railway station for train-based logistics (Admin)
+exports.updateRailwayStation = async (req, res) => {
+    try {
+        const { stationName } = req.body;
+        const bookingId = req.params.id;
+
+        if (!stationName) {
+            return res.status(400).json({ success: false, message: 'Station name is required.' });
+        }
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            bookingId,
+            { railwayStation: stationName },
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Railway station assigned successfully.', 
+            data: booking 
+        });
+    } catch (error) {
+        console.error('Error updating railway station:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };

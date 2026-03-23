@@ -64,11 +64,20 @@ exports.getDriverBookings = async (req, res) => {
 
         const bookings = await History.find(query).populate('userId', 'name').sort({ createdAt: -1 });
 
-        // Merge with Logistics Bookings assigned to this driver
+        // Merge with Logistics Bookings assigned to this driver or pending
         let logistics = [];
         if (currentDriver) {
             logistics = await LogisticsBooking.find({ 
-                driverId: currentDriver._id,
+                $or: [
+                    { driverId: currentDriver._id },
+                    { status: 'pending' }
+                ],
+                createdAt: { $gte: lookbackDate }
+            }).sort({ createdAt: -1 });
+        } else {
+            // For unauthenticated/unidentified but check status
+            logistics = await LogisticsBooking.find({ 
+                status: 'pending',
                 createdAt: { $gte: lookbackDate }
             }).sort({ createdAt: -1 });
         }
@@ -88,7 +97,7 @@ exports.getDriverBookings = async (req, res) => {
             distanceKm: lb.distanceKm || 0,
             status: lb.status,
             createdAt: lb.createdAt,
-            rideMode: 'truck', // This makes it show up in 'Logistics' tab in Driver App
+            rideMode: lb.vehicleType || 'truck', // This makes it show up in 'Logistics' tab in Driver App (mapped to truck type in model)
             vehicleType: lb.vehicleType || 'truck',
             type: 'LOGISTICS'
         }));

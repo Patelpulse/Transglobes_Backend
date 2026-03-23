@@ -82,6 +82,12 @@ const logisticsBookingSchema = new mongoose.Schema({
         default: 'pending',
     },
 
+    // Railway Station for Train Mode
+    railwayStation: {
+        type: String,
+        default: null,
+    },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('LogisticsBooking', logisticsBookingSchema);

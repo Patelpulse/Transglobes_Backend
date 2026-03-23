@@ -109,13 +109,23 @@ class BookingModel {
     String deriveVehicleType(String? mode) {
       if (mode == null) return 'cab';
       final m = mode.toLowerCase();
-      if (['pickup', 'mini_truck', 'container', 'flatbed', 'ace', 'pickup8ft', '3wheeler', 'truck'].contains(m)) {
+      if (['pickup', 'mini_truck', 'container', 'flatbed', 'ace', 'pickup8ft', '3wheeler', 'truck', 'train', 'flight', 'ship', 'cargo', 'logistics'].contains(m)) {
         return 'truck';
       }
       if (['mini_bus', 'standard', 'luxury', 'sleeper', 'bus'].contains(m)) {
         return 'bus';
       }
       return 'cab';
+    }
+
+    String mapStatus(String? s) {
+      if (s == null) return 'pending';
+      switch (s.toLowerCase()) {
+        case 'confirmed': return 'accepted';
+        case 'in_transit': return 'ongoing';
+        case 'delivered': return 'completed';
+        default: return s;
+      }
     }
 
     return BookingModel(
@@ -131,7 +141,7 @@ class BookingModel {
       etaMinutes: parseInt(json['etaMinutes'], 10),
       vehicleType: deriveVehicleType(json['rideMode']?.toString()),
       subType: json['rideMode']?.toString().toUpperCase() ?? 'ECONOMY',
-      status: json['status'] ?? 'pending',
+      status: mapStatus(json['status']),
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       otp: json['otp']?.toString(),
       actualFare: parseOptionalDouble(json['actualFare']),

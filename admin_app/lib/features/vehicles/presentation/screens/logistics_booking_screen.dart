@@ -232,6 +232,12 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       _buildDetailRow('Mode', booking.modeOfTravel.toUpperCase()),
                       _buildDetailRow('Distance', '${booking.distanceKm.toStringAsFixed(1)} KM'),
                       _buildDetailRow('Helper Count', booking.helperCount.toString()),
+                      _buildDetailRow(
+                        booking.modeOfTravel.toLowerCase() == 'train' ? 'Railway Station' : 'Transit Point', 
+                        booking.railwayStation ?? 'Not Assigned', 
+                        color: booking.railwayStation != null ? AppTheme.primaryColor : Colors.white24, 
+                        isBold: booking.railwayStation != null
+                      ),
                     ]),
                     const SizedBox(height: 24),
                     _buildDetailSection('ROUTE', [
@@ -288,6 +294,26 @@ class LogisticsBookingScreen extends ConsumerWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryColor,
                           foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showRailwayStationModal(context, ref, booking.id),
+                        icon: Icon(
+                          booking.modeOfTravel.toLowerCase() == 'train' ? Icons.train_outlined : Icons.location_on_outlined, 
+                          color: Colors.white
+                        ),
+                        label: Text(
+                          booking.modeOfTravel.toLowerCase() == 'train' ? 'SET RAILWAY STATION' : 'SET TRANSIT POINT', 
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.white24),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -649,6 +675,129 @@ class LogisticsBookingScreen extends ConsumerWidget {
               ),
             );
           },
+        ),
+      );
+    }
+
+    void _showRailwayStationModal(BuildContext context, WidgetRef ref, String bookingId) {
+      final TextEditingController stationController = TextEditingController();
+      final List<String> stations = [
+        "New Delhi (NDLS)",
+        "Mumbai Central (MMCT)",
+        "Howrah (HWH)",
+        "Chennai Central (MAS)",
+        "Bangalore City (SBC)",
+        "Pune Junction (PUNE)",
+        "Ahmedabad Junction (ADI)",
+        "Jaipur Junction (JP)",
+        "Lucknow Charbagh (LKO)",
+        "Hyderabad Deccan (HYB)",
+        "Chandigarh Junction (CDG)",
+        "Kanpur Central (CNB)",
+        "Patna Junction (PNBE)",
+      ];
+
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppTheme.backgroundColorDark,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.8,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Transit / Station', 
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Assign a nearby station or transit point:', 
+                    style: TextStyle(color: Colors.white60, fontSize: 13)),
+                  const SizedBox(height: 24),
+                  
+                  // Text Entry Field
+                  TextField(
+                    controller: stationController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Enter custom station name...',
+                      hintStyle: const TextStyle(color: Colors.white24),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.check_circle, color: AppTheme.primaryColor),
+                        onPressed: () async {
+                          if (stationController.text.trim().isEmpty) return;
+                          final success = await ref.read(logisticsBookingRepoProvider).updateRailwayStation(bookingId, stationController.text.trim());
+                          if (success) {
+                            ref.invalidate(logisticsBookingsProvider);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Assigned ${stationController.text.trim()}'), backgroundColor: AppTheme.success),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  const Text('OR SELECT FROM MAJOR STATIONS', 
+                    style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  const SizedBox(height: 12),
+                  
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: stations.length,
+                      itemBuilder: (context, index) {
+                        final station = stations[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            onTap: () async {
+                              final success = await ref.read(logisticsBookingRepoProvider).updateRailwayStation(bookingId, station);
+                              if (success) {
+                                ref.invalidate(logisticsBookingsProvider);
+                                if (context.mounted) {
+                                  Navigator.pop(context); // Close selection
+                                  Navigator.pop(context); // Close details modal
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Assigned $station'), backgroundColor: AppTheme.success),
+                                  );
+                                }
+                              }
+                            },
+                            tileColor: Colors.white.withOpacity(0.05),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            leading: const Icon(Icons.train, color: Colors.white70),
+                            title: Text(station, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                            trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white24),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
         ),
       );
     }

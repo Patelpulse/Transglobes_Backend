@@ -7,7 +7,13 @@ const {
     getBookingById,
     updateStatus,
     assignDriver,
+    updateRailwayStation,
 } = require('../controllers/logisticsBookingController');
+
+// ... (other routes)
+
+// PATCH  /api/logistics-bookings/:id/railway-station → update railway station
+router.patch('/:id/railway-station', updateRailwayStation);
 
 // POST   /api/logistics-bookings          → create a new booking
 router.post('/', createBooking);

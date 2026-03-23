@@ -40,4 +40,14 @@ class LogisticsBookingRepository {
       return false;
     }
   }
+
+  Future<bool> updateRailwayStation(String bookingId, String stationName) async {
+    try {
+      final response = await _dio.patch('logistics-bookings/$bookingId/railway-station', data: {'stationName': stationName});
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating railway station: $e');
+      return false;
+    }
+  }
 }

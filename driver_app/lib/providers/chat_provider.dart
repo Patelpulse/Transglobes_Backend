@@ -100,8 +100,12 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
 
     _messageSubscription?.cancel();
     _messageSubscription = socketService.messageStream.listen((data) {
+      print("[CHAT-DEBUG] [DRIVER] Received message: $data");
+      print("[CHAT-DEBUG] [DRIVER] Checking match: receiverId=$receiverId, driverId=$driverId");
+      
       if ((data['senderId'] == receiverId && data['receiverId'] == driverId) ||
           (data['senderId'] == driverId && data['receiverId'] == receiverId)) {
+        print("[CHAT-DEBUG] [DRIVER] Message MATCHED context. Adding to state.");
         final newMsg = ChatMessage.fromMap(data, driverId);
         
         // Find if we have an optimistic version of this message
@@ -118,6 +122,8 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
         } else {
           state = [...state, newMsg];
         }
+      } else {
+        print("[CHAT-DEBUG] [DRIVER] Message did NOT match context.");
       }
     });
 

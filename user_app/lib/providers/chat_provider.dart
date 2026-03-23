@@ -88,8 +88,12 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
 
     _messageSubscription?.cancel();
     _messageSubscription = socketService.messageStream.listen((data) {
+      print("[CHAT-DEBUG] [USER] Received message: $data");
+      print("[CHAT-DEBUG] [USER] Checking match: receiverId=$receiverId, userId=$userId");
+      
       if ((data['senderId'] == receiverId && data['receiverId'] == userId) ||
           (data['senderId'] == userId && data['receiverId'] == receiverId)) {
+        print("[CHAT-DEBUG] [USER] Message MATCHED context. Adding to state.");
         final newMsg = ChatMessage.fromMap(data, userId);
         
         final index = state.indexWhere((m) => m.id == newMsg.id || (m.id.startsWith('temp-') && m.text == newMsg.text));
@@ -101,6 +105,8 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
         } else {
           state = [...state, newMsg];
         }
+      } else {
+        print("[CHAT-DEBUG] [USER] Message did NOT match context.");
       }
     });
 
