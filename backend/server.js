@@ -10,6 +10,15 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
+// DIAGNOSTIC LOGGING - EVERY REQUEST MUST SHOW UP
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.warn(`\n[${timestamp}] >>> INCOMING REQUEST: ${req.method} ${req.originalUrl || req.url}`);
+    console.warn(`[${timestamp}] Origin: ${req.headers.origin} | Host: ${req.headers.host}`);
+    console.warn(`[${timestamp}] Headers: ${JSON.stringify(req.headers)}\n`);
+    next();
+});
+
 // Robust Manual CORS Middleware
 app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -84,6 +93,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 8080;
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
     console.log(`>>> Server is active and listening on port ${PORT}`);
 });

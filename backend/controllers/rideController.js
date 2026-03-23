@@ -1,6 +1,7 @@
 const RideType = require("../models/RideType");
 const History = require("../models/History");
 const User = require("../models/User"); // used for populating name
+const LogisticsBooking = require("../models/LogisticsBooking"); // Add this
 const { notifyAllDrivers } = require('../utils/notificationService');
 
 const Review = require("../models/Review");
@@ -53,9 +54,43 @@ exports.getDriverBookings = async (req, res) => {
 
         const bookings = await History.find(query).populate('userId', 'name').sort({ createdAt: -1 });
 
+        // Merge with Logistics Bookings assigned to this driver
+        let logistics = [];
+        if (currentDriver) {
+            logistics = await LogisticsBooking.find({ 
+                driverId: currentDriver._id,
+                createdAt: { $gte: oneDayAgo }
+            }).sort({ createdAt: -1 });
+        }
+
+        // Map logistics to a format the Driver App expects (BookingModel)
+        const mappedLogistics = logistics.map(lb => ({
+            _id: lb._id,
+            userName: lb.userName || 'Customer',
+            userPhone: lb.userPhone || '',
+            pickupAddress: lb.pickup?.address || 'Pickup Location',
+            dropAddress: lb.dropoff?.address || 'Dropoff Location',
+            pickupLat: lb.pickup?.lat,
+            pickupLng: lb.pickup?.lng,
+            dropLat: lb.dropoff?.lat,
+            dropLng: lb.dropoff?.lng,
+            fare: lb.totalPrice || lb.vehiclePrice || 0,
+            distanceKm: lb.distanceKm || 0,
+            status: lb.status,
+            createdAt: lb.createdAt,
+            rideMode: 'truck', // This makes it show up in 'Logistics' tab in Driver App
+            vehicleType: lb.vehicleType || 'truck',
+            type: 'LOGISTICS'
+        }));
+
+        // Combine and sort
+        const allBookings = [...bookings, ...mappedLogistics].sort((a, b) => 
+            new Date(b.createdAt) - new Date(a.createdAt)
+        );
+
         res.json({
             success: true,
-            bookings: bookings.map(b => {
+            bookings: allBookings.map(b => {
                 let displayStatus = b.status;
                 // If I rejected it, show as 'rejected' for my personal history list
                 if (currentDriver && b.rejectedBy && b.rejectedBy.includes(currentDriver._id)) {
@@ -373,8 +408,24 @@ exports.rejectRide = async (req, res) => {
     try {
         const { rideId } = req.params;
         const { driverId } = req.body;
-        const ride = await History.findById(rideId);
+
+        let ride = await History.findById(rideId);
+        let isLogistics = false;
+
+        if (!ride) {
+            ride = await LogisticsBooking.findById(rideId);
+            if (ride) isLogistics = true;
+        }
+
         if (!ride) return res.status(404).json({ message: 'Ride not found' });
+
+        if (isLogistics) {
+            // Rejection for logistics clears the manual assignment so admin can search again
+            ride.driverId = null;
+            ride.status = 'pending';
+            await ride.save();
+            return res.json({ success: true, message: 'Logistics booking rejected and reset to pending' });
+        }
 
         ride.driverActionAt = new Date();
 
@@ -391,6 +442,11 @@ exports.rejectRide = async (req, res) => {
                 if (!ride.rejectedBy) ride.rejectedBy = [];
                 if (!ride.rejectedBy.includes(driver._id)) {
                     ride.rejectedBy.push(driver._id);
+                    // If assigned to me, clear assignment
+                    if (ride.driverId && ride.driverId.toString() === driver._id.toString()) {
+                        ride.driverId = null;
+                        ride.status = 'pending';
+                    }
                 }
             }
         }
@@ -409,9 +465,31 @@ exports.updateRideStatus = async (req, res) => {
     try {
         const { rideId } = req.params;
         const { status, delayReason, actualFare, driverId } = req.body;
-        const ride = await History.findById(rideId);
-        if (!ride) return res.status(404).json({ message: 'Ride not found' });
-        if (status) ride.status = status;
+        
+        // Try finding in standard rides
+        let ride = await History.findById(rideId);
+        let isLogistics = false;
+
+        // Try finding in logistics if not found in standard rides
+        if (!ride) {
+            ride = await LogisticsBooking.findById(rideId);
+            if (ride) isLogistics = true;
+        }
+
+        if (!ride) return res.status(404).json({ message: 'Ride or Booking not found' });
+        
+        // For logistics, 'accepted' maps to 'confirmed' status
+        if (status) {
+            if (isLogistics && status === 'accepted') {
+                ride.status = 'confirmed';
+            } else if (isLogistics && status === 'ongoing') {
+                ride.status = 'in_transit';
+            } else if (isLogistics && status === 'completed') {
+                ride.status = 'delivered';
+            } else {
+                ride.status = status;
+            }
+        }
         if (delayReason) ride.delayReason = delayReason;
         if (actualFare != null) ride.actualFare = actualFare;
 

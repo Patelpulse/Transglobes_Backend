@@ -15,14 +15,23 @@ const syncDriverData = async (req, res) => {
             return res.status(400).json({ message: 'UID is required' });
         }
 
-        // Try to find by UID first
-        let driver = await Driver.findOne({ uid });
+        // Try to find by UID or MongoDB _id
+        const safeUid = typeof uid === 'string' ? uid.trim() : uid;
+        const safeEmail = typeof email === 'string' ? email.toLowerCase().trim() : email;
 
-        // If not found by UID, try to find by Email or Mobile (to link social logins to existing records)
-        if (!driver && email) {
-            driver = await Driver.findOne({ email });
+        let driver = await Driver.findOne({
+            $or: [
+                { uid: safeUid },
+                { _id: (typeof safeUid === 'string' && safeUid.length === 24) ? safeUid : undefined }
+            ].filter(c => c.uid || c._id)
+        });
+
+        // If not found, try to find by Email (case-insensitive)
+        if (!driver && safeEmail) {
+            driver = await Driver.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } });
             if (driver) {
-                driver.uid = uid; // Link UID to existing record
+                driver.uid = safeUid; // Link UID to existing record
+                console.log(`[SYNC] Linked UID ${safeUid} to existing driver with email ${safeEmail}`);
             }
         }
 
@@ -39,7 +48,7 @@ const syncDriverData = async (req, res) => {
             driver = new Driver({
                 uid,
                 name,
-                email,
+                email: email.toLowerCase().trim(),
                 mobileNumber: mobileNumber || undefined,
                 status: 'pending',
                 isEmailVerified: true // Automatically verify since UI step is removed
@@ -53,7 +62,7 @@ const syncDriverData = async (req, res) => {
             }
             driver.name = name;
         }
-        if (email) driver.email = email;
+        if (email) driver.email = email.toLowerCase().trim();
         if (mobileNumber) {
             if (!/^[6-9][0-9]{9}$/.test(mobileNumber)) {
                 return res.status(400).json({ message: 'Enter valid 10-digit mobile number starting with 6-9' });
@@ -119,6 +128,7 @@ const syncDriverData = async (req, res) => {
         res.status(200).json({
             message: 'Driver synced successfully',
             driver,
+            isRegistered: true,
             hasDocs: isComplete
         });
     } catch (error) {
@@ -133,32 +143,63 @@ const syncDriverData = async (req, res) => {
 
 const getDriverStatus = async (req, res) => {
     try {
-        const driver = await Driver.findOne({ uid: req.user.uid });
+        const uid = req.user.uid;
+        const email = req.user.email;
+        
+        console.log(`[STATUS] Checking status for UID: ${uid}, Email: ${email}`);
+        // Ensure we have a valid mapping
+        const safeUid = typeof uid === 'string' ? uid.trim() : uid;
+        const safeEmail = typeof email === 'string' ? email.toLowerCase().trim() : email;
+
+        // Try UID or MongoDB _id
+        let driver = await Driver.findOne({
+            $or: [
+                { uid: safeUid },
+                { _id: (typeof safeUid === 'string' && safeUid.length === 24) ? safeUid : undefined }
+            ].filter(c => c.uid || c._id)
+        });
+
+        // Fallback to email if not found (case-insensitive)
+        if (!driver && safeEmail) {
+            console.log(`[STATUS] UID not found, trying email fallback: ${safeEmail}`);
+            driver = await Driver.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } });
+            
+            // If found by email, sync the UID for future lookups
+            if (driver && !driver.uid && safeUid) {
+                driver.uid = safeUid;
+                await driver.save();
+                console.log(`[STATUS] Synced UID ${safeUid} for driver ${safeEmail}`);
+            }
+        }
+
         if (!driver) {
-            return res.status(200).json({ isRegistered: false });
+            return res.status(200).json({ isRegistered: false, hasDocs: false });
         }
 
         // If driver exists and has required documents/info, consider them registered
-        const isRegistered = driver.status === 'active' || driver.status === 'pending';
-        // You might want more complex logic here, e.g., checking if all docs are uploaded
-        // A driver is considered "fully registered" if they have all required fields and documents
+        // Consider "Registered" if they exist and are not suspended
+        const isRegistered = driver.status !== 'suspended';
+        
+        // A driver is considered "fully onboarded" (hasDocs: true) if they have essential fields
         const hasDocs = !!(
             driver.photo &&
             driver.aadharCard &&
             driver.drivingLicense &&
-            driver.signature &&
             driver.aadharCardNumber &&
             driver.drivingLicenseNumber &&
             driver.panCardNumber &&
             driver.vehicleNumberPlate &&
-            driver.vehicleModel &&
-            driver.isEmailVerified
+            driver.vehicleModel
         );
+
+        // EXTRA CHECK for users like Gaurav: if they have ANY identifying info, mark as registered
+        // so they don't get forced back to registration flow.
+        const isPartiallyOnboarded = !!(driver.name && driver.email && (driver.mobileNumber || driver.uid));
 
         res.status(200).json({
             isRegistered: true,
             status: driver.status,
-            hasDocs: !!hasDocs,
+            hasDocs: hasDocs || isPartiallyOnboarded,
             driver
         });
     } catch (error) {
@@ -221,7 +262,12 @@ const uploadDocuments = async (req, res) => {
             });
         }
 
-        const driver = await Driver.findOne({ uid });
+        const driver = await Driver.findOne({
+            $or: [
+                { uid: uid },
+                { _id: (typeof uid === 'string' && uid.length === 24) ? uid : undefined }
+            ].filter(c => c.uid || c._id)
+        });
         if (!driver) {
             return res.status(404).json({ message: 'Driver not found' });
         }
@@ -454,8 +500,9 @@ const register = async (req, res) => {
             return res.status(400).json({ message: "Password is required" });
         }
 
-        // check if email already exists
-        const existingDriver = await Driver.findOne({ email });
+        // check if email already exists (case-insensitive)
+        const emailToSearch = (email || '').toLowerCase().trim();
+        const existingDriver = await Driver.findOne({ email: { $regex: new RegExp(`^${emailToSearch}$`, 'i') } });
 
         if (existingDriver) {
             return res.status(400).json({
@@ -465,7 +512,7 @@ const register = async (req, res) => {
 
         const driver = new Driver({
             name,
-            email,
+            email: email.toLowerCase().trim(),
             password,
             isEmailVerified: true, // Default to true as per request to skip verification
             aadharCardNumber: aadharCard,
@@ -537,7 +584,8 @@ const checkEmailAvailability = async (req, res) => {
     try {
         const { email } = req.query;
         if (!email) return res.status(400).json({ message: 'Email is required' });
-        const driver = await Driver.findOne({ email: email.toLowerCase() });
+        const emailToSearch = (email || '').toLowerCase().trim();
+        const driver = await Driver.findOne({ email: { $regex: new RegExp(`^${emailToSearch}$`, 'i') } });
         res.status(200).json({ exists: !!driver });
     } catch (error) {
         res.status(500).json({ message: error.message });

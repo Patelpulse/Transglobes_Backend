@@ -196,3 +196,67 @@ exports.updateStatus = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
+
+// ─── POST /api/logistics-bookings/:id/assign ──────────
+// Assign a driver to a logistics booking and notify them
+exports.assignDriver = async (req, res) => {
+    try {
+        const { driverId } = req.body;
+        const bookingId = req.params.id;
+
+        if (!driverId) {
+            return res.status(400).json({ success: false, message: 'Driver ID is required.' });
+        }
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            bookingId,
+            { 
+                driverId
+            },
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        // Notify driver via Socket.io
+        if (req.io) {
+            console.log(`[LOGISTICS] Notifying driver ${driverId} about assigned booking ${bookingId}`);
+            
+            // The Driver App is listening for "new_ride"
+            req.io.emit("new_ride", {
+                id: booking._id.toString(),
+                userName: booking.userName || 'Customer',
+                phone: booking.userPhone || '',
+                pick: booking.pickup?.address || 'Pickup Location',
+                drop: booking.dropoff?.address || 'Dropoff Location',
+                pickupLat: booking.pickup?.latitude,
+                pickupLng: booking.pickup?.longitude,
+                dropLat: booking.dropoff?.latitude,
+                dropLng: booking.dropoff?.longitude,
+                distance: `${booking.distanceKm} km`,
+                fare: booking.totalPrice || booking.price || 0,
+                rideMode: booking.vehicleType || 'flatbed', // Maps to truck type in Driver App
+                status: 'assigned',
+                userId: booking.userId?.toString(),
+                type: 'LOGISTICS'
+            });
+
+            // Also notify specifically in driver's room
+            req.io.to(driverId.toString()).emit("ride_assigned", { 
+                bookingId: booking._id.toString(),
+                message: "You have been assigned a new logistics shipment."
+            });
+        }
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Driver assigned and notified successfully.', 
+            data: booking 
+        });
+    } catch (error) {
+        console.error('Error assigning driver:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
