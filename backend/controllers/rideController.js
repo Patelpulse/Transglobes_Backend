@@ -36,8 +36,12 @@ exports.getDriverBookings = async (req, res) => {
             console.log(`[BOOKINGS-DEBUG] Searching for driver with identifier: ${identifier}`);
             if (mongoose.Types.ObjectId.isValid(identifier)) {
                 currentDriver = await Driver.findById(identifier);
-            } else {
+            }
+            if (!currentDriver) {
                 currentDriver = await Driver.findOne({ uid: identifier });
+            }
+            if (!currentDriver) {
+                currentDriver = await Driver.findOne({ firebaseId: identifier });
             }
             console.log(`[BOOKINGS-DEBUG] Driver found: ${currentDriver ? currentDriver.name : 'NONE'}`);
         }
@@ -361,8 +365,12 @@ exports.assignRide = async (req, res) => {
             let driver;
             if (mongoose.Types.ObjectId.isValid(driverId)) {
                 driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
-            } else {
+            }
+            if (!driver) {
                 driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
+            }
+            if (!driver) {
+                driver = await Driver.findOne({ firebaseId: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
             }
             if (driver) {
                 ride.driverId = driver._id;
@@ -442,8 +450,12 @@ exports.rejectRide = async (req, res) => {
             let driver;
             if (mongoose.Types.ObjectId.isValid(driverId)) {
                 driver = await Driver.findById(driverId).select('_id');
-            } else {
+            }
+            if (!driver) {
                 driver = await Driver.findOne({ uid: driverId }).select('_id');
+            }
+            if (!driver) {
+                driver = await Driver.findOne({ firebaseId: driverId }).select('_id');
             }
             if (driver) {
                 if (!ride.rejectedBy) ride.rejectedBy = [];
@@ -508,8 +520,12 @@ exports.updateRideStatus = async (req, res) => {
             let driver;
             if (mongoose.Types.ObjectId.isValid(driverId)) {
                 driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
-            } else {
+            }
+            if (!driver) {
                 driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
+            }
+            if (!driver) {
+                driver = await Driver.findOne({ firebaseId: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
             }
             if (driver) {
                 ride.driverId = driver._id;              // ensure link
