@@ -69,17 +69,17 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   void initState() {
     super.initState();
     
-    // Initialize driver data
+    // Initialize driver data with Fallbacks
     _driver = {
-      'name': widget.driverData?['name']?.toString() ?? 'Driver',
+      'name': widget.driverData?['name']?.toString() ??'Driver',
       'rating': '4.9',
-      'vehicle': widget.driverData?['vehicle_name']?.toString() ?? widget.vehicle['name']?.toString() ?? 'Car',
-      'plate': (widget.driverData?['vehicle_number'] ?? widget.driverData?['vichle_number'] ?? 'N/A').toString(),
+      'vehicle': (widget.driverData?['vehicle_name'] ?? widget.driverData?['vehicle_model'] ?? widget.vehicle['name'] ?? 'Car').toString(),
+      'plate': (widget.driverData?['vehicle_number'] ?? widget.driverData?['vichle_number'] ?? widget.driverData?['plate'] ?? 'N/A').toString(),
       'phone': widget.driverData?['phone']?.toString() ?? '',
       'otp': widget.otp ?? '----',
       'image': widget.driverData?['photo'] != null && widget.driverData!['photo'].toString().isNotEmpty
           ? widget.driverData!['photo'].toString()
-          : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png', // Premium avatar
+          : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
     };
 
     _currentFare = _parseDouble(widget.vehicle['price']);
@@ -120,12 +120,13 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
               _rawStatus = newStatus.toLowerCase();
               _rideStatus = _mapStatusLabel(_rawStatus);
               if (data['driver'] != null) {
-                _driver['name'] = data['driver']['name']?.toString() ?? _driver['name'];
-                _driver['plate'] = (data['driver']['vehicle_number'] ?? data['driver']['vichle_number'] ?? _driver['plate']).toString();
-                _driver['phone'] = data['driver']['phone']?.toString() ?? _driver['phone'];
-                _driver['vehicle'] = data['driver']['vehicle_name']?.toString() ?? _driver['vehicle'];
-                if (data['driver']['photo'] != null && data['driver']['photo'].toString().isNotEmpty) {
-                   _driver['image'] = data['driver']['photo'].toString();
+                final d = data['driver'];
+                _driver['name'] = d['name']?.toString() ?? _driver['name'];
+                _driver['plate'] = (d['vehicle_number'] ?? d['vichle_number'] ?? d['plate'] ?? _driver['plate']).toString();
+                _driver['phone'] = d['phone']?.toString() ?? _driver['phone'];
+                _driver['vehicle'] = (d['vehicle_name'] ?? d['vehicle_model'] ?? _driver['vehicle']).toString();
+                if (d['photo'] != null && d['photo'].toString().isNotEmpty) {
+                   _driver['image'] = d['photo'].toString();
                 }
               }
               if (data['paymentStatus'] != null) {
