@@ -686,9 +686,15 @@ exports.payRide = async (req, res) => {
         await ride.save();
 
         if (req.io) {
+            // Signal to everyone in the ride room (User AND Driver)
             req.io.to(ride._id.toString()).emit("ride_status_update", {
                 rideId: ride._id.toString(),
                 paymentStatus: 'paid'
+            });
+            // Specific signal to driver to show feedback or QR
+            req.io.to(ride._id.toString()).emit("payment_requested", {
+                rideId: ride._id.toString(),
+                amount: ride.fare
             });
         }
 

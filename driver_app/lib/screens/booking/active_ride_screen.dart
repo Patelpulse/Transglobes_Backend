@@ -9,6 +9,8 @@ import '../chat/chat_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/location_service.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
 
 class ActiveRideScreen extends ConsumerStatefulWidget {
   final BookingModel booking;
@@ -393,71 +395,101 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  // OTP Section
-                  const Text(
-                    'Enter OTP to Start Ride',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Ask the customer for the 4-digit code',
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  // OTP Input
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(4, (index) {
-                      return Container(
-                        width: 56,
-                        height: 64,
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        child: TextField(
-                          controller: _otpControllers[index],
-                          focusNode: _focusNodes[index],
-                          keyboardType: TextInputType.number,
-                          textAlign: TextAlign.center,
-                          maxLength: 1,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          decoration: InputDecoration(
-                            counterText: '',
-                            hintText: '-',
-                            hintStyle: TextStyle(color: Colors.grey[700]),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey[800]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF00E676)),
-                            ),
-                            fillColor: const Color(0xFF1E212D),
-                            filled: true,
-                          ),
-                          onChanged: (value) {
-                            if (value.isNotEmpty && index < 3) {
-                              _focusNodes[index + 1].requestFocus();
-                            } else if (value.isEmpty && index > 0) {
-                              _focusNodes[index - 1].requestFocus();
-                            }
-                            if (value.isNotEmpty && index == 3) {
-                              _verifyOtp();
-                            }
-                          },
+                  
+                  // OTP Section (Only if not started)
+                  if (widget.booking.status != 'ongoing' && widget.booking.status != 'completed')
+                  Column(
+                    children: [
+                      const Text(
+                        'Enter OTP to Start Ride',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
                         ),
-                      );
-                    }),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Ask the customer for the 4-digit code',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(4, (index) {
+                          return Container(
+                            width: 56,
+                            height: 64,
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                            child: TextField(
+                              controller: _otpControllers[index],
+                              focusNode: _focusNodes[index],
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              maxLength: 1,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              decoration: InputDecoration(
+                                counterText: '',
+                                hintText: '-',
+                                hintStyle: TextStyle(color: Colors.grey[700]),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[800]!),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF00E676)),
+                                ),
+                                fillColor: const Color(0xFF1E212D),
+                                filled: true,
+                              ),
+                              onChanged: (value) {
+                                if (value.isNotEmpty && index < 3) {
+                                  _focusNodes[index + 1].requestFocus();
+                                } else if (value.isEmpty && index > 0) {
+                                  _focusNodes[index - 1].requestFocus();
+                                }
+                                if (value.isNotEmpty && index == 3) {
+                                  _verifyOtp();
+                                }
+                              },
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+
+                  // Ongoing Trip Section (Payment QR Button)
+                   if (widget.booking.status == 'ongoing')
+                   Column(
+                    children: [
+                       const Icon(Icons.check_circle, color: Color(0xFF00E676), size: 48),
+                       const SizedBox(height: 16),
+                       const Text(
+                        'Trip In Progress',
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                       ),
+                       const SizedBox(height: 24),
+                       ElevatedButton.icon(
+                         onPressed: () => _showPaymentQR(context),
+                         icon: const Icon(Icons.qr_code, color: Colors.black),
+                         label: const Text('SHOW PAYMENT QR', style: TextStyle(fontWeight: FontWeight.bold)),
+                         style: ElevatedButton.styleFrom(
+                           backgroundColor: Colors.amber,
+                           foregroundColor: Colors.black,
+                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                         ),
+                       ),
+                    ],
                   ),
                 ],
               ),
@@ -465,7 +497,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: Padding(
+      bottomNavigationBar: widget.booking.status == 'ongoing' ? null : Padding(
         padding: const EdgeInsets.all(16),
         child: SizedBox(
           width: double.infinity,
@@ -496,6 +528,61 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                     ],
                   ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showPaymentQR(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(32),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E212D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'PAYMENT QR',
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: QrImageView(
+                data: "upi://pay?pa=transglobe@upi&pn=Transglobe&am=${widget.booking.fare}&cu=INR",
+                version: QrVersions.auto,
+                size: 200.0,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Amount to Collect: ₹${widget.booking.fare}',
+              style: const TextStyle(color: Colors.amber, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Waiting for customer payment...',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey[800],
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              child: const Text('CLOSE'),
+            ),
+          ],
         ),
       ),
     );

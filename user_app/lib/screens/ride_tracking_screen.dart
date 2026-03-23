@@ -1003,12 +1003,26 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                         await ref.read(rideServiceProvider).updateRideStatus(widget.rideId, _rawStatus); 
                         // In a real app we'd call the payRide API
                         await ref.read(apiServiceProvider).put('/api/ride/rides/${widget.rideId}/pay', {});
-                        setState(() {
-                          _paymentStatus = 'paid';
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment Successful!')));
+                        if (mounted) {
+                          setState(() {
+                            _paymentStatus = 'paid';
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment Successful!')));
+                          
+                          // FeedBack/Rating logic
+                          Future.delayed(const Duration(seconds: 1), () {
+                            if (mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
+                                ),
+                              );
+                            }
+                          });
+                        }
                       } catch (e) {
-                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Failed: $e')));
+                         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Failed: $e')));
                       }
                     } else {
                       Navigator.pushReplacement(
