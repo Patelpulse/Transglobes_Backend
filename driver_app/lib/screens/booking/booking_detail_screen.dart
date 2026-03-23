@@ -35,13 +35,33 @@ class BookingDetailScreen extends ConsumerWidget {
     if (booking == null) {
       return Scaffold(
         backgroundColor: AppTheme.darkBg,
-        body: const Center(
+        appBar: AppBar(
+          backgroundColor: AppTheme.darkSurface,
+          elevation: 0,
+          title: const Text('Trip Details', style: TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w800)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppTheme.darkTextPrimary),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: AppTheme.neonGreen),
-              SizedBox(height: 16),
-              Text('Loading trip details...', style: TextStyle(color: Colors.white70)),
+              const Icon(Icons.info_outline, color: AppTheme.darkTextSecondary, size: 48),
+              const SizedBox(height: 16),
+              const Text('Trip not found or still loading...', style: TextStyle(color: Colors.white70, fontSize: 16)),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('GO BACK'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.neonGreen,
+                  foregroundColor: AppTheme.darkBg,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
             ],
           ),
         ),
