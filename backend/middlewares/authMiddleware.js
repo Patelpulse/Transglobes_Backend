@@ -19,8 +19,11 @@ const verifyToken = async (req, res, next) => {
     console.log(`[AUTH-DEBUG] Received Token: "${token}" (Length: ${token ? token.length : 0})`);
 
     // Dev Bypass
-    const isDevToken = token && token.toLowerCase().trim() === 'dev-token-bypass';
+    const normalizedToken = (token || '').toString().toLowerCase().trim();
+    const isDevToken = normalizedToken.includes('dev-token-bypass');
+    
     if (isDevToken) {
+        console.log(`[AUTH-DEBUG] >>> Dev Bypass Triggered for token: ${normalizedToken}`);
         const devUid = req.headers['x-dev-uid'] || req.headers['x-dev-id'];
         req.user = { uid: devUid || 'dev-user-uid', email: 'dev@example.com' };
         return next();

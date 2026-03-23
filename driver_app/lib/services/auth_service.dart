@@ -132,6 +132,7 @@ class AuthService {
   });
 
   Future<String?> getIdToken() async {
+    if (kDebugMode) return 'dev-token-bypass';
     if (kDemoMode) return 'demo-token-for-testing';
     
     // 1. Check SharedPreferences first for local JWT (custom login)

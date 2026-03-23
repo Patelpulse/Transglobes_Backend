@@ -147,6 +147,35 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       });
     });
 
+    // Listen to changes in the pendingBookingsProvider (POLLING results)
+    ref.listenManual(pendingBookingsProvider, (previous, next) {
+      if (next.isNotEmpty && ref.read(driverStatusProvider) == DriverStatus.available) {
+        final currentRequest = ref.read(currentRideRequestProvider);
+        if (currentRequest == null) {
+          final first = next.first;
+          print("🔍 Polling found a pending ride - showing overlay: ${first.id}");
+          ref.read(currentRideRequestProvider.notifier).setRide({
+            'id': first.id,
+            'userName': first.userName,
+            'phone': first.userPhone,
+            'pick': first.pickupAddress,
+            'drop': first.dropAddress,
+            'fare': first.fare,
+            'distance': first.distanceKm,
+            'rideMode': first.subType,
+            'status': first.status,
+            'pickupLat': first.pickupLat,
+            'pickupLng': first.pickupLng,
+            'dropLat': first.dropLat,
+            'dropLng': first.dropLng,
+            'userId': first.userId,
+            'otp': first.otp,
+          });
+          ref.read(showRequestProvider.notifier).show();
+        }
+      }
+    });
+
     // Initial connection attempt if profile is already there
     final initialProfile = ref.read(driverProfileProvider).value;
     if (initialProfile != null) {

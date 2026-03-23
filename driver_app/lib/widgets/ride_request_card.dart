@@ -314,19 +314,32 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                         ),
                         elevation: 0,
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_circle, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Accept',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: 1.1),
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeInOut,
+                        builder: (context, scale, child) {
+                          return Transform.scale(
+                            scale: scale,
+                            child: child,
+                          );
+                        },
+                        onEnd: () {}, // Not needed for simple loop, but we can do better
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.stars, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Accept Ride NOW',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
