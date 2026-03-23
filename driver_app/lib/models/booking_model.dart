@@ -106,17 +106,6 @@ class BookingModel {
       return def;
     }
 
-    return BookingModel(
-      id: json['_id'] ?? json['id'] ?? '',
-      userName: json['userName'] ?? 'Customer',
-      userPhone: json['userPhone'] ?? json['phone'] ?? '',
-      pickupAddress: json['pickupAddress'] ?? json['pick'] ?? '',
-      dropAddress: json['dropAddress'] ?? json['drop'] ?? '',
-      fare: parseDouble(json['fare']),
-      distanceKm: (json['distanceKm'] != null)
-          ? parseDouble(json['distanceKm'])
-          : parseDouble(json['distance']?.toString().replaceAll(' km', '')),
-      etaMinutes: parseInt(json['etaMinutes'], 10),
     String deriveVehicleType(String? mode) {
       if (mode == null) return 'cab';
       final m = mode.toLowerCase();
