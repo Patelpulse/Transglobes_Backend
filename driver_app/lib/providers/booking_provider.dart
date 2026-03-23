@@ -31,28 +31,19 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
   // -----------------------------------------------------------------------
   // Fetch bookings from the backend
   // -----------------------------------------------------------------------
-  Future<void> fetchBookings() async {
-    try {
-      final service = ref.read(driverServiceProvider);
-      final list = await service.getDriverBookings();
-      print('🔍 [DEBUG] Fetched ${list.length} bookings from backend');
-      for (var b in list) {
-        print('   - ID: ${b.id}, Status: ${b.status}, Type: ${b.vehicleType}');
-      }
-      state = list;
-    } catch (e) {
-      print('❗️ Error fetching bookings: $e');
-    }
-  }
-
   // -----------------------------------------------------------------------
   // Update a booking’s status locally & sync with backend
   // -----------------------------------------------------------------------
+  final Set<String> _updatingIds = {};
+
   Future<void> updateStatus(String id, String newStatus, {double? actualFare}) async {
+    _updatingIds.add(id);
+    
     // Optimistic UI update
     state = state
         .map((b) => b.id == id ? b.copyWith(status: newStatus) : b)
         .toList();
+
     // Persist to backend
     try {
       final service = ref.read(driverServiceProvider);
@@ -63,6 +54,32 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
       }
     } catch (e) {
       print('❗️ Error syncing status: $e');
+      // On error, let the next fetch fix it
+    } finally {
+      // Remove from updating set after a short delay to allow backend to propagate
+      Future.delayed(const Duration(seconds: 2), () {
+        _updatingIds.remove(id);
+      });
+    }
+  }
+
+  Future<void> fetchBookings() async {
+    try {
+      final service = ref.read(driverServiceProvider);
+      final list = await service.getDriverBookings();
+      
+      // Merge: Keep local 'updating' status for any ID in _updatingIds
+      final mergedRows = list.map((remote) {
+        if (_updatingIds.contains(remote.id)) {
+          final local = state.where((b) => b.id == remote.id).firstOrNull;
+          if (local != null) return local;
+        }
+        return remote;
+      }).toList();
+
+      state = mergedRows;
+    } catch (e) {
+      print('❗️ Error fetching bookings: $e');
     }
   }
 

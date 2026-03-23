@@ -78,19 +78,27 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
       ref.read(socketServiceProvider).joinRide(widget.rideId);
 
       _acceptedSubscription = ref.read(socketServiceProvider).rideAcceptedStream.listen((data) {
-        print("🔍 [USER-DEBUG] Ride accepted socket received: ${data['rideId']}");
-        print("🔍 [USER-DEBUG] Driver Data: ${data['driver']}");
+        final receivedId = data['rideId']?.toString().toLowerCase();
+        final targetId = widget.rideId.toString().toLowerCase();
         
-        if (mounted && data['rideId'].toString() == widget.rideId.toString()) {
+        print("🔍 [USER-DEBUG] Ride accepted socket received: $receivedId (Target: $targetId)");
+        
+        if (mounted && receivedId == targetId) {
+          print("✅ [USER-DEBUG] IDs Match! Navigating to Tracking...");
           _navigateToTracking(data);
         }
       });
 
       _statusSubscription = ref.read(socketServiceProvider).rideStatusStream.listen((data) {
+        final receivedId = data['rideId']?.toString().toLowerCase();
+        final targetId = widget.rideId.toString().toLowerCase();
+        final status = data['status']?.toString().toLowerCase();
+
+        print("🔍 [USER-DEBUG] Ride status update: $status for $receivedId");
+
         // If a status update comes as 'accepted', treat it as a trigger to navigate
-        if (mounted && 
-            data['rideId'].toString() == widget.rideId.toString() && 
-            data['status']?.toString().toLowerCase() == 'accepted') {
+        if (mounted && receivedId == targetId && status == 'accepted') {
+          print("✅ [USER-DEBUG] Status is 'accepted'! Navigating to Tracking...");
           _navigateToTracking(data);
         }
       });
