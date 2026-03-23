@@ -60,7 +60,7 @@ const historySchema = new mongoose.Schema({
             driver_id: mongoose.Schema.Types.ObjectId,
             name: String,
             phone: String,
-            vichle_number: String
+            vehicle_number: String
         }, { _id: false }),
         default: null
     },

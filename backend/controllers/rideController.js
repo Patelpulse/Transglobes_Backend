@@ -109,20 +109,25 @@ exports.getDriverBookings = async (req, res) => {
 
                 return {
                     _id: b._id,
-                    userName: b.userId?.name || 'Customer',
-                    userPhone: b.mobileNumber,
-                    pickupAddress: b.locations[0]?.address || '',
-                    dropAddress: b.locations[1]?.address || '',
-                    fare: b.fare,
-                    distanceKm: parseFloat(b.distance) || 0,
+                    userName: b.userId?.name || b.userName || 'Customer',
+                    userPhone: b.mobileNumber || b.userPhone,
+                    pickupAddress: b.locations ? (b.locations[0]?.address || '') : (b.pickup?.address || b.pickupAddress || ''),
+                    dropAddress: b.locations ? (b.locations[1]?.address || '') : (b.dropoff?.address || b.dropAddress || ''),
+                    fare: b.fare || b.totalPrice || 0,
+                    distanceKm: parseFloat(b.distance) || b.distanceKm || 0,
                     status: displayStatus,
                     rideMode: b.rideMode,
                     createdAt: b.createdAt,
                     userId: b.userId?._id || b.userId,
-                    pickupLat: b.locations[0]?.latitude,
-                    pickupLng: b.locations[0]?.longitude,
-                    dropLat: b.locations[1]?.latitude,
-                    dropLng: b.locations[1]?.longitude,
+                    pickupLat: b.locations ? b.locations[0]?.latitude : b.pickup?.lat,
+                    pickupLng: b.locations ? b.locations[0]?.longitude : b.pickup?.lng,
+                    dropLat: b.locations ? b.locations[1]?.latitude : b.dropoff?.lat,
+                    dropLng: b.locations ? b.locations[1]?.longitude : b.dropoff?.lng,
+                    otp: b.otp,
+                    paymentStatus: b.paymentStatus || 'unpaid',
+                    actualFare: b.actualFare,
+                    driverId: b.driverId,
+                    type: b.type // To distinguish LOGISTICS
                 };
             })
         });
