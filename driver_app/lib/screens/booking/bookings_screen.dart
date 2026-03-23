@@ -224,10 +224,8 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ChatScreen(
-                                receiverId: b.userId ?? '',
-                                receiverName: b.userName,
-                                driverId: driverProfile.id,
+                              builder: (_) => BookingDetailScreen(
+                                bookingId: b.id,
                               ),
                             ),
                           );
