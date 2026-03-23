@@ -141,50 +141,49 @@ exports.createRideRequest = async (req, res) => {
         }
 
         // Get mobile number and find user as before...
+        // Identify user via Phone OR Email from Token
         let userPhone = mobileNumber || (req.user && req.user.phone_number);
+        let userEmail = req.user && req.user.email;
 
-        if (!userPhone) {
+        if (!userPhone && !userEmail) {
             return res.status(401).json({
                 success: false,
-                message: "User identity could not be verified"
+                message: "User identity could not be verified (no phone or email found)"
             });
         }
 
-        // Clean the phone number (remove spaces, dashes, etc.)
-        userPhone = userPhone.toString().replace(/\s+/g, '');
-
-        console.log(`Searching for user with phone: ${userPhone}`);
-
-        // Try exact match first
-        let user = await User.findOne({ mobileNumber: userPhone });
-
-        // If not found and phone starts with +91, try without it
-        if (!user && userPhone.startsWith('+91')) {
-            const withoutCountryCode = userPhone.replace('+91', '');
-            console.log(`Trying without country code: ${withoutCountryCode}`);
-            user = await User.findOne({ mobileNumber: withoutCountryCode });
+        // 1. Try search by Phone if available
+        let user;
+        if (userPhone) {
+            userPhone = userPhone.toString().replace(/\s+/g, '');
+            console.log(`Searching for user with phone: ${userPhone}`);
+            
+            // Try different formats
+            user = await User.findOne({ mobileNumber: userPhone });
+            if (!user && userPhone.startsWith('+91')) {
+                const withoutCountryCode = userPhone.replace('+91', '');
+                user = await User.findOne({ mobileNumber: withoutCountryCode });
+            }
+            if (!user && !userPhone.startsWith('+')) {
+                const withCountryCode = '+91' + userPhone;
+                user = await User.findOne({ mobileNumber: withCountryCode });
+            }
         }
 
-        // If not found and phone doesn't have country code, try with it
-        if (!user && !userPhone.startsWith('+')) {
-            const withCountryCode = '+91' + userPhone;
-            console.log(`Trying with country code: ${withCountryCode}`);
-            user = await User.findOne({ mobileNumber: withCountryCode });
-        }
-
-        // If not found by phone, try finding by email from the token
-        if (!user && req.user && req.user.email) {
-            console.log(`Trying to find user by email: ${req.user.email}`);
-            user = await User.findOne({ email: req.user.email });
+        // 2. Try search by Email if still not found
+        if (!user && userEmail) {
+            console.log(`Trying to find user by email: ${userEmail}`);
+            user = await User.findOne({ email: userEmail });
         }
 
         if (!user) {
-            console.log(`User not found in DB for authenticated phone ${userPhone}. Auto-registering user...`);
+            console.log(`User not found in DB. Auto-registering...`);
             try {
                 user = await User.create({
-                    mobileNumber: userPhone,
+                    mobileNumber: userPhone || undefined,
                     name: req.user?.name || '',
-                    email: req.user?.email || undefined
+                    email: userEmail || undefined,
+                    firebaseId: req.user?.uid || req.user?.firebaseId
                 });
                 console.log(`Auto-registered user: ${user._id}`);
             } catch (createError) {

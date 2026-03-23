@@ -26,7 +26,6 @@ const historySchema = new mongoose.Schema({
     },
     mobileNumber: {
         type: String,
-        required: true
     },
     locations: [locationPointSchema],
     rideMode: {

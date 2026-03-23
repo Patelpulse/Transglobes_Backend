@@ -13,8 +13,8 @@ const userSchema = new mongoose.Schema({
     },
     mobileNumber: {
         type: String,
-        required: true,
         unique: true,
+        sparse: true,
         index: true
     },
     // optional email (may be null). mark sparse so multiple nulls allowed
