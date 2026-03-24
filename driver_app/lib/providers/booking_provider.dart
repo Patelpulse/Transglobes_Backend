@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/driver_service.dart';
+import '../services/socket_service.dart';
 import '../models/booking_model.dart';
 
 // ---------------------------------------------------------------------------
@@ -14,7 +15,28 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
     // Start polling immediately
     Future.microtask(() => fetchBookings());
     _startPolling();
+
+    // Socket listeners for real-time updates
+    final socket = ref.watch(socketServiceProvider);
     
+    // 1. New Ride Request
+    socket.newRideStream.listen((data) {
+      try {
+        final booking = BookingModel.fromJson(data);
+        addBooking(booking);
+      } catch (e) {
+        print('Error parsing socket new_ride: $e');
+      }
+    });
+
+    // 2. Ride Assigned (Another driver took it)
+    socket.rideAssignedStream.listen((data) {
+      final rideId = data['rideId']?.toString();
+      if (rideId != null) {
+        state = state.where((b) => b.id != rideId).toList();
+      }
+    });
+
     // Clean up on dispose
     ref.onDispose(() => _pollingTimer?.cancel());
     
@@ -67,6 +89,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
     try {
       final service = ref.read(driverServiceProvider);
       final list = await service.getDriverBookings();
+      print('>>> DRIVER FETCHED ${list.length} BOOKINGS: $list');
       
       // Merge: Keep local 'updating' status for any ID in _updatingIds
       final mergedRows = list.map((remote) {
@@ -140,17 +163,17 @@ final bookingProvider =
     NotifierProvider<BookingNotifier, List<BookingModel>>(BookingNotifier.new);
 
 final pendingBookingsProvider = Provider<List<BookingModel>>((ref) {
-  return ref.watch(bookingProvider).where((b) => b.status == 'pending').toList();
+  return ref.watch(bookingProvider).where((b) => b.status == 'pending' || b.status == 'processing').toList();
 });
 
 final activeBookingsProvider = Provider<List<BookingModel>>((ref) {
   return ref.watch(bookingProvider).where((b) =>
-      ['accepted', 'on_the_way', 'arrived', 'ongoing'].contains(b.status)).toList();
+      ['accepted', 'on_the_way', 'arrived', 'ongoing', 'confirmed', 'in_transit'].contains(b.status)).toList();
 });
 
 final historyBookingsProvider = Provider<List<BookingModel>>((ref) {
   return ref.watch(bookingProvider).where((b) =>
-      ['completed', 'cancelled', 'rejected'].contains(b.status)).toList();
+      ['completed', 'cancelled', 'rejected', 'delivered'].contains(b.status)).toList();
 });
 
 final currentActiveBookingProvider = Provider<BookingModel?>((ref) {

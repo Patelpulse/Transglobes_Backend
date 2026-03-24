@@ -106,6 +106,11 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
             _buildRouteCard(displayBooking),
             const SizedBox(height: 24),
             _buildFareBreakdown(displayBooking),
+            const SizedBox(height: 24),
+
+            if (displayBooking.railwayStation != null)
+              _buildDispatchInfo(displayBooking),
+
             const SizedBox(height: 40),
             
             if (displayBooking.status != 'completed' && displayBooking.status != 'cancelled')
@@ -146,6 +151,40 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDispatchInfo(BookingModel booking) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.neonGreen.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.neonGreen.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.train_rounded, color: AppTheme.neonGreen, size: 24),
+              const SizedBox(width: 12),
+              const Text('DISPATCH INSTRUCTION', 
+                style: TextStyle(color: AppTheme.neonGreen, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Admin has selected ${booking.railwayStation} as your transit station for this logistics trip.',
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, height: 1.4),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Proceed to this station after picking up the goods.',
+            style: TextStyle(color: Colors.white60, fontSize: 12),
           ),
         ],
       ),
@@ -224,23 +263,53 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
       ),
       child: Column(
         children: [
-          _routeItem(Icons.trip_origin, AppTheme.neonGreen, 'Pickup', booking.pickupAddress),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                const SizedBox(width: 11),
-                Column(children: List.generate(4, (i) => Container(width: 2, height: 4, margin: const EdgeInsets.symmetric(vertical: 2), color: AppTheme.darkDivider))),
-              ],
+          _routeItem(Icons.trip_origin, AppTheme.neonGreen, 'Pickup', booking.pickupAddress, details: booking.pickupDetails),
+          
+          if (booking.railwayStation != null) ...[
+             const SizedBox(height: 12),
+             Row(
+               children: [
+                 const SizedBox(width: 11),
+                 Container(width: 2, height: 16, color: AppTheme.darkDivider),
+                 const SizedBox(width: 16),
+                 Container(
+                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                   decoration: BoxDecoration(color: AppTheme.neonGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                   child: Row(
+                     children: [
+                       const Icon(Icons.train, color: AppTheme.neonGreen, size: 14),
+                       const SizedBox(width: 8),
+                       Text('STATION: ${booking.railwayStation}', 
+                         style: const TextStyle(color: AppTheme.neonGreen, fontSize: 11, fontWeight: FontWeight.bold)),
+                     ],
+                   ),
+                 ),
+               ],
+             ),
+             const SizedBox(height: 12),
+          ] else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const SizedBox(width: 11),
+                  Column(children: List.generate(4, (i) => Container(width: 2, height: 4, margin: const EdgeInsets.symmetric(vertical: 2), color: AppTheme.darkDivider))),
+                ],
+              ),
             ),
-          ),
-          _routeItem(Icons.location_on, AppTheme.offlineRed, 'Drop-off', booking.dropAddress),
+
+          _routeItem(Icons.location_on, AppTheme.offlineRed, 'Drop-off', booking.dropAddress, details: booking.dropDetails),
         ],
       ),
     );
   }
 
-  Widget _routeItem(IconData icon, Color color, String label, String address) {
+  Widget _routeItem(IconData icon, Color color, String label, String address, {Map<String, dynamic>? details}) {
+    final house = details?['house']?.toString();
+    final floor = details?['floor']?.toString();
+    final landmark = details?['landmark']?.toString();
+    final cityPincode = [details?['city'], details?['pincode']].where((e) => e != null).join(', ');
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -252,10 +321,39 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
             children: [
               Text(label, style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12)),
               Text(address, style: const TextStyle(color: AppTheme.darkTextPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+              
+              if (details != null) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (house != null && house.isNotEmpty) _detailBadge('House: $house'),
+                    if (floor != null && floor.isNotEmpty) _detailBadge('Floor: $floor'),
+                    if (cityPincode.isNotEmpty) _detailBadge(cityPincode),
+                    if (landmark != null && landmark.isNotEmpty) 
+                      Row(
+                        children: [
+                          const Icon(Icons.near_me, size: 10, color: Colors.white54),
+                          const SizedBox(width: 4),
+                          Text(landmark, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                        ],
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _detailBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(6)),
+      child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 10)),
     );
   }
 
@@ -299,12 +397,65 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
   Widget _buildActionButtons(BuildContext context, WidgetRef ref, BookingModel booking) {
     return Column(
       children: [
+        // Acceptance Preview (Specifically for Pending/Broadcast bookings)
+        if (booking.status == 'pending') ...[
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppTheme.darkSurface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.neonGreen.withOpacity(0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: AppTheme.neonGreen, size: 16),
+                    SizedBox(width: 8),
+                    Text('PICK-UP INFO', 
+                      style: TextStyle(color: AppTheme.neonGreen, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(booking.pickupAddress, 
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                if (booking.pickupDetails != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${booking.pickupDetails!['house'] != null ? "House: ${booking.pickupDetails!['house']} " : ""}${booking.pickupDetails!['floor'] != null ? "Floor: ${booking.pickupDetails!['floor']} " : ""}',
+                    style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                  ),
+                ],
+                if (booking.railwayStation != null) ...[
+                  const Divider(color: Colors.white12, height: 24),
+                  Row(
+                    children: [
+                      const Icon(Icons.train_rounded, color: AppTheme.neonGreen, size: 16),
+                      const SizedBox(width: 10),
+                      Text('Target Station: ${booking.railwayStation}', 
+                        style: const TextStyle(color: AppTheme.neonGreen, fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
         SizedBox(
           width: double.infinity,
           height: 60,
           child: ElevatedButton(
             onPressed: () {
               // Logic to advance status
+              if (booking.status == 'pending') {
+                ref.read(bookingProvider.notifier).acceptBooking(booking.id);
+                // Detail screen will update automatically via provider
+                return;
+              }
+              
               if (['accepted', 'on_the_way', 'arrived'].contains(booking.status)) {
                 Navigator.push(
                   context,
@@ -337,7 +488,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             child: Text(
-              _buttonLabel(booking.status, booking.paymentStatus),
+              booking.status == 'pending' ? 'ACCEPT & PROCEED' : _buttonLabel(booking.status, booking.paymentStatus),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1),
             ),
           ),

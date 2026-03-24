@@ -92,7 +92,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = 8080;
 server.listen(PORT, () => {
-    console.log(`>>> Server is active and listening on port ${PORT}`);
+    console.log(`>>> Server is active and listening on port ${PORT}  `);
 });

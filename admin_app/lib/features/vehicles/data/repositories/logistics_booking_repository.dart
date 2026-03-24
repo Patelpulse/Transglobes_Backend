@@ -33,10 +33,22 @@ class LogisticsBookingRepository {
 
   Future<bool> assignDriver(String bookingId, String driverId) async {
     try {
-      final response = await _dio.post('logistics-bookings/$bookingId/assign', data: {'driverId': driverId});
+      final url = 'logistics-bookings/$bookingId/assign';
+      print('>>> Assign Driver API URL: $url');
+      print('>>> Body: {driverId: $driverId}');
+      
+      final response = await _dio.post(url, data: {'driverId': driverId});
+      
+      print('>>> Response Status: ${response.statusCode}');
+      print('>>> Response Data: ${response.data}');
+      
       return response.statusCode == 200;
     } catch (e) {
-      print('Error assigning driver: $e');
+      if (e is DioException) {
+        print('>>> Dio Error assigning driver: ${e.response?.statusCode} - ${e.response?.data}');
+      } else {
+        print('>>> Error assigning driver: $e');
+      }
       return false;
     }
   }

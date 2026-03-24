@@ -126,6 +126,8 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
     final drop = booking['receivedAddress']?['label'] ?? booking['dropoff']?['name'] ?? 'Delivery';
     final date = DateTime.parse(booking['createdAt']).toLocal();
     
+    final otp = booking['otp']?.toString();
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -145,14 +147,35 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(status).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(status.toUpperCase(), 
-                        style: TextStyle(color: _getStatusColor(status), fontSize: 10, fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(status.toUpperCase(), 
+                            style: TextStyle(color: _getStatusColor(status), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                        if (otp != null && (status == 'confirmed' || status == 'processing')) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: context.theme.primaryColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: context.theme.primaryColor.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Text('OTP: ', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                                Text(otp, style: TextStyle(color: context.theme.primaryColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     Text('${date.day}/${date.month}/${date.year}', 
                       style: TextStyle(color: Colors.grey, fontSize: 12)),
@@ -180,7 +203,7 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
                         ],
                       ),
                     ),
-                    Text('₹${booking['totalPrice']}', 
+                    Text('₹${(double.tryParse(booking['totalPrice'].toString()) ?? 0.0).toStringAsFixed(2)}', 
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: context.theme.primaryColor)),
                   ],
                 ),
@@ -444,7 +467,7 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
             fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
             color: isTotal ? context.colors.textPrimary : context.colors.textSecondary
           )),
-          Text('₹${amount.toString()}', style: TextStyle(
+          Text('₹${(double.tryParse(amount.toString()) ?? 0.0).toStringAsFixed(2)}', style: TextStyle(
             fontSize: isTotal ? 22 : 14, 
             fontWeight: FontWeight.bold,
             color: isDiscount ? Colors.green : (isTotal ? context.theme.primaryColor : context.colors.textPrimary)

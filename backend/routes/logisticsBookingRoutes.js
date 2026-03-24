@@ -8,6 +8,7 @@ const {
     updateStatus,
     assignDriver,
     updateRailwayStation,
+    updateBilling,
 } = require('../controllers/logisticsBookingController');
 
 // ... (other routes)
@@ -32,5 +33,8 @@ router.patch('/:id/status', updateStatus);
 
 // POST   /api/logistics-bookings/:id/assign → assign a driver manually
 router.post('/:id/assign', assignDriver);
+
+// PUT    /api/logistics-bookings/:id/billing → driver edits billing
+router.put('/:id/billing', updateBilling);
 
 module.exports = router;

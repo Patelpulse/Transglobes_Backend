@@ -21,7 +21,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this, initialIndex: 1);
+    _tabs = TabController(length: 3, vsync: this, initialIndex: 0);
   }
   @override
   void dispose() { _tabs.dispose(); super.dispose(); }
@@ -53,7 +53,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with SingleTick
           tabs: [
             Tab(text: 'Pending (${pending.length})'),
             Tab(text: 'Active (${active.length})'),
-            Tab(text: 'History'),
+            Tab(text: 'History (${history.length})'),
           ],
         ),
       ),
@@ -168,14 +168,16 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
           decoration: BoxDecoration(
             color: AppTheme.darkCard,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.earningsAmber.withValues(alpha: 0.3)),
-            boxShadow: [BoxShadow(color: AppTheme.earningsAmber.withValues(alpha: 0.08), blurRadius: 20)],
+            border: Border.all(color: b.vehicleType == 'truck' ? AppTheme.truckOrange.withValues(alpha: 0.3) : AppTheme.earningsAmber.withValues(alpha: 0.3)),
+            boxShadow: [BoxShadow(color: (b.vehicleType == 'truck' ? AppTheme.truckOrange : AppTheme.earningsAmber).withValues(alpha: 0.08), blurRadius: 20)],
           ),
           child: Column(
             children: [
               Row(
                 children: [
                   _TypeBadge(b.vehicleType, b.subType),
+                  const SizedBox(width: 8),
+                  Text('#ID: ${b.id.substring(b.id.length > 6 ? b.id.length - 6 : 0)}', style: const TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold)),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -192,6 +194,10 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
                 physics: const BouncingScrollPhysics(),
                 child: Row(
                   children: [
+                    if (b.railwayStation != null) ...[
+                      _InfoChip(Icons.train_outlined, 'STATION: ${b.railwayStation}', color: AppTheme.neonGreen),
+                      const SizedBox(width: 8),
+                    ],
                     _InfoChip(Icons.route, '${b.distanceKm} km'),
                     const SizedBox(width: 8),
                     _InfoChip(Icons.access_time, '${b.etaMinutes} min'),
@@ -265,11 +271,16 @@ class _ActiveBookingCard extends ConsumerWidget {
   const _ActiveBookingCard({required this.booking});
 
   final _statuses = const ['accepted', 'on_the_way', 'arrived', 'started', 'completed'];
+  final _logisticsStatuses = const ['confirmed', 'in_transit'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final b = booking;
-    final statusIdx = _statuses.indexOf(b.status).clamp(0, 4);
+    int statusIdx = _statuses.indexOf(b.status);
+    if (statusIdx == -1) {
+       statusIdx = _logisticsStatuses.indexOf(b.status) == 1 ? 3 : 0;
+    }
+    statusIdx = statusIdx.clamp(0, 4);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -297,6 +308,19 @@ class _ActiveBookingCard extends ConsumerWidget {
           const SizedBox(height: 12),
 
           _RouteRow(b.pickupAddress, b.dropAddress),
+          if (b.railwayStation != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.train_outlined, color: AppTheme.neonGreen, size: 14),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('VIA STATION: ${b.railwayStation}', 
+                    style: const TextStyle(color: AppTheme.neonGreen, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           // Progress steps
           _buildProgressBar(statusIdx),
@@ -345,7 +369,7 @@ class _ActiveBookingCard extends ConsumerWidget {
                     width: 110,
                     child: ElevatedButton(
                       onPressed: () {
-                        if (b.status == 'arrived') {
+                        if (b.status == 'arrived' || b.status == 'confirmed') {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -369,18 +393,18 @@ class _ActiveBookingCard extends ConsumerWidget {
   }
 
   String _statusLabel(String s) {
-    const m = {'accepted': 'Accepted', 'on_the_way': 'On the Way', 'arrived': 'Arrived', 'ongoing': 'In Progress'};
+    const m = {'accepted': 'Accepted', 'on_the_way': 'On the Way', 'arrived': 'Arrived', 'ongoing': 'In Progress', 'confirmed': 'Confirmed', 'in_transit': 'In Transit'};
     return m[s] ?? s;
   }
 
   String _nextAction(String s) {
-    const m = {'accepted': 'On Way', 'on_the_way': 'Arrived', 'arrived': 'Start Trip', 'ongoing': 'Complete'};
+    const m = {'accepted': 'On Way', 'on_the_way': 'Arrived', 'arrived': 'Start Trip', 'ongoing': 'Complete', 'confirmed': 'Start Transit', 'in_transit': 'Deliver'};
     return m[s] ?? 'Update';
   }
 
   void _openMap(BookingModel b) async {
-    final lat = (b.status == 'ongoing') ? b.dropLat : b.pickupLat;
-    final lng = (b.status == 'ongoing') ? b.dropLng : b.pickupLng;
+    final lat = (b.status == 'ongoing' || b.status == 'in_transit') ? b.dropLat : b.pickupLat;
+    final lng = (b.status == 'ongoing' || b.status == 'in_transit') ? b.dropLng : b.pickupLng;
     
     if (lat == null || lng == null) return;
     
@@ -391,7 +415,7 @@ class _ActiveBookingCard extends ConsumerWidget {
   }
 
   void _advanceStatus(WidgetRef ref, BookingModel b) {
-    const next = {'accepted': 'on_the_way', 'on_the_way': 'arrived', 'arrived': 'ongoing', 'ongoing': 'completed'};
+    const next = {'accepted': 'on_the_way', 'on_the_way': 'arrived', 'arrived': 'ongoing', 'ongoing': 'completed', 'confirmed': 'in_transit', 'in_transit': 'delivered'};
     if (next.containsKey(b.status)) {
       ref.read(bookingProvider.notifier).updateStatus(b.id, next[b.status]!);
     }
@@ -509,6 +533,10 @@ class _HistoryBookingCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text('${b.pickupAddress.split(',').first} → ${b.dropAddress.split(',').first}', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (b.railwayStation != null) ...[
+                  const SizedBox(height: 2),
+                  Text('Via: ${b.railwayStation}', style: const TextStyle(color: AppTheme.neonGreen, fontSize: 10, fontWeight: FontWeight.bold)),
+                ],
                 const SizedBox(height: 4),
                 Text(_formatTime(b.createdAt), style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11)),
               ],
@@ -548,8 +576,17 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    IconData icon = type == 'cab' ? Icons.local_taxi : type == 'truck' ? Icons.local_shipping : Icons.directions_bus;
+    final subLower = sub.toLowerCase();
+    
+    if (type == 'truck') {
+      if (subLower.contains('train')) icon = Icons.train;
+      else if (subLower.contains('flight') || subLower.contains('air')) icon = Icons.flight;
+      else if (subLower.contains('ship') || subLower.contains('cargo')) icon = Icons.directions_boat;
+      else if (subLower.contains('express')) icon = Icons.bolt;
+    }
+
     final color = type == 'cab' ? AppTheme.cabBlue : type == 'truck' ? AppTheme.truckOrange : AppTheme.busPurple;
-    final icon = type == 'cab' ? Icons.local_taxi : type == 'truck' ? Icons.local_shipping : Icons.directions_bus;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
@@ -596,7 +633,8 @@ class _RouteRow extends StatelessWidget {
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _InfoChip(this.icon, this.label);
+  final Color? color;
+  const _InfoChip(this.icon, this.label, {this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -604,9 +642,9 @@ class _InfoChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(color: AppTheme.darkSurface, borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: AppTheme.darkTextSecondary),
+        Icon(icon, size: 12, color: color ?? AppTheme.darkTextSecondary),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(label, style: TextStyle(color: color ?? AppTheme.darkTextSecondary, fontSize: 11, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
       ]),
     );
   }

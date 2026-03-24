@@ -854,6 +854,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   }
 
   Widget _buildRecentBookingCard(dynamic booking) {
+    const Color transPurple = Color(0xFF8B7DBE);
     final status = (booking['status'] ?? 'pending').toString();
     final vehicle = booking['vehicleType'] ?? 'Logistics';
     final items = booking['items'] as List? ?? [];
@@ -888,10 +889,12 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
                         Text(vehicle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
@@ -899,21 +902,33 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(status.toUpperCase(), 
-                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 8, fontWeight: FontWeight.bold)),
+                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 9, fontWeight: FontWeight.bold)),
                         ),
+                        if (booking['otp'] != null && (status == 'confirmed' || status == 'processing'))
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: transPurple.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text('OTP: ${booking['otp']}', 
+                              style: const TextStyle(color: transPurple, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
                       ],
                     ),
+                    const SizedBox(height: 4),
                     Text('$pickup → $drop', 
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 11)),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('₹${booking['totalPrice']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text('${date.day}/${date.month}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  Text('₹${(double.tryParse(booking['totalPrice'].toString()) ?? 0.0).toStringAsFixed(2)}', 
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('${date.day}/${date.month}', style: TextStyle(color: Colors.grey[500], fontSize: 10)),
                 ],
               ),
             ],
@@ -928,11 +943,13 @@ class _HomeTabState extends ConsumerState<HomeTab> {
       case 'delivered': return Colors.green;
       case 'cancelled': return Colors.red;
       case 'in_transit': return Colors.orange;
+      case 'confirmed': return Colors.blue;
       default: return Colors.blue;
     }
   }
 
   void _showBookingDetails(dynamic booking) {
+    const Color transPurple = Color(0xFF8B7DBE);
     final status = (booking['status'] ?? 'pending').toString();
     final vehicle = booking['vehicleType'] ?? 'Logistics';
     final items = booking['items'] as List? ?? [];
@@ -947,7 +964,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
-        height: MediaQuery.of(ctx).size.height * 0.8,
+        height: MediaQuery.of(ctx).size.height * 0.85,
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
@@ -958,9 +975,9 @@ class _HomeTabState extends ConsumerState<HomeTab> {
             Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -973,22 +990,43 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(vehicle, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                            Text('Booked on ${date.day}/${date.month}/${date.year}',
-                              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            Text(vehicle, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                            Text('Booked on ${date.day}/${date.month}/${date.year}', 
+                              style: const TextStyle(color: Colors.grey, fontSize: 13)),
                           ],
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: _getHistoryStatusColor(status).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(status.toUpperCase(), 
-                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 10, fontWeight: FontWeight.bold)),
+                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
+                    if (booking['otp'] != null && (status == 'confirmed' || status == 'processing')) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: transPurple.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: transPurple.withOpacity(0.2)),
+                        ),
+                        child: Column(
+                          children: [
+                            const Text('GIVE THIS OTP TO DRIVER TO START', 
+                              style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                            const SizedBox(height: 12),
+                            Text(booking['otp'].toString(), 
+                              style: const TextStyle(color: transPurple, fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 10)),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
 
                     const Text("Addresses", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
@@ -1055,7 +1093,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: TextStyle(fontSize: isTotal ? 16 : 13, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
-          Text('₹$amount', style: TextStyle(
+          Text('₹${(double.tryParse(amount.toString()) ?? 0.0).toStringAsFixed(2)}', style: TextStyle(
             fontSize: isTotal ? 18 : 13, 
             fontWeight: FontWeight.bold,
             color: isDiscount ? Colors.green : (isTotal ? Colors.black : Colors.black87)

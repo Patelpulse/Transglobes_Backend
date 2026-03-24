@@ -28,6 +28,10 @@ exports.getRideTypes = async (req, res) => {
 
 exports.getDriverBookings = async (req, res) => {
     try {
+        // Log at the very beginning to identify when it's hit and which driver is requesting
+        const requestIdentifier = req.user ? (req.user.uid || req.user.id) : 'Unauthenticated';
+        console.log(`[DRIVER-FETCH] Request from identifier: ${requestIdentifier}`);
+
         const Driver = require("../models/Driver");
         const mongoose = require("mongoose");
         let currentDriver;
@@ -36,6 +40,7 @@ exports.getDriverBookings = async (req, res) => {
             console.log(`[BOOKINGS-DEBUG] Searching for driver with identifier: ${identifier}`);
             if (mongoose.Types.ObjectId.isValid(identifier)) {
                 currentDriver = await Driver.findById(identifier);
+                console.log(`[DRIVER-FETCH] Current driver search result: ${currentDriver ? currentDriver.name : 'NOT FOUND'}`);
             }
             if (!currentDriver) {
                 currentDriver = await Driver.findOne({ uid: identifier });
@@ -70,7 +75,9 @@ exports.getDriverBookings = async (req, res) => {
             logistics = await LogisticsBooking.find({ 
                 $or: [
                     { driverId: currentDriver._id },
-                    { status: 'pending' }
+                    { driverId: identifier }, // Fallback for string ID
+                    { status: 'pending' },
+                    { rejectedBy: currentDriver._id }
                 ],
                 createdAt: { $gte: lookbackDate }
             }).sort({ createdAt: -1 });
@@ -97,9 +104,27 @@ exports.getDriverBookings = async (req, res) => {
             distanceKm: lb.distanceKm || 0,
             status: lb.status,
             createdAt: lb.createdAt,
-            rideMode: lb.vehicleType || 'truck', // This makes it show up in 'Logistics' tab in Driver App (mapped to truck type in model)
+            rideMode: lb.vehicleType || 'truck', 
             vehicleType: lb.vehicleType || 'truck',
-            type: 'LOGISTICS'
+            railwayStation: lb.railwayStation,
+            driverId: lb.driverId,
+            type: 'LOGISTICS',
+            pickupDetails: {
+                house: lb.pickupAddress?.houseNumber,
+                floor: lb.pickupAddress?.floorNumber,
+                landmark: lb.pickupAddress?.landmark,
+                city: lb.pickupAddress?.city,
+                pincode: lb.pickupAddress?.pincode
+            },
+            dropDetails: {
+                house: lb.receivedAddress?.houseNumber,
+                floor: lb.receivedAddress?.floorNumber,
+                landmark: lb.receivedAddress?.landmark,
+                city: lb.receivedAddress?.city,
+                pincode: lb.receivedAddress?.pincode
+            },
+            items: lb.items || [],
+            rejectedBy: lb.rejectedBy || []
         }));
 
         // Combine and sort
@@ -136,6 +161,7 @@ exports.getDriverBookings = async (req, res) => {
                     paymentStatus: b.paymentStatus || 'unpaid',
                     actualFare: b.actualFare,
                     driverId: b.driverId,
+                    railwayStation: b.railwayStation,
                     type: b.type // To distinguish LOGISTICS
                 };
             })
@@ -365,12 +391,25 @@ exports.assignRide = async (req, res) => {
     try {
         const { rideId } = req.params;
         const { driverId, fare } = req.body;
-        const ride = await History.findById(rideId);
-        if (!ride) return res.status(404).json({ message: 'Ride not found' });
+        
+        let ride = await History.findById(rideId);
+        let isLogistics = false;
+        
+        if (!ride) {
+            const LogisticsBooking = require('../models/LogisticsBooking');
+            ride = await LogisticsBooking.findById(rideId);
+            if (!ride) return res.status(404).json({ message: 'Ride/Booking not found' });
+            isLogistics = true;
+        }
 
-        ride.status = 'accepted';
+        ride.status = isLogistics ? 'confirmed' : 'accepted';
         ride.driverActionAt = new Date();
         if (fare) ride.fare = fare;
+        
+        // Generate OTP for logistics if missing
+        if (isLogistics && !ride.otp) {
+            ride.otp = Math.floor(1000 + Math.random() * 9000).toString();
+        }
 
         // populate snapshot if we know driverId
         if (driverId) {
@@ -402,15 +441,16 @@ exports.assignRide = async (req, res) => {
         await ride.save();
 
         if (req.io) {
-            console.log(`[RIDE-DEBUG] Emitting ride_accepted for ride ${ride._id.toString()}`);
-            console.log(`[RIDE-DEBUG] Driver Snapshot:`, JSON.stringify(ride.driverSnapshot, null, 2));
-
+            console.log(`[RIDE-DEBUG] Emitting ride_accepted for ${isLogistics ? 'Logistics' : 'Ride'} ${ride._id.toString()}`);
+            
             // Emit to user's personal room AND the specific ride room
             req.io.to(ride.userId.toString()).to(ride._id.toString()).emit("ride_accepted", {
                 rideId: ride._id.toString(),
                 status: ride.status,
                 driver: ride.driverSnapshot,
-                fare: ride.fare
+                fare: ride.totalPrice || ride.fare,
+                otp: ride.otp,
+                type: isLogistics ? 'LOGISTICS' : 'RETAIL'
             });
             // Also notify other drivers that this ride is taken
             req.io.emit("ride_assigned", { rideId: ride._id.toString() });
@@ -442,21 +482,16 @@ exports.rejectRide = async (req, res) => {
         let isLogistics = false;
 
         if (!ride) {
+            const LogisticsBooking = require('../models/LogisticsBooking');
             ride = await LogisticsBooking.findById(rideId);
             if (ride) isLogistics = true;
         }
 
         if (!ride) return res.status(404).json({ message: 'Ride not found' });
 
-        if (isLogistics) {
-            // Rejection for logistics clears the manual assignment so admin can search again
-            ride.driverId = null;
-            ride.status = 'pending';
-            await ride.save();
-            return res.json({ success: true, message: 'Logistics booking rejected and reset to pending' });
+        if (!isLogistics) {
+            ride.driverActionAt = new Date();
         }
-
-        ride.driverActionAt = new Date();
 
         if (driverId) {
             const Driver = require('../models/Driver');
@@ -471,27 +506,45 @@ exports.rejectRide = async (req, res) => {
             if (!driver) {
                 driver = await Driver.findOne({ firebaseId: driverId }).select('_id');
             }
+            
             if (driver) {
+                // Initialize array if empty
                 if (!ride.rejectedBy) ride.rejectedBy = [];
+                
+                // Add to rejected array if not present
                 if (!ride.rejectedBy.some(id => id.toString() === driver._id.toString())) {
                     ride.rejectedBy.push(driver._id);
-                    // If assigned to me, clear assignment
-                    if (ride.driverId && ride.driverId.toString() === driver._id.toString()) {
-                        ride.driverId = null;
-                        ride.status = 'pending';
-                    }
+                }
+                
+                // If assigned specifically to this driver, clear assignment
+                if (ride.driverId && ride.driverId.toString() === driver._id.toString()) {
+                    ride.driverId = null;
+                    ride.status = 'pending';
                 }
             }
+        } else {
+            // General rejection fallback
+             if (ride.driverId) {
+                ride.driverId = null;
+                ride.status = 'pending';
+             }
         }
 
-
         await ride.save();
-        res.json({ success: true, message: 'Ride rejected', ride });
+
+        if (req.io) {
+            req.io.emit("ride_status_updated", {
+                rideId: ride._id.toString(),
+                status: ride.status,
+                type: isLogistics ? 'LOGISTICS' : 'RETAIL'
+            });
+        }
+
+        return res.json({ success: true, message: `${isLogistics ? 'Logistics booking' : 'Ride'} rejected`, ride });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: err.message });
     }
 };
-
 
 // update ride status
 exports.updateRideStatus = async (req, res) => {
@@ -515,6 +568,9 @@ exports.updateRideStatus = async (req, res) => {
         if (status) {
             if (isLogistics && status === 'accepted') {
                 ride.status = 'confirmed';
+                if (!ride.otp) {
+                    ride.otp = Math.floor(1000 + Math.random() * 9000).toString();
+                }
             } else if (isLogistics && status === 'ongoing') {
                 ride.status = 'in_transit';
             } else if (isLogistics && status === 'completed') {
@@ -593,16 +649,23 @@ exports.verifyRideOtp = async (req, res) => {
         const { rideId } = req.params;
         const { otp } = req.body;
 
-        const ride = await History.findById(rideId);
+        let ride = await History.findById(rideId);
+        let isLogistics = false;
+
         if (!ride) {
-            return res.status(404).json({ success: false, message: "Ride not found" });
+            const LogisticsBooking = require('../models/LogisticsBooking');
+            ride = await LogisticsBooking.findById(rideId);
+            if (!ride) {
+                return res.status(404).json({ success: false, message: "Ride not found" });
+            }
+            isLogistics = true;
         }
 
         if (ride.otp !== otp) {
             return res.status(400).json({ success: false, message: "Invalid OTP" });
         }
 
-        ride.status = "ongoing";
+        ride.status = isLogistics ? "in_transit" : "ongoing";
         await ride.save();
 
         res.json({ success: true, message: "OTP verified correctly. Ride started." });
@@ -611,18 +674,19 @@ exports.verifyRideOtp = async (req, res) => {
         if (req.io) {
             req.io.to(ride.userId.toString()).to(ride._id.toString()).emit("ride_status_update", {
                 rideId: ride._id.toString(),
-                status: "ongoing"
+                status: ride.status,
+                type: isLogistics ? 'LOGISTICS' : 'RETAIL'
             });
         }
 
         // Push notification to user
         const { notifyUser } = require('../utils/notificationService');
         notifyUser(ride.userId, {
-            title: "Ride Started",
-            body: "OTP Verified. Your journey has begun!",
+            title: isLogistics ? "Shipment In Transit" : "Ride Started",
+            body: isLogistics ? "OTP Verified. Your items are now en route!" : "OTP Verified. Your journey has begun!",
             data: {
                 rideId: ride._id.toString(),
-                status: "ongoing",
+                status: ride.status,
                 type: 'STATUS_UPDATE'
             }
         });

@@ -12,8 +12,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/location_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
-
+import 'items_verification_screen.dart';
 class ActiveRideScreen extends ConsumerStatefulWidget {
   final BookingModel booking;
 
@@ -103,9 +102,18 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     try {
       await ref.read(bookingProvider.notifier).verifyOtp(widget.booking.id, otp);
       if (mounted) {
-        _showSnackBar('Ride started successfully!');
-        _openMap(); // Open map for drop-off navigation
-        Navigator.pop(context);
+        if (widget.booking.items != null && widget.booking.items!.isNotEmpty) {
+           Navigator.pushReplacement(
+             context,
+             MaterialPageRoute(
+               builder: (_) => ItemsVerificationScreen(booking: widget.booking),
+             ),
+           );
+        } else {
+           _showSnackBar('Ride started successfully!');
+           _openMap(); 
+           Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -372,6 +380,26 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                             ),
                           ],
                         ),
+                        if (widget.booking.railwayStation != null) ...[
+                          const SizedBox(height: 12),
+                          const Divider(color: Colors.white12, height: 1),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Icon(Icons.train, color: Color(0xFF00E676), size: 18),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('ASSIGNED TRANSIT HUB', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    Text(widget.booking.railwayStation!, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         // Route Locations
                         Stack(
@@ -386,22 +414,21 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                               ),
                             ),
                             Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildLocationRow(
-                                  Colors.green,
-                                  'Pickup',
-                                  widget.booking.pickupAddress,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildLocationRow(
-                                  Colors.red,
-                                  'Drop-off',
-                                  widget.booking.dropAddress,
-                                ),
+                                _buildLocationRow(const Color(0xFF00E676), 'PICKUP', widget.booking.pickupAddress),
+                                const SizedBox(height: 24),
+                                _buildLocationRow(Colors.red, 'DROP-OFF', widget.booking.dropAddress),
                               ],
                             ),
                           ],
                         ),
+                        if (widget.booking.items != null && widget.booking.items!.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          const Divider(color: Colors.white12, height: 1),
+                          const SizedBox(height: 20),
+                          _buildItemsSection(widget.booking.items!),
+                        ],
                       ],
                     ),
                   ),
@@ -542,6 +569,88 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildItemsSection(List<dynamic> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ITEMS TO TRANSPORT',
+          style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1),
+        ),
+        const SizedBox(height: 12),
+        ...items.map((item) => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFF00E676)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['itemName']?.toString().toUpperCase() ?? 'UNNAMED ITEM',
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Category: ${item['type'] ?? 'General'}',
+                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )).toList(),
+      ],
+    );
+  }
+
+  void _showItemsSummaryDialog(BuildContext context, List<dynamic> items) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E212D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.verified_rounded, color: Color(0xFF00E676), size: 60),
+            const SizedBox(height: 20),
+            const Text('ITEMS VERIFIED', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Collection of ${items.length} items confirmed', style: const TextStyle(color: Colors.white60, fontSize: 13)),
+            const Divider(height: 32, color: Colors.white12),
+            ...items.map((i) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                const Icon(Icons.circle, size: 6, color: Color(0xFF00E676)),
+                const SizedBox(width: 10),
+                Text(i['itemName']?.toString().toUpperCase() ?? '', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              ]),
+            )).toList(),
+          ],
+        ),
+      ),
+    );
+    
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) {
+        Navigator.pop(context); // Close dialog
+        _openMap(); // Open map
+        Navigator.pop(context); // Back to previous screen or forward? 
+        // Likely we want to stay on this screen if it's ongoing or go back.
+        // The notifier update status will rebuild it.
+      }
+    });
   }
 
   void _showPaymentQR(BuildContext context) {

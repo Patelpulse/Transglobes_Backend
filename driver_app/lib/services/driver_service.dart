@@ -165,4 +165,23 @@ class DriverService {
       rethrow;
     }
   }
+
+  Future<void> updateBilling(String bookingId, {
+    required double vehiclePrice,
+    required double helperCost,
+    required double discountAmount,
+    required double totalPrice,
+  }) async {
+    try {
+      await _api.put('/api/logistics-bookings/$bookingId/billing', {
+        'vehiclePrice': vehiclePrice,
+        'helperCost': helperCost,
+        'discountAmount': discountAmount,
+        'totalPrice': totalPrice,
+      });
+    } catch (e) {
+      debugPrint('Error updating billing: $e');
+      rethrow;
+    }
+  }
 }

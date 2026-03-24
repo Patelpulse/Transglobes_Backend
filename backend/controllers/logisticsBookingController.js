@@ -226,28 +226,43 @@ exports.assignDriver = async (req, res) => {
         const { driverId } = req.body;
         const bookingId = req.params.id;
 
+        console.log(`[LOGISTICS-DISPATCH] Request for booking ${bookingId} with target: ${driverId}`);
+
         if (!driverId) {
-            return res.status(400).json({ success: false, message: 'Driver ID is required.' });
+            return res.status(400).json({ success: false, message: 'Assign target (driverId or "all") is required.' });
+        }
+
+        let updateData = {};
+        if (driverId === 'all') {
+            // General Dispatch: Make sure it's pending and has no specific driver
+            updateData = { 
+                driverId: null,
+                status: 'pending' 
+            };
+        } else {
+            // Specific Assignment
+            updateData = { 
+                driverId: driverId,
+                status: 'processing'
+            };
         }
 
         const booking = await LogisticsBooking.findByIdAndUpdate(
             bookingId,
-            { 
-                driverId
-            },
+            updateData,
             { new: true }
         );
 
         if (!booking) {
+            console.error(`[LOGISTICS-DISPATCH] Booking ${bookingId} not found!`);
             return res.status(404).json({ success: false, message: 'Booking not found.' });
         }
 
-        // Notify driver via Socket.io
+        console.log(`[LOGISTICS-DISPATCH] DB Updated. Status: ${booking.status}, Member: ${booking.driverId || 'ALL'}`);
+
+        // Notify drivers via Socket.io
         if (req.io) {
-            console.log(`[LOGISTICS] Notifying driver ${driverId} about assigned booking ${bookingId}`);
-            
-            // The Driver App is listening for "new_ride"
-            req.io.emit("new_ride", {
+            const socketData = {
                 id: booking._id.toString(),
                 userName: booking.userName || 'Customer',
                 phone: booking.userPhone || '',
@@ -259,22 +274,29 @@ exports.assignDriver = async (req, res) => {
                 dropLng: booking.dropoff?.longitude,
                 distance: `${booking.distanceKm} km`,
                 fare: booking.totalPrice || booking.price || 0,
-                rideMode: booking.vehicleType || 'flatbed', // Maps to truck type in Driver App
-                status: 'assigned',
+                rideMode: booking.vehicleType || 'flatbed',
+                status: booking.status,
                 userId: booking.userId?.toString(),
-                type: 'LOGISTICS'
-            });
+                type: 'LOGISTICS',
+                railwayStation: booking.railwayStation
+            };
 
-            // Also notify specifically in driver's room
-            req.io.to(driverId.toString()).emit("ride_assigned", { 
-                bookingId: booking._id.toString(),
-                message: "You have been assigned a new logistics shipment."
-            });
+            if (driverId === 'all') {
+                console.log(`[LOGISTICS-DISPATCH] Broadcasting to ALL drivers.`);
+                req.io.emit("new_ride", socketData);
+            } else {
+                console.log(`[LOGISTICS-DISPATCH] Sending to specific driver ${driverId}.`);
+                req.io.to(driverId.toString()).emit("new_ride", socketData);
+                req.io.to(driverId.toString()).emit("ride_assigned", { 
+                    bookingId: booking._id.toString(),
+                    message: "You have been assigned a new logistics shipment."
+                });
+            }
         }
 
         return res.status(200).json({ 
             success: true, 
-            message: 'Driver assigned and notified successfully.', 
+            message: driverId === 'all' ? 'Order dispatched successfully.' : 'Driver assigned and notified successfully.', 
             data: booking 
         });
     } catch (error) {
@@ -310,6 +332,42 @@ exports.updateRailwayStation = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating railway station:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ─── PUT /api/logistics-bookings/:id/billing ───
+// Driver can manually edit billing breakdown
+exports.updateBilling = async (req, res) => {
+    try {
+        const { vehiclePrice, helperCost, discountAmount, totalPrice } = req.body;
+        const bookingId = req.params.id;
+
+        const updateFields = {};
+        if (vehiclePrice != null) updateFields.vehiclePrice = vehiclePrice;
+        if (helperCost != null) updateFields.helperCost = helperCost;
+        if (discountAmount != null) updateFields.discountAmount = discountAmount;
+        if (totalPrice != null) updateFields.totalPrice = totalPrice;
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            bookingId,
+            updateFields,
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        console.log(`[BILLING] Updated booking ${bookingId}: ₹${totalPrice}`);
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Billing updated successfully.', 
+            data: booking 
+        });
+    } catch (error) {
+        console.error('Error updating billing:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };

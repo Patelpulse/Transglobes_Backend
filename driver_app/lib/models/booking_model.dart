@@ -22,6 +22,13 @@ class BookingModel {
   final String? userId;
   final double? actualFare;
   final String paymentStatus; // unpaid, paid
+  final String? railwayStation;
+  final Map<String, dynamic>? pickupDetails;
+  final Map<String, dynamic>? dropDetails;
+  final List<dynamic>? items;
+  final double? vehiclePrice;
+  final double? helperCost;
+  final double? discountAmount;
 
   const BookingModel({
     required this.id,
@@ -45,6 +52,13 @@ class BookingModel {
     this.actualFare,
     this.userId,
     this.paymentStatus = 'unpaid',
+    this.railwayStation,
+    this.pickupDetails,
+    this.dropDetails,
+    this.items,
+    this.vehiclePrice,
+    this.helperCost,
+    this.discountAmount,
   });
 
   BookingModel copyWith({
@@ -58,6 +72,11 @@ class BookingModel {
     double? dropLng,
     String? otp,
     String? paymentStatus,
+    String? railwayStation,
+    List<dynamic>? items,
+    double? vehiclePrice,
+    double? helperCost,
+    double? discountAmount,
   }) =>
       BookingModel(
         id: id,
@@ -81,6 +100,11 @@ class BookingModel {
         actualFare: actualFare ?? this.actualFare,
         userId: userId ?? this.userId,
         paymentStatus: paymentStatus ?? this.paymentStatus,
+        railwayStation: railwayStation ?? this.railwayStation,
+        items: items ?? this.items,
+        vehiclePrice: vehiclePrice ?? this.vehiclePrice,
+        helperCost: helperCost ?? this.helperCost,
+        discountAmount: discountAmount ?? this.discountAmount,
       );
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
@@ -109,7 +133,7 @@ class BookingModel {
     String deriveVehicleType(String? mode) {
       if (mode == null) return 'cab';
       final m = mode.toLowerCase();
-      if (['pickup', 'mini_truck', 'container', 'flatbed', 'ace', 'pickup8ft', '3wheeler', 'truck', 'train', 'flight', 'ship', 'cargo', 'logistics'].contains(m)) {
+      if (['pickup', 'mini_truck', 'container', 'flatbed', 'ace', 'pickup8ft', '3wheeler', 'truck', 'train', 'flight', 'ship', 'cargo', 'logistics', 'sea', 'sea cargo'].contains(m)) {
         return 'truck';
       }
       if (['mini_bus', 'standard', 'luxury', 'sleeper', 'bus'].contains(m)) {
@@ -122,11 +146,14 @@ class BookingModel {
       if (s == null) return 'pending';
       switch (s.toLowerCase()) {
         case 'confirmed': return 'accepted';
+        case 'processing': return 'pending';
         case 'in_transit': return 'ongoing';
         case 'delivered': return 'completed';
         default: return s;
       }
     }
+
+    final mode = json['rideMode']?.toString() ?? json['modeOfTravel']?.toString() ?? json['vehicleType']?.toString();
 
     return BookingModel(
       id: json['_id'] ?? json['id'] ?? '',
@@ -139,8 +166,8 @@ class BookingModel {
           ? parseDouble(json['distanceKm'])
           : parseDouble(json['distance']?.toString().replaceAll(' km', '')),
       etaMinutes: parseInt(json['etaMinutes'], 10),
-      vehicleType: deriveVehicleType(json['rideMode']?.toString()),
-      subType: json['rideMode']?.toString().toUpperCase() ?? 'ECONOMY',
+      vehicleType: deriveVehicleType(mode),
+      subType: mode?.toUpperCase() ?? 'ECONOMY',
       status: mapStatus(json['status']),
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       otp: json['otp']?.toString(),
@@ -151,6 +178,17 @@ class BookingModel {
       dropLng: parseOptionalDouble(json['dropLng']),
       userId: json['userId']?.toString(),
       paymentStatus: json['paymentStatus'] ?? 'unpaid',
+      railwayStation: json['railwayStation'] ?? json['transitPoint'],
+      pickupDetails: json['pickupDetails'] is Map
+          ? Map<String, dynamic>.from(json['pickupDetails'])
+          : (json['pickupAddress'] is Map ? Map<String, dynamic>.from(json['pickupAddress']) : null),
+      dropDetails: json['dropDetails'] is Map
+          ? Map<String, dynamic>.from(json['dropDetails'])
+          : (json['receivedAddress'] is Map ? Map<String, dynamic>.from(json['receivedAddress']) : null),
+      items: json['items'] is List ? List<dynamic>.from(json['items']) : null,
+      vehiclePrice: parseOptionalDouble(json['vehiclePrice'] ?? json['baseFare']),
+      helperCost: parseOptionalDouble(json['helperCost']),
+      discountAmount: parseOptionalDouble(json['discountAmount']),
     );
   }
 }

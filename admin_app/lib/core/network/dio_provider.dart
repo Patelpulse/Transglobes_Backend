@@ -5,11 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
 final dioProvider = Provider<Dio>((ref) {
-  // Synchronized with Backend and other Apps
   const String prodUrl = 'https://transglobesbackend-production.up.railway.app/api/';
-  
+  const String localUrl = 'http://localhost:8080/api/';
+
   final dio = Dio(BaseOptions(
-    baseUrl: prodUrl,
+    baseUrl: kDebugMode ? localUrl : prodUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

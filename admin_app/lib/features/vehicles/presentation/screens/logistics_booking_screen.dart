@@ -171,6 +171,8 @@ class LogisticsBookingScreen extends ConsumerWidget {
   }
 
   void _showBookingDetailModal(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
+    String? pendingRailwayStation;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.backgroundColorDark,
@@ -204,8 +206,10 @@ class LogisticsBookingScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
               child: SingleChildScrollView(
                 controller: scrollController,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: StatefulBuilder(
+                  builder: (context, setModalState) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -232,11 +236,31 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       _buildDetailRow('Mode', booking.modeOfTravel.toUpperCase()),
                       _buildDetailRow('Distance', '${booking.distanceKm.toStringAsFixed(1)} KM'),
                       _buildDetailRow('Helper Count', booking.helperCount.toString()),
-                      _buildDetailRow(
-                        booking.modeOfTravel.toLowerCase() == 'train' ? 'Railway Station' : 'Transit Point', 
-                        booking.railwayStation ?? 'Not Assigned', 
-                        color: booking.railwayStation != null ? AppTheme.primaryColor : Colors.white24, 
-                        isBold: booking.railwayStation != null
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(booking.modeOfTravel.toLowerCase() == 'train' ? 'Railway Station' : 'Transit Point', 
+                              style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'Manrope')),
+                            
+                            if (pendingRailwayStation != null || booking.railwayStation != null)
+                              Text(pendingRailwayStation ?? booking.railwayStation!, 
+                                style: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Manrope'))
+                            else
+                              TextButton.icon(
+                                onPressed: () {
+                                  // Show a quick selection dialog
+                                  _showStationSelector(context, (selected) {
+                                    setModalState(() => pendingRailwayStation = selected);
+                                  });
+                                },
+                                icon: const Icon(Icons.add_circle_outline, size: 16, color: AppTheme.primaryColor),
+                                label: const Text('SELECT STATION', style: TextStyle(color: AppTheme.primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30)),
+                              ),
+                          ],
+                        ),
                       ),
                     ]),
                     const SizedBox(height: 24),
@@ -284,42 +308,105 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       ]),
                     ],
                     const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showActiveDriversModal(context, ref, booking.id),
-                        icon: const Icon(Icons.person_search_outlined),
-                        label: const Text('SEARCH ACTIVE DRIVER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        Column(
+                          children: [
+                            if (pendingRailwayStation != null)
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final success = await ref.read(logisticsBookingRepoProvider).updateRailwayStation(booking.id, pendingRailwayStation!);
+                                    if (success) {
+                                      ref.invalidate(logisticsBookingsProvider);
+                                      if (context.mounted) {
+                                        Navigator.pop(context);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Successfully updated to $pendingRailwayStation'),
+                                            backgroundColor: AppTheme.success,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  icon: const Icon(Icons.check_circle_outline),
+                                  label: const Text('SUBMIT STATION CHANGE', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.success,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                ),
+                              ),
+                            if (pendingRailwayStation != null) const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  // Show loading
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Dispatched order to active drivers...'), duration: Duration(seconds: 1)),
+                                  );
+                                  
+                                  // Directly dispatch (no modal)
+                                  final success = await ref.read(logisticsBookingRepoProvider).assignDriver(booking.id, 'all');
+                                  
+                                  if (success && context.mounted) {
+                                    ref.invalidate(logisticsBookingsProvider);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Order generated & sent successfully!'),
+                                        backgroundColor: AppTheme.success,
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.send_rounded),
+                                label: const Text('SEND ORDER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryColor,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  final selected = await _showRailwayStationModal(context, ref, booking.id);
+                                  if (selected != null) {
+                                    setModalState(() {
+                                      pendingRailwayStation = selected;
+                                    });
+                                  }
+                                },
+                                icon: Icon(
+                                  booking.modeOfTravel.toLowerCase() == 'train' ? Icons.train_outlined : Icons.location_on_outlined, 
+                                  color: Colors.white
+                                ),
+                                label: Text(
+                                  pendingRailwayStation != null 
+                                    ? 'CHANGE SELECTION' 
+                                    : (booking.modeOfTravel.toLowerCase() == 'train' ? 'SET RAILWAY STATION' : 'SET TRANSIT POINT'), 
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Colors.white24),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showRailwayStationModal(context, ref, booking.id),
-                        icon: Icon(
-                          booking.modeOfTravel.toLowerCase() == 'train' ? Icons.train_outlined : Icons.location_on_outlined, 
-                          color: Colors.white
-                        ),
-                        label: Text(
-                          booking.modeOfTravel.toLowerCase() == 'train' ? 'SET RAILWAY STATION' : 'SET TRANSIT POINT', 
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.white24),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                  ],
+                        const SizedBox(height: 48),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -504,6 +591,43 @@ class LogisticsBookingScreen extends ConsumerWidget {
         ],
       );
     }
+
+  void _showStationSelector(BuildContext context, Function(String) onSelected) {
+    final stations = [
+      'Noida Junction (Transit)',
+      'Ghaziabad Station',
+      'New Delhi Terminal',
+      'Anand Vihar Hub',
+      'Tughlakabad Dry Port',
+      'Dadri ICD'
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundColorDark,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('SELECT TRANSIT HUB / STATION', 
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            ...stations.map((s) => ListTile(
+              onTap: () {
+                onSelected(s);
+                Navigator.pop(context);
+              },
+              leading: const Icon(Icons.train, color: AppTheme.primaryColor),
+              title: Text(s, style: const TextStyle(color: Colors.white, fontSize: 14)),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white24),
+            )).toList(),
+          ],
+        ),
+      ),
+    );
+  }
   
     Widget _getModeIcon(String mode) {
       switch (mode.toLowerCase()) {
@@ -663,7 +787,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                     ),
-                                    child: const Text('SET', style: TextStyle(fontSize: 12)),
+                                    child: const Text('SEND', style: TextStyle(fontSize: 12)),
                                   ),
                                 ],
                               ),
@@ -679,7 +803,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
       );
     }
 
-    void _showRailwayStationModal(BuildContext context, WidgetRef ref, String bookingId) {
+    Future<String?> _showRailwayStationModal(BuildContext context, WidgetRef ref, String bookingId) {
       final TextEditingController stationController = TextEditingController();
       final List<String> stations = [
         "New Delhi (NDLS)",
@@ -697,7 +821,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
         "Patna Junction (PNBE)",
       ];
 
-      showModalBottomSheet(
+      return showModalBottomSheet<String>(
         context: context,
         backgroundColor: AppTheme.backgroundColorDark,
         isScrollControlled: true,
@@ -707,7 +831,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
         builder: (context) => StatefulBuilder(
           builder: (context, setState) {
             return Container(
-              height: MediaQuery.of(context).size.height * 0.8,
+              height: MediaQuery.of(context).size.height * 0.85,
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -737,25 +861,19 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       hintStyle: const TextStyle(color: Colors.white24),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.05),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.check_circle, color: AppTheme.primaryColor),
-                        onPressed: () async {
-                          if (stationController.text.trim().isEmpty) return;
-                          final success = await ref.read(logisticsBookingRepoProvider).updateRailwayStation(bookingId, stationController.text.trim());
-                          if (success) {
-                            ref.invalidate(logisticsBookingsProvider);
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Assigned ${stationController.text.trim()}'), backgroundColor: AppTheme.success),
-                              );
-                            }
-                          }
-                        },
-                      ),
+                      suffixIcon: stationController.text.isNotEmpty 
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: Colors.white38, size: 18),
+                            onPressed: () {
+                              setState(() {
+                                stationController.clear();
+                              });
+                            },
+                          )
+                        : null,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
+                    onChanged: (val) => setState(() {}),
                   ),
                   
                   const SizedBox(height: 24),
@@ -768,30 +886,60 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       itemCount: stations.length,
                       itemBuilder: (context, index) {
                         final station = stations[index];
+                        final isSelected = stationController.text.trim() == station;
+                        
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           child: ListTile(
-                            onTap: () async {
-                              final success = await ref.read(logisticsBookingRepoProvider).updateRailwayStation(bookingId, station);
-                              if (success) {
-                                ref.invalidate(logisticsBookingsProvider);
-                                if (context.mounted) {
-                                  Navigator.pop(context); // Close selection
-                                  Navigator.pop(context); // Close details modal
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Assigned $station'), backgroundColor: AppTheme.success),
-                                  );
-                                }
-                              }
+                            onTap: () {
+                              setState(() {
+                                stationController.text = station;
+                              });
                             },
-                            tileColor: Colors.white.withOpacity(0.05),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            leading: const Icon(Icons.train, color: Colors.white70),
-                            title: Text(station, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white24),
+                            tileColor: isSelected 
+                              ? AppTheme.primaryColor.withOpacity(0.15) 
+                              : Colors.white.withOpacity(0.05),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: isSelected 
+                                ? const BorderSide(color: AppTheme.primaryColor, width: 1.5)
+                                : BorderSide.none,
+                            ),
+                            leading: Icon(
+                              Icons.train, 
+                              color: isSelected ? AppTheme.primaryColor : Colors.white70
+                            ),
+                            title: Text(station, 
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.white, 
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600
+                              )
+                            ),
+                            trailing: isSelected 
+                              ? const Icon(Icons.check_circle, color: AppTheme.primaryColor, size: 20)
+                              : const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white24),
                           ),
                         );
                       },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: stationController.text.trim().isEmpty 
+                        ? null 
+                        : () => Navigator.pop(context, stationController.text.trim()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.white10,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: const Text('CONFIRM SELECTION', 
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
                     ),
                   ),
                 ],

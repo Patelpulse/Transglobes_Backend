@@ -5,16 +5,18 @@ class AppConfig {
   static String get appName => dotenv.env['APP_NAME'] ?? 'RideShare';
   
   static String get apiBaseUrl {
+    // For local development, ignore .env and use localhost
+    if (kDebugMode) {
+      if (kIsWeb) return 'http://localhost:8080';
+      return 'http://10.0.2.2:8080';
+    }
+    
     final envUrl = dotenv.env['API_BASE_URL'];
-    // Default fallback
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
     
-    // For local development
-    if (kIsWeb) return 'http://localhost:8080'; // Matched with backend .env PORT=8080
-    // 10.0.2.2 is the localhost address for Android emulators
-    return 'http://10.0.2.2:8080';
+    return 'http://localhost:8080';
   }
   
   // Google Maps API Key

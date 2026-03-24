@@ -78,8 +78,15 @@ const logisticsBookingSchema = new mongoose.Schema({
     // Status
     status: {
         type: String,
-        enum: ['pending', 'confirmed', 'in_transit', 'delivered', 'cancelled'],
+        enum: ['pending', 'processing', 'confirmed', 'in_transit', 'delivered', 'cancelled'],
         default: 'pending',
+    },
+
+    // Assigned Driver
+    driverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Driver',
+        default: null,
     },
 
     // Railway Station for Train Mode
@@ -87,6 +94,18 @@ const logisticsBookingSchema = new mongoose.Schema({
         type: String,
         default: null,
     },
+
+    // OTP for Hand-off Verification
+    otp: {
+        type: String,
+        default: null,
+    },
+
+    // Track drivers who rejected this booking
+    rejectedBy: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Driver',
+    }],
 
 }, { timestamps: true });
 
