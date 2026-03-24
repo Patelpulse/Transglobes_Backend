@@ -70,7 +70,11 @@ exports.createBooking = async (req, res) => {
                 rideMode: booking.vehicleType || 'flatbed', // Maps to truck type in Driver App
                 status: 'pending',
                 userId: booking.userId?.toString(),
-                type: 'LOGISTICS'
+                type: 'LOGISTICS',
+                vehiclePrice: booking.vehiclePrice || 0,
+                helperCost: booking.helperCost || 0,
+                discountAmount: booking.discountAmount || 0,
+                totalPrice: booking.totalPrice || booking.price || 0,
             });
             console.log(`[LOGISTICS] Socket emitted: new_ride for ${booking._id}`);
         }
