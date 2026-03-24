@@ -10,12 +10,10 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-// DIAGNOSTIC LOGGING - EVERY REQUEST MUST SHOW UP
+// Request logging
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
-    console.warn(`\n[${timestamp}] >>> INCOMING REQUEST: ${req.method} ${req.originalUrl || req.url}`);
-    console.warn(`[${timestamp}] Origin: ${req.headers.origin} | Host: ${req.headers.host}`);
-    console.warn(`[${timestamp}] Headers: ${JSON.stringify(req.headers)}\n`);
+    console.log(`[${timestamp}] ${req.method} ${req.originalUrl || req.url} | Origin: ${req.headers.origin || 'N/A'}`);
     next();
 });
 
