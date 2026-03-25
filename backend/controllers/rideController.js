@@ -62,7 +62,7 @@ exports.getDriverBookings = async (req, res) => {
             $or: [
                 { driverId: currentDriver?._id },
                 { "driverSnapshot.driver_id": currentDriver?._id },
-                { status: 'pending' },
+                { status: { $in: ['pending', 'processing', 'accepted', 'on_the_way', 'arrived', 'ongoing', 'confirmed', 'in_transit'] } },
                 { rejectedBy: currentDriver?._id }
             ]
         };
@@ -76,7 +76,7 @@ exports.getDriverBookings = async (req, res) => {
                 $or: [
                     { driverId: currentDriver._id },
                     { driverId: identifier }, // Fallback for string ID
-                    { status: 'pending' },
+                    { status: { $in: ['pending', 'processing'] } },
                     { rejectedBy: currentDriver._id }
                 ],
                 createdAt: { $gte: lookbackDate }
@@ -155,6 +155,7 @@ exports.getDriverBookings = async (req, res) => {
                     distanceKm: parseFloat(b.distance) || b.distanceKm || 0,
                     status: displayStatus,
                     rideMode: b.rideMode,
+                    vehicleType: b.vehicleType || b.rideMode, // Ensure vehicleType is present
                     createdAt: b.createdAt,
                     userId: b.userId?._id || b.userId,
                     pickupLat: b.locations ? b.locations[0]?.latitude : b.pickup?.lat,
