@@ -125,10 +125,9 @@ exports.getDriverBookings = async (req, res) => {
             },
             items: lb.items || [],
             rejectedBy: lb.rejectedBy || [],
-            vehiclePrice: lb.vehiclePrice || 0,
-            helperCost: lb.helperCost || 0,
-            discountAmount: lb.discountAmount || 0,
             totalPrice: lb.totalPrice || lb.fare || 0,
+            transportName: lb.transportName,
+            transportNumber: lb.transportNumber,
         }));
 
         // Combine and sort
@@ -167,6 +166,8 @@ exports.getDriverBookings = async (req, res) => {
                     actualFare: b.actualFare,
                     driverId: b.driverId,
                     railwayStation: b.railwayStation,
+                    transportName: b.transportName,
+                    transportNumber: b.transportNumber,
                     type: b.type // To distinguish LOGISTICS
                 };
             })
