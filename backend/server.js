@@ -65,13 +65,17 @@ const logisticsBookingRoutes = require('./routes/logisticsBookingRoutes');
 const { updateBilling } = require('./controllers/logisticsBookingController');
 
 // Root & Health Check Routes
-app.get('/', (req, res) => res.send('API is running (v1.0.4) with Socket.io...'));
-app.get('/api/version', (req, res) => res.json({ version: '1.0.4', routes: ['billing_patch_direct'] }));
+app.get('/', (req, res) => res.send('API is running (v1.0.5) with Socket.io...'));
+app.get('/api/version', (req, res) => res.json({ version: '1.0.5', status: 'billing_put_fix' }));
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date() }));
 
-// Direct Billing Patch Routes (before other mounting)
+// Direct Billing Patch/Put Routes (before other mounting)
 app.patch('/api/logistics-bookings/:id/billing', updateBilling);
 app.patch('/api/logistics-booking/:id/billing', updateBilling);
+app.put('/api/logistics-bookings/:id/billing', updateBilling);
+app.put('/api/logistics-booking/:id/billing', updateBilling);
+app.patch('/logistics-bookings/:id/billing', updateBilling); // Root level fallback
+app.put('/logistics-bookings/:id/billing', updateBilling);   // Root level fallback
 
 // Register Routes
 app.use('/api/user', userRoutes);

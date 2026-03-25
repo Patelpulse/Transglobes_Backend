@@ -349,15 +349,25 @@ exports.updateRailwayStation = async (req, res) => {
     }
 };
 
-// ─── PUT /api/logistics-bookings/:id/billing ───
-// Driver can manually edit billing breakdown
+// ─── PUT/PATCH /api/logistics-bookings/:id/billing ───
+// Updates billing breakdown for a booking
 exports.updateBilling = async (req, res) => {
     try {
-        const { vehiclePrice, helperCost, additionalCharges, discountAmount, totalPrice } = req.body;
-        const bookingId = req.params.id;
-        console.log(" Billing update hit:", bookingId);
+        const { id } = req.params;
+        const { 
+            vehiclePrice, 
+            helperCost, 
+            additionalCharges, 
+            discount,         // From user request
+            discountAmount,   // Legacy/Existing
+            totalPrice,       // Legacy/Existing
+            totalAmount       // From user request
+        } = req.body;
 
-        // Fetch current to validate
+        const bookingId = id || req.params.id;
+        console.log(`[BILLING-UPDATE] Processing request for: ${bookingId}`);
+
+        // Fetch current booking
         const booking = await LogisticsBooking.findById(bookingId);
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found' });
@@ -365,21 +375,35 @@ exports.updateBilling = async (req, res) => {
 
         // Restriction: Processing stage is read-only for admin
         if (booking.status === 'processing' || booking.status === 'confirmed') {
+            console.warn(`[BILLING-UPDATE] Blocked: Booking ${bookingId} is in ${booking.status} state.`);
             return res.status(403).json({ 
                 success: false, 
                 message: 'Editing is disabled while the order is being processed by the driver.' 
             });
         }
 
-        if (vehiclePrice != null) booking.vehiclePrice = vehiclePrice;
-        if (helperCost != null) booking.helperCost = helperCost;
-        if (additionalCharges != null) booking.additionalCharges = additionalCharges;
-        if (discountAmount != null) booking.discountAmount = discountAmount;
-        if (totalPrice != null) booking.totalPrice = totalPrice;
+        // Map fields safely (supporting both naming conventions)
+        if (vehiclePrice !== undefined) booking.vehiclePrice = Number(vehiclePrice);
+        if (helperCost !== undefined) booking.helperCost = Number(helperCost);
+        if (additionalCharges !== undefined) booking.additionalCharges = Number(additionalCharges);
+        
+        // Handle discount/discountAmount
+        if (discount !== undefined) booking.discountAmount = Number(discount);
+        else if (discountAmount !== undefined) booking.discountAmount = Number(discountAmount);
+
+        // Calculate or assign total
+        if (totalAmount !== undefined) {
+          booking.totalPrice = Number(totalAmount);
+        } else if (totalPrice !== undefined) {
+          booking.totalPrice = Number(totalPrice);
+        } else {
+          // Auto-calculate if not explicitly provided
+          booking.totalPrice = booking.vehiclePrice + booking.helperCost + booking.additionalCharges - booking.discountAmount;
+        }
 
         await booking.save();
 
-        console.log(`[BILLING] Updated booking ${bookingId}: ₹${booking.totalPrice}`);
+        console.log(`[BILLING-UPDATE] Success. New Total: ₹${booking.totalPrice}`);
 
         return res.status(200).json({ 
             success: true, 
@@ -387,7 +411,7 @@ exports.updateBilling = async (req, res) => {
             data: booking 
         });
     } catch (error) {
-        console.error('Error updating billing:', error);
+        console.error('[BILLING-UPDATE] Error:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
