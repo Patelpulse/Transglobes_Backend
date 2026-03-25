@@ -151,17 +151,18 @@ class LogisticsBookingScreen extends ConsumerWidget {
               children: [
                 Text('Ordered on: $dateStr', 
                   style: const TextStyle(color: Colors.white60, fontSize: 11)),
-                ElevatedButton.icon(
-                  onPressed: () => _showActiveDriversModal(context, ref, booking.id),
-                  icon: const Icon(Icons.person_search_outlined, size: 16),
-                  label: const Text('SEARCH DRIVER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                if (booking.status != LogisticsBookingStatus.processing)
+                  ElevatedButton.icon(
+                    onPressed: () => _showActiveDriversModal(context, ref, booking.id),
+                    icon: const Icon(Icons.person_search_outlined, size: 16),
+                    label: const Text('SEARCH DRIVER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
-                ),
               ],
             ),
           ],
