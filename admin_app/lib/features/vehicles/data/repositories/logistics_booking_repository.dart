@@ -76,7 +76,7 @@ class LogisticsBookingRepository {
     required double totalPrice,
   }) async {
     try {
-      final response = await _dio.put('logistics-bookings/$bookingId/billing', data: {
+      final response = await _dio.patch('logistics-bookings/$bookingId/billing', data: {
         'vehiclePrice': vehiclePrice,
         'helperCost': helperCost,
         'additionalCharges': additionalCharges,

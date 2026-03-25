@@ -77,6 +77,7 @@ app.use('/api/typegood', typeGoodRoutes);
 app.use('/api/logistics-vehicles', logisticsVehicleRoutes);
 app.use('/api/logistic-goods', logisticGoodRoutes);
 app.use('/api/logistics-bookings', logisticsBookingRoutes);
+app.use('/api/logistics-booking', logisticsBookingRoutes);
 
 // Database Connection
 connectDB();
