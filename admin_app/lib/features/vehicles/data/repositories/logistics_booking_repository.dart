@@ -7,7 +7,7 @@ class LogisticsBookingRepository {
 
   Future<List<LogisticsBooking>> getAllBookings() async {
     try {
-      // Joins with http://127.0.0.1:8080/api/ to hit /api/logistics-bookings
+      // Hits Railway production endpoint /api/logistics-bookings
       final response = await _dio.get('logistics-bookings');
       
       print('>>> Logistics API Status Code: ${response.statusCode}');
@@ -59,6 +59,29 @@ class LogisticsBookingRepository {
       return response.statusCode == 200;
     } catch (e) {
       print('Error updating railway station: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateBilling({
+    required String bookingId,
+    required double vehiclePrice,
+    required double helperCost,
+    required double additionalCharges,
+    required double discountAmount,
+    required double totalPrice,
+  }) async {
+    try {
+      final response = await _dio.put('logistics-bookings/$bookingId/billing', data: {
+        'vehiclePrice': vehiclePrice,
+        'helperCost': helperCost,
+        'additionalCharges': additionalCharges,
+        'discountAmount': discountAmount,
+        'totalPrice': totalPrice,
+      });
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating billing: $e');
       return false;
     }
   }

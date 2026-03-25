@@ -16,6 +16,7 @@ exports.createBooking = async (req, res) => {
             items,
             helperCount,
             helperCost,
+            additionalCharges,
             discountAmount,
             totalPrice,
             appliedCoupon,
@@ -43,6 +44,7 @@ exports.createBooking = async (req, res) => {
             items:          items          ?? [],
             helperCount:    helperCount    ?? 0,
             helperCost:     helperCost     ?? 0,
+            additionalCharges: additionalCharges ?? 0,
             discountAmount: discountAmount ?? 0,
             totalPrice:     totalPrice     ?? 0,
             appliedCoupon:  appliedCoupon  ?? null,
@@ -73,6 +75,7 @@ exports.createBooking = async (req, res) => {
                 type: 'LOGISTICS',
                 vehiclePrice: booking.vehiclePrice || 0,
                 helperCost: booking.helperCost || 0,
+                additionalCharges: booking.additionalCharges || 0,
                 discountAmount: booking.discountAmount || 0,
                 totalPrice: booking.totalPrice || booking.price || 0,
             });
@@ -344,12 +347,13 @@ exports.updateRailwayStation = async (req, res) => {
 // Driver can manually edit billing breakdown
 exports.updateBilling = async (req, res) => {
     try {
-        const { vehiclePrice, helperCost, discountAmount, totalPrice } = req.body;
+        const { vehiclePrice, helperCost, additionalCharges, discountAmount, totalPrice } = req.body;
         const bookingId = req.params.id;
 
         const updateFields = {};
         if (vehiclePrice != null) updateFields.vehiclePrice = vehiclePrice;
         if (helperCost != null) updateFields.helperCost = helperCost;
+        if (additionalCharges != null) updateFields.additionalCharges = additionalCharges;
         if (discountAmount != null) updateFields.discountAmount = discountAmount;
         if (totalPrice != null) updateFields.totalPrice = totalPrice;
 

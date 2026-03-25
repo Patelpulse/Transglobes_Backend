@@ -21,6 +21,7 @@ class LogisticsBooking {
   final double distanceKm;
   final double vehiclePrice;
   final double helperCost;
+  final double additionalCharges;
   final double discountAmount;
   final int helperCount;
   final List<dynamic> items;
@@ -42,6 +43,7 @@ class LogisticsBooking {
     this.distanceKm = 0.0,
     this.vehiclePrice = 0.0,
     this.helperCost = 0.0,
+    this.additionalCharges = 0.0,
     this.discountAmount = 0.0,
     this.helperCount = 0,
     this.items = const [],
@@ -75,6 +77,7 @@ class LogisticsBooking {
       distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 0.0,
       vehiclePrice: (json['vehiclePrice'] as num?)?.toDouble() ?? 0.0,
       helperCost: (json['helperCost'] as num?)?.toDouble() ?? 0.0,
+      additionalCharges: (json['additionalCharges'] as num?)?.toDouble() ?? 0.0,
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
       helperCount: json['helperCount'] ?? 0,
       items: json['items'] ?? [],

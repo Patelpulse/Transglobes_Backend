@@ -5,18 +5,12 @@ class AppConfig {
   static String get appName => dotenv.env['APP_NAME'] ?? 'RideShare';
   
   static String get apiBaseUrl {
-    // For local development, ignore .env and use localhost
-    if (kDebugMode) {
-      if (kIsWeb) return 'http://localhost:8080';
-      return 'http://10.0.2.2:8080';
-    }
-    
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
     
-    return 'http://localhost:8080';
+    return 'https://transglobesbackend-production.up.railway.app';
   }
   
   // Google Maps API Key

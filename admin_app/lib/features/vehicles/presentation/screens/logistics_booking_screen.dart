@@ -170,6 +170,179 @@ class LogisticsBookingScreen extends ConsumerWidget {
     );
   }
 
+  void _showBillingEditModal(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
+    final vehiclePriceCtrl = TextEditingController(text: booking.vehiclePrice.toInt().toString());
+    final helperCostCtrl = TextEditingController(text: booking.helperCost.toInt().toString());
+    final additionalChargesCtrl = TextEditingController(text: booking.additionalCharges.toInt().toString());
+    final discountAmountCtrl = TextEditingController(text: booking.discountAmount.toInt().toString());
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundColorDark,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          double getVal(String text) => double.tryParse(text) ?? 0.0;
+          
+          double calculateTotal() {
+            final v = getVal(vehiclePriceCtrl.text);
+            final h = getVal(helperCostCtrl.text);
+            final a = getVal(additionalChargesCtrl.text);
+            final d = getVal(discountAmountCtrl.text);
+            return (v + h + a) - d;
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              left: 24,
+              right: 24,
+              top: 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Update Billing Details', 
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white60),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline, color: AppTheme.primaryColor, size: 18),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Updating billing manually will overwrite the original calculation. Please verify all costs before saving.',
+                          style: TextStyle(color: AppTheme.primaryColor, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildEditField('Vehicle Price (₹)', vehiclePriceCtrl, Icons.local_shipping_outlined, (val) => setModalState(() {})),
+                const SizedBox(height: 16),
+                _buildEditField('Helper Cost (₹)', helperCostCtrl, Icons.person_outline, (val) => setModalState(() {})),
+                const SizedBox(height: 16),
+                _buildEditField('Additional Charges (₹)', additionalChargesCtrl, Icons.add_circle_outline, (val) => setModalState(() {})),
+                const SizedBox(height: 16),
+                _buildEditField('Discount (₹)', discountAmountCtrl, Icons.label_off_outlined, (val) => setModalState(() {})),
+                const SizedBox(height: 24),
+                const Divider(color: Colors.white12),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Calculated Total', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                    Text('₹${calculateTotal().toInt()}', 
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      // Basic validation
+                      final v = getVal(vehiclePriceCtrl.text);
+                      final h = getVal(helperCostCtrl.text);
+                      final a = getVal(additionalChargesCtrl.text);
+                      final d = getVal(discountAmountCtrl.text);
+
+                      if (v < 0 || h < 0 || a < 0 || d < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Values cannot be negative')),
+                        );
+                        return;
+                      }
+
+                      final success = await ref.read(logisticsBookingRepoProvider).updateBilling(
+                        bookingId: booking.id,
+                        vehiclePrice: v,
+                        helperCost: h,
+                        additionalCharges: a,
+                        discountAmount: d,
+                        totalPrice: calculateTotal(),
+                      );
+                      
+                      if (success && context.mounted) {
+                        ref.invalidate(logisticsBookingsProvider);
+                        Navigator.pop(context); // Close edit modal
+                        Navigator.pop(context); // Close detail modal to refresh
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Billing updated successfully'),
+                            backgroundColor: AppTheme.success,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.success,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('SAVE BILLING DETAILS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ),
+                ),
+                const SizedBox(height: 48),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEditField(String label, TextEditingController ctrl, IconData icon, Function(String) onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: ctrl,
+          onChanged: onChanged,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: AppTheme.primaryColor, size: 20),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showBookingDetailModal(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
     String? pendingRailwayStation;
 
@@ -271,8 +444,21 @@ class LogisticsBookingScreen extends ConsumerWidget {
                     ]),
                     const SizedBox(height: 24),
                     _buildDetailSection('BILLING', [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _showBillingEditModal(context, ref, booking),
+                            icon: const Icon(Icons.edit_note, size: 18, color: Colors.white),
+                            label: const Text('EDIT BILLING', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30)),
+                          ),
+                        ],
+                      ),
                       _buildDetailRow('Vehicle Price', '₹${booking.vehiclePrice.toInt()}'),
                       _buildDetailRow('Helper Cost', '₹${booking.helperCost.toInt()}'),
+                      if (booking.additionalCharges > 0)
+                        _buildDetailRow('Additional Charges', '₹${booking.additionalCharges.toInt()}', color: AppTheme.primaryColor),
                       if (booking.discountAmount > 0)
                         _buildDetailRow('Discount Applied', '-₹${booking.discountAmount.toInt()}', color: AppTheme.success),
                       _buildDetailRow('Total Amount', '₹${booking.price.toInt()}', isBold: true, color: Colors.white),

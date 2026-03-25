@@ -9,7 +9,7 @@ final dioProvider = Provider<Dio>((ref) {
   const String localUrl = 'http://localhost:8080/api/';
 
   final dio = Dio(BaseOptions(
-    baseUrl: kDebugMode ? localUrl : prodUrl,
+    baseUrl: prodUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

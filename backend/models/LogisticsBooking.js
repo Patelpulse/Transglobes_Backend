@@ -55,6 +55,7 @@ const logisticsBookingSchema = new mongoose.Schema({
     distanceKm:    { type: Number, default: 0 },
     vehiclePrice:  { type: Number, default: 0 },
     helperCost:    { type: Number, default: 0 },
+    additionalCharges: { type: Number, default: 0 },
     discountAmount:{ type: Number, default: 0 },
     totalPrice:    { type: Number, default: 0 },
     appliedCoupon: { type: String, default: null },
