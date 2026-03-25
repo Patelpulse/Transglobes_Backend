@@ -371,6 +371,27 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       children: [
                         const Text('Shipment Details', 
                           style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                        if (booking.status == LogisticsBookingStatus.processing)
+                          Tooltip(
+                            message: 'Editing is disabled while the order is being processed by the driver.',
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.lock_clock, size: 12, color: Colors.amber),
+                                  SizedBox(width: 4),
+                                  Text('Read Only – ProcessingStage', 
+                                    style: TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close, color: Colors.white),
@@ -403,12 +424,15 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          TextButton.icon(
-                            onPressed: () => _showBillingEditModal(context, ref, booking),
-                            icon: const Icon(Icons.edit_note, size: 18, color: Colors.white),
-                            label: const Text('EDIT BILLING', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30)),
-                          ),
+                          if (booking.status != LogisticsBookingStatus.processing)
+                            TextButton.icon(
+                              onPressed: () => _showBillingEditModal(context, ref, booking),
+                              icon: const Icon(Icons.edit_note, size: 18, color: Colors.white),
+                              label: const Text('EDIT BILLING', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30)),
+                            )
+                          else
+                            const Text('EDITING DISABLED', style: TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold)),
                         ],
                       ),
                       _buildDetailRow('Vehicle Price', '₹${booking.vehiclePrice.toInt()}'),
@@ -450,11 +474,18 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       ]),
                     ],
                     const SizedBox(height: 24),
-                    _buildTransportFields(booking, transportNameController, transportNumberController),
+                    Opacity(
+                      opacity: booking.status == LogisticsBookingStatus.processing ? 0.4 : 1.0,
+                      child: AbsorbPointer(
+                        absorbing: booking.status == LogisticsBookingStatus.processing,
+                        child: _buildTransportFields(booking, transportNameController, transportNumberController),
+                      ),
+                    ),
                     const SizedBox(height: 32),
-                    Column(
-                      children: [
-                        SizedBox(
+                    if (booking.status != LogisticsBookingStatus.processing)
+                      Column(
+                        children: [
+                          SizedBox(
                               width: double.infinity,
                               height: 50,
                               child: ElevatedButton.icon(

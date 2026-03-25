@@ -356,6 +356,20 @@ exports.updateBilling = async (req, res) => {
         const { vehiclePrice, helperCost, additionalCharges, discountAmount, totalPrice } = req.body;
         const bookingId = req.params.id;
 
+        // Fetch current status to check restrictions
+        const existing = await LogisticsBooking.findById(bookingId);
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        // Restriction: Processing stage is read-only for admin
+        if (existing.status === 'processing' || existing.status === 'confirmed') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Editing is disabled while the order is being processed by the driver (Processing/Confirmed Stage).' 
+            });
+        }
+
         const updateFields = {};
         if (vehiclePrice != null) updateFields.vehiclePrice = vehiclePrice;
         if (helperCost != null) updateFields.helperCost = helperCost;

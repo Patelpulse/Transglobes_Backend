@@ -82,6 +82,17 @@ app.use('/api/logistics-booking', logisticsBookingRoutes);
 // Database Connection
 connectDB();
 
+// Catch-all 404 handler for debugging missing routes
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.warn(`[404 NOT FOUND] [${timestamp}] ${req.method} ${req.originalUrl || req.url}`);
+    res.status(404).json({
+        success: false,
+        message: `Route not found: ${req.method} ${req.url}`,
+        tip: 'Check pluralization (bookings vs booking) and base path (/api/...)'
+    });
+});
+
 // Error Handling Middleware
 app.use((err, req, res, next) => {
     console.error('SERVER ERROR:', err.stack);
