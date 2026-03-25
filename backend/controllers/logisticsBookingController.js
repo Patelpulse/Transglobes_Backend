@@ -355,39 +355,31 @@ exports.updateBilling = async (req, res) => {
     try {
         const { vehiclePrice, helperCost, additionalCharges, discountAmount, totalPrice } = req.body;
         const bookingId = req.params.id;
+        console.log(" Billing update hit:", bookingId);
 
-        // Fetch current status to check restrictions
-        const existing = await LogisticsBooking.findById(bookingId);
-        if (!existing) {
-            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        // Fetch current to validate
+        const booking = await LogisticsBooking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found' });
         }
 
         // Restriction: Processing stage is read-only for admin
-        if (existing.status === 'processing' || existing.status === 'confirmed') {
+        if (booking.status === 'processing' || booking.status === 'confirmed') {
             return res.status(403).json({ 
                 success: false, 
-                message: 'Editing is disabled while the order is being processed by the driver (Processing/Confirmed Stage).' 
+                message: 'Editing is disabled while the order is being processed by the driver.' 
             });
         }
 
-        const updateFields = {};
-        if (vehiclePrice != null) updateFields.vehiclePrice = vehiclePrice;
-        if (helperCost != null) updateFields.helperCost = helperCost;
-        if (additionalCharges != null) updateFields.additionalCharges = additionalCharges;
-        if (discountAmount != null) updateFields.discountAmount = discountAmount;
-        if (totalPrice != null) updateFields.totalPrice = totalPrice;
+        if (vehiclePrice != null) booking.vehiclePrice = vehiclePrice;
+        if (helperCost != null) booking.helperCost = helperCost;
+        if (additionalCharges != null) booking.additionalCharges = additionalCharges;
+        if (discountAmount != null) booking.discountAmount = discountAmount;
+        if (totalPrice != null) booking.totalPrice = totalPrice;
 
-        const booking = await LogisticsBooking.findByIdAndUpdate(
-            bookingId,
-            updateFields,
-            { new: true }
-        );
+        await booking.save();
 
-        if (!booking) {
-            return res.status(404).json({ success: false, message: 'Booking not found.' });
-        }
-
-        console.log(`[BILLING] Updated booking ${bookingId}: ₹${totalPrice}`);
+        console.log(`[BILLING] Updated booking ${bookingId}: ₹${booking.totalPrice}`);
 
         return res.status(200).json({ 
             success: true, 

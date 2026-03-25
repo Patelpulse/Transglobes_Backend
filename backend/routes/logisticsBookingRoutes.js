@@ -14,27 +14,28 @@ const {
 // ... (other routes)
 
 // PATCH  /api/logistics-bookings/:id/railway-station → update railway station
-router.patch('/:id/railway-station', updateRailwayStation);
+router.patch('/logistics-bookings/:id/railway-station', updateRailwayStation);
 
 // POST   /api/logistics-bookings          → create a new booking
-router.post('/', createBooking);
+router.post('/logistics-bookings', createBooking);
 
 // GET    /api/logistics-bookings           → get all bookings (Admin)
-router.get('/', getAllBookings);
+router.get('/logistics-bookings', getAllBookings);
 
 // GET    /api/logistics-bookings/user/:userId → get all bookings for a user
-router.get('/user/:userId', getUserBookings);
+router.get('/logistics-bookings/user/:userId', getUserBookings);
 
 // GET    /api/logistics-bookings/:id       → get single booking
-router.get('/:id', getBookingById);
+router.get('/logistics-bookings/:id', getBookingById);
 
 // PATCH  /api/logistics-bookings/:id/status → update status
-router.patch('/:id/status', updateStatus);
+router.patch('/logistics-bookings/:id/status', updateStatus);
 
 // POST   /api/logistics-bookings/:id/assign → assign a driver manually
-router.post('/:id/assign', assignDriver);
+router.post('/logistics-bookings/:id/assign', assignDriver);
 
 // PATCH  /api/logistics-bookings/:id/billing → admin edits billing
-router.patch('/:id/billing', updateBilling);
+router.patch('/logistics-bookings/:id/billing', updateBilling);
+router.patch('/logistics-booking/:id/billing', updateBilling);
 
 module.exports = router;
