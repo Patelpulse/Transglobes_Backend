@@ -400,6 +400,33 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                             ],
                           ),
                         ],
+                        if (widget.booking.transportName != null || widget.booking.transportNumber != null) ...[
+                          const SizedBox(height: 12),
+                          const Divider(color: Colors.white12, height: 1),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Icon(
+                                widget.booking.subType.toLowerCase().contains('train') ? Icons.train :
+                                widget.booking.subType.toLowerCase().contains('flight') ? Icons.flight :
+                                widget.booking.subType.toLowerCase().contains('sea') ? Icons.directions_boat :
+                                Icons.local_shipping,
+                                color: Colors.amber, 
+                                size: 18,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('${widget.booking.subType.toUpperCase()} DETAILS', style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    Text('${widget.booking.transportName ?? ""} ${widget.booking.transportNumber ?? ""}'.trim(), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         // Route Locations
                         Stack(

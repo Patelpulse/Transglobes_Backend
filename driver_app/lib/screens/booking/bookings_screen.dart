@@ -205,6 +205,14 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
                     _InfoChip(Icons.person, b.userName),
                     const SizedBox(width: 8),
                     _InfoChip(Icons.phone, b.userPhone),
+                    if (b.transportName != null || b.transportNumber != null) ...[
+                      const SizedBox(width: 8),
+                      _InfoChip(
+                        b.vehicleType == 'truck' ? Icons.local_shipping : Icons.info_outline,
+                        '${b.transportName ?? ""} ${b.transportNumber ?? ""}'.trim(),
+                        color: AppTheme.truckOrange,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -317,6 +325,27 @@ class _ActiveBookingCard extends ConsumerWidget {
                 Expanded(
                   child: Text('VIA STATION: ${b.railwayStation}', 
                     style: const TextStyle(color: AppTheme.neonGreen, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
+          if (b.transportName != null || b.transportNumber != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  b.subType.toLowerCase().contains('train') ? Icons.train :
+                  b.subType.toLowerCase().contains('flight') ? Icons.flight :
+                  b.subType.toLowerCase().contains('sea') ? Icons.directions_boat :
+                  Icons.local_shipping,
+                  color: AppTheme.truckOrange,
+                  size: 14,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${b.subType.toUpperCase()} DETAILS: ${b.transportName ?? ""} - ${b.transportNumber ?? ""}'.trim().replaceAll(' - ', ' '), 
+                    style: const TextStyle(color: AppTheme.truckOrange, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),

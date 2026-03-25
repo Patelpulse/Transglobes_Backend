@@ -107,19 +107,45 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
   }
 
   // Convenience helpers
-  void acceptBooking(String id) => updateStatus(id, 'accepted');
+  Future<void> acceptBooking(String id) async {
+    // Determine if it is a logistics booking or regular ride
+    final b = state.where((item) => item.id == id).firstOrNull;
+    bool isLogistics = b != null && b.subType.toLowerCase().contains('truck') || (b?.vehicleType == 'truck');
+
+    // Optimistic UI update
+    state = state.map((item) => item.id == id ? item.copyWith(status: 'accepted') : item).toList();
+
+    try {
+      final service = ref.read(driverServiceProvider);
+      if (isLogistics) {
+        await service.acceptBooking(id);
+      } else {
+        await service.acceptRide(id);
+      }
+    } catch (e) {
+      print('❗️ Error accepting ride/booking: $e');
+    }
+  }
 
   void rejectBooking(String id) async {
-    // Optimistic UI: Mark as rejected locally so it moves to history tab
+    // Determine if it is a logistics booking or regular ride
+    final b = state.where((item) => item.id == id).firstOrNull;
+    bool isLogistics = b != null && b.subType.toLowerCase().contains('truck') || (b?.vehicleType == 'truck');
+
+    // Optimistic UI: Mark as rejected locally so it moves to history tab or disappears
     state = state
-        .map((b) => b.id == id ? b.copyWith(status: 'rejected') : b)
+        .map((item) => item.id == id ? item.copyWith(status: 'rejected') : item)
         .toList();
 
     try {
       final service = ref.read(driverServiceProvider);
-      await service.rejectRide(id);
+      if (isLogistics) {
+        await service.rejectBooking(id);
+      } else {
+        await service.rejectRide(id);
+      }
     } catch (e) {
-      print('❗️ Error rejecting ride: $e');
+      print('❗️ Error rejecting ride/booking: $e');
     }
   }
 

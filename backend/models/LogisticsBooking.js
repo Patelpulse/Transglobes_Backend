@@ -79,7 +79,7 @@ const logisticsBookingSchema = new mongoose.Schema({
     // Status
     status: {
         type: String,
-        enum: ['pending', 'processing', 'confirmed', 'in_transit', 'delivered', 'cancelled'],
+        enum: ['pending', 'pending_for_driver', 'processing', 'confirmed', 'in_transit', 'delivered', 'cancelled'],
         default: 'pending',
     },
 

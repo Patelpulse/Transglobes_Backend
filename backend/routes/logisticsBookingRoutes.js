@@ -13,6 +13,35 @@ const {
 
 // ... (other routes)
 
+// 📥 Driver Interaction Flows
+// POST   /api/send-order-to-drivers        → Dispatcher sends order
+router.post('/send-order-to-drivers', (req, res, next) => {
+    // This is basically a wrapper or a specific endpoint for the new flow
+    const { assignDriver } = require('../controllers/logisticsBookingController');
+    return assignDriver(req, res);
+});
+
+// GET    /api/driver/pending-bookings      → Driver fetches new orders
+router.get('/driver/pending-bookings', (req, res, next) => {
+    const { getDriverPendingBookings } = require('../controllers/logisticsBookingController');
+    const { verifyToken } = require('../middlewares/authMiddleware');
+    return verifyToken(req, res, () => getDriverPendingBookings(req, res));
+});
+
+// PATCH  /api/booking/:id/accept           → Driver accepts
+router.patch('/booking/:id/accept', (req, res, next) => {
+    const { acceptBooking } = require('../controllers/logisticsBookingController');
+    const { verifyToken } = require('../middlewares/authMiddleware');
+    return verifyToken(req, res, () => acceptBooking(req, res));
+});
+
+// PATCH  /api/booking/:id/reject           → Driver rejects
+router.patch('/booking/:id/reject', (req, res, next) => {
+    const { rejectBooking } = require('../controllers/logisticsBookingController');
+    const { verifyToken } = require('../middlewares/authMiddleware');
+    return verifyToken(req, res, () => rejectBooking(req, res));
+});
+
 // PATCH  /api/logistics-bookings/:id/railway-station → update railway station
 router.patch('/logistics-bookings/:id/railway-station', updateRailwayStation);
 

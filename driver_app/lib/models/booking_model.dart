@@ -150,6 +150,7 @@ class BookingModel {
       if (s == null) return 'pending';
       switch (s.toLowerCase()) {
         case 'confirmed': return 'accepted';
+        case 'pending_for_driver': return 'pending';
         case 'processing': return 'pending';
         case 'in_transit': return 'ongoing';
         case 'delivered': return 'completed';

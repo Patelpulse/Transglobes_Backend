@@ -76,7 +76,7 @@ exports.getDriverBookings = async (req, res) => {
                 $or: [
                     { driverId: currentDriver._id },
                     { driverId: identifier }, // Fallback for string ID
-                    { status: { $in: ['pending', 'processing'] } },
+                    { status: { $in: ['pending', 'pending_for_driver', 'processing'] } },
                     { rejectedBy: currentDriver._id }
                 ],
                 createdAt: { $gte: lookbackDate }
@@ -84,7 +84,7 @@ exports.getDriverBookings = async (req, res) => {
         } else {
             // For unauthenticated/unidentified but check status
             logistics = await LogisticsBooking.find({ 
-                status: 'pending',
+                status: { $in: ['pending', 'pending_for_driver'] },
                 createdAt: { $gte: lookbackDate }
             }).sort({ createdAt: -1 });
         }

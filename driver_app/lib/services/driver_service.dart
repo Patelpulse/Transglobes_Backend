@@ -117,6 +117,15 @@ class DriverService {
     await _api.put('/api/ride/rides/$rideId/reject', {'driverId': driverId});
   }
 
+  // --- New Logistics Booking APIs ---
+  Future<void> acceptBooking(String id) async {
+    await _api.patch('/api/booking/$id/accept', {});
+  }
+
+  Future<void> rejectBooking(String id) async {
+    await _api.patch('/api/booking/$id/reject', {});
+  }
+
   Future<void> completeRide(String rideId, double actualFare) async {
     await _api.put('/api/ride/rides/$rideId/complete', {
       'status': 'completed',

@@ -33,11 +33,12 @@ class LogisticsBookingRepository {
 
   Future<bool> assignDriver(String bookingId, String driverId, {String? transportName, String? transportNumber}) async {
     try {
-      final url = 'logistics-bookings/$bookingId/assign';
-      print('>>> Assign Driver API URL: $url');
-      print('>>> Body: {driverId: $driverId, transportName: $transportName, transportNumber: $transportNumber}');
+      final url = driverId == 'all' ? 'send-order-to-drivers' : 'logistics-bookings/$bookingId/assign';
+      print('>>> Dispatch API URL: $url');
+      print('>>> Body: {bookingId: $bookingId, driverId: $driverId, transportName: $transportName, transportNumber: $transportNumber}');
       
       final response = await _dio.post(url, data: {
+        'bookingId': bookingId,
         'driverId': driverId,
         'transportName': transportName,
         'transportNumber': transportNumber,
@@ -76,12 +77,12 @@ class LogisticsBookingRepository {
     required double totalPrice,
   }) async {
     try {
-      final response = await _dio.patch('logistics-bookings/$bookingId/billing', data: {
+      final response = await _dio.put('logistics-bookings/$bookingId/billing', data: {
         'vehiclePrice': vehiclePrice,
         'helperCost': helperCost,
         'additionalCharges': additionalCharges,
-        'discountAmount': discountAmount,
-        'totalPrice': totalPrice,
+        'discount': discountAmount, // Using 'discount' as requested
+        'totalAmount': totalPrice,   // Using 'totalAmount' as requested
       });
       return response.statusCode == 200;
     } catch (e) {

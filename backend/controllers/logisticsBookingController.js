@@ -230,10 +230,14 @@ exports.updateStatus = async (req, res) => {
 // Assign a driver to a logistics booking and notify them
 exports.assignDriver = async (req, res) => {
     try {
-        const { driverId, transportName, transportNumber } = req.body;
-        const bookingId = req.params.id;
+        const { driverId, transportName, transportNumber, bookingId: bodyId } = req.body;
+        const bookingId = req.params.id || bodyId;
 
         console.log(`[LOGISTICS-DISPATCH] Request for booking ${bookingId} with target: ${driverId}`);
+
+        if (!bookingId) {
+            return res.status(400).json({ success: false, message: 'Booking ID is required.' });
+        }
 
         if (!driverId) {
             return res.status(400).json({ success: false, message: 'Assign target (driverId or "all") is required.' });
@@ -244,7 +248,7 @@ exports.assignDriver = async (req, res) => {
             // General Dispatch
             updateData = { 
                 driverId: null,
-                status: 'pending' 
+                status: 'pending_for_driver' 
             };
         } else {
             // Specific Assignment
@@ -284,7 +288,7 @@ exports.assignDriver = async (req, res) => {
                 dropLat: booking.dropoff?.latitude,
                 dropLng: booking.dropoff?.longitude,
                 distance: `${booking.distanceKm} km`,
-                fare: booking.totalPrice || booking.price || 0,
+                fare: booking.totalPrice || booking.vehiclePrice || 0,
                 rideMode: booking.vehicleType || 'flatbed',
                 status: booking.status,
                 userId: booking.userId?.toString(),
@@ -317,6 +321,122 @@ exports.assignDriver = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
+
+// ─── GET /api/driver/pending-bookings ──────────────────
+exports.getDriverPendingBookings = async (req, res) => {
+    try {
+        const driverId = req.user.uid || req.user.id;
+        const mongoose = require('mongoose');
+        const Driver = require('../models/Driver');
+        
+        let mongoDriverId = driverId;
+        if (!mongoose.Types.ObjectId.isValid(driverId)) {
+            const d = await Driver.findOne({ $or: [{ uid: driverId }, { firebaseId: driverId }] });
+            if (d) mongoDriverId = d._id;
+        }
+
+        const bookings = await LogisticsBooking.find({
+            status: 'pending_for_driver',
+            rejectedBy: { $ne: mongoDriverId }
+        }).sort({ createdAt: -1 });
+
+        return res.status(200).json({ success: true, bookings });
+    } catch (error) {
+        console.error('Error fetching driver pending bookings:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ─── PATCH /api/booking/:id/accept ─────────────────────
+exports.acceptBooking = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const driverId = req.user.uid || req.user.id;
+        const mongoose = require('mongoose');
+        const Driver = require('../models/Driver');
+
+        let mongoDriverId = driverId;
+        let driver;
+        if (!mongoose.Types.ObjectId.isValid(driverId)) {
+            driver = await Driver.findOne({ $or: [{ uid: driverId }, { firebaseId: driverId }] });
+            if (driver) mongoDriverId = driver._id;
+        } else {
+            driver = await Driver.findById(driverId);
+        }
+
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            id,
+            { 
+                status: 'confirmed', 
+                driverId: mongoDriverId,
+                otp: otp
+            },
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        // Emit socket events
+        if (req.io) {
+            // Signal to user
+            req.io.to(booking.userId.toString()).emit("ride_accepted", {
+                rideId: booking._id.toString(),
+                status: 'confirmed',
+                otp: booking.otp,
+                type: 'LOGISTICS',
+                driver: driver ? {
+                    name: driver.name,
+                    phone: driver.mobileNumber,
+                    vehicle_number: driver.vehicleNumberPlate,
+                    vehicle_name: driver.vehicleModel
+                } : null
+            });
+            // Signal to other drivers to remove it
+            req.io.emit("ride_assigned", { rideId: booking._id.toString() });
+        }
+
+        return res.status(200).json({ success: true, message: 'Booking accepted.', data: booking });
+    } catch (error) {
+        console.error('Error accepting booking:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ─── PATCH /api/booking/:id/reject ─────────────────────
+exports.rejectBooking = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const driverId = req.user.uid || req.user.id;
+        const mongoose = require('mongoose');
+        const Driver = require('../models/Driver');
+
+        let mongoDriverId = driverId;
+        if (!mongoose.Types.ObjectId.isValid(driverId)) {
+            const d = await Driver.findOne({ $or: [{ uid: driverId }, { firebaseId: driverId }] });
+            if (d) mongoDriverId = d._id;
+        }
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            id,
+            { $addToSet: { rejectedBy: mongoDriverId } },
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        return res.status(200).json({ success: true, message: 'Booking rejected.' });
+    } catch (error) {
+        console.error('Error rejecting booking:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // ─── PATCH /api/logistics-bookings/:id/railway-station ───
 // Assign a railway station for train-based logistics (Admin)
 exports.updateRailwayStation = async (req, res) => {
