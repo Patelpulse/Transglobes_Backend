@@ -230,7 +230,7 @@ exports.updateStatus = async (req, res) => {
 // Assign a driver to a logistics booking and notify them
 exports.assignDriver = async (req, res) => {
     try {
-        const { driverId } = req.body;
+        const { driverId, transportName, transportNumber } = req.body;
         const bookingId = req.params.id;
 
         console.log(`[LOGISTICS-DISPATCH] Request for booking ${bookingId} with target: ${driverId}`);
@@ -241,7 +241,7 @@ exports.assignDriver = async (req, res) => {
 
         let updateData = {};
         if (driverId === 'all') {
-            // General Dispatch: Make sure it's pending and has no specific driver
+            // General Dispatch
             updateData = { 
                 driverId: null,
                 status: 'pending' 
@@ -253,6 +253,10 @@ exports.assignDriver = async (req, res) => {
                 status: 'processing'
             };
         }
+
+        // Add transport details if provided
+        if (transportName) updateData.transportName = transportName;
+        if (transportNumber) updateData.transportNumber = transportNumber;
 
         const booking = await LogisticsBooking.findByIdAndUpdate(
             bookingId,
@@ -285,7 +289,9 @@ exports.assignDriver = async (req, res) => {
                 status: booking.status,
                 userId: booking.userId?.toString(),
                 type: 'LOGISTICS',
-                railwayStation: booking.railwayStation
+                railwayStation: booking.railwayStation,
+                transportName: booking.transportName,
+                transportNumber: booking.transportNumber
             };
 
             if (driverId === 'all') {

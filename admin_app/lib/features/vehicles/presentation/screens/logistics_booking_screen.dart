@@ -325,6 +325,9 @@ class LogisticsBookingScreen extends ConsumerWidget {
   }
 
   void _showBookingDetailModal(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
+    final transportNameController = TextEditingController(text: booking.transportName);
+    final transportNumberController = TextEditingController(text: booking.transportNumber);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.backgroundColorDark,
@@ -446,10 +449,12 @@ class LogisticsBookingScreen extends ConsumerWidget {
                         )).toList(),
                       ]),
                     ],
+                    const SizedBox(height: 24),
+                    _buildTransportFields(booking, transportNameController, transportNumberController),
                     const SizedBox(height: 32),
-                        Column(
-                          children: [
-                            SizedBox(
+                    Column(
+                      children: [
+                        SizedBox(
                               width: double.infinity,
                               height: 50,
                               child: ElevatedButton.icon(
@@ -460,7 +465,12 @@ class LogisticsBookingScreen extends ConsumerWidget {
                                   );
                                   
                                   // Directly dispatch (no modal)
-                                  final success = await ref.read(logisticsBookingRepoProvider).assignDriver(booking.id, 'all');
+                                  final success = await ref.read(logisticsBookingRepoProvider).assignDriver(
+                                    booking.id, 
+                                    'all',
+                                    transportName: transportNameController.text.trim(),
+                                    transportNumber: transportNumberController.text.trim(),
+                                  );
                                   
                                   if (success && context.mounted) {
                                     ref.invalidate(logisticsBookingsProvider);
@@ -494,6 +504,38 @@ class LogisticsBookingScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildTransportFields(LogisticsBooking booking, TextEditingController nameCtrl, TextEditingController numCtrl) {
+    String nameLabel = '';
+    String numLabel = '';
+    IconData nameIcon = Icons.info_outline;
+    IconData numIcon = Icons.numbers_outlined;
+
+    final mode = booking.modeOfTravel.toLowerCase();
+    
+    if (mode.contains('train')) {
+      nameLabel = 'Train Name';
+      numLabel = 'Train Number';
+      nameIcon = Icons.train_outlined;
+    } else if (mode.contains('flight')) {
+      nameLabel = 'Airline Name';
+      numLabel = 'Flight Number';
+      nameIcon = Icons.flight_takeoff_outlined;
+    } else if (mode.contains('sea')) {
+      nameLabel = 'Vessel/Ship Name';
+      numLabel = 'Voyage Number';
+      nameIcon = Icons.directions_boat_outlined;
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return _buildDetailSection('TRANSPORT DETAILS', [
+      const SizedBox(height: 8),
+      _buildEditField(nameLabel, nameCtrl, nameIcon, (_) {}),
+      const SizedBox(height: 16),
+      _buildEditField(numLabel, numCtrl, numIcon, (_) {}),
+    ]);
   }
 
   Widget _buildDetailSection(String title, List<Widget> children) {

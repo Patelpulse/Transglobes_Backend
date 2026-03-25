@@ -213,6 +213,57 @@ class _ItemsVerificationScreenState extends ConsumerState<ItemsVerificationScree
             )),
 
             const SizedBox(height: 16),
+ 
+            if (b.transportName != null || b.transportNumber != null) ...[
+              const Text('TRANSPORT INFO', style: TextStyle(color: outlineColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: surfaceColor,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    if (b.transportName != null)
+                      Row(
+                        children: [
+                          const Icon(Icons.label_important_outline, color: primaryColor, size: 20),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Name', style: TextStyle(color: outlineColor, fontSize: 11)),
+                              Text(b.transportName!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    if (b.transportName != null && b.transportNumber != null)
+                      const Divider(height: 24, color: Color(0xFFF0F0F0)),
+                    if (b.transportNumber != null)
+                      Row(
+                        children: [
+                          const Icon(Icons.tag_rounded, color: primaryColor, size: 20),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Number', style: TextStyle(color: outlineColor, fontSize: 11)),
+                              Text(b.transportNumber!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            ],
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // ═══════════════════════════════════════
             // BILLING SECTION

@@ -96,6 +96,16 @@ const logisticsBookingSchema = new mongoose.Schema({
         default: null,
     },
 
+    // Transport Details (Dynamic based on mode)
+    transportName: {
+        type: String,
+        default: null,
+    },
+    transportNumber: {
+        type: String,
+        default: null,
+    },
+
     // OTP for Hand-off Verification
     otp: {
         type: String,

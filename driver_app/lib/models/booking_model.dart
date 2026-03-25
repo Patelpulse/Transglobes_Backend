@@ -29,6 +29,8 @@ class BookingModel {
   final double? vehiclePrice;
   final double? helperCost;
   final double? discountAmount;
+  final String? transportName;
+  final String? transportNumber;
 
   const BookingModel({
     required this.id,
@@ -59,6 +61,8 @@ class BookingModel {
     this.vehiclePrice,
     this.helperCost,
     this.discountAmount,
+    this.transportName,
+    this.transportNumber,
   });
 
   BookingModel copyWith({
@@ -189,6 +193,8 @@ class BookingModel {
       vehiclePrice: parseOptionalDouble(json['vehiclePrice'] ?? json['baseFare']),
       helperCost: parseOptionalDouble(json['helperCost']),
       discountAmount: parseOptionalDouble(json['discountAmount']),
+      transportName: json['transportName'],
+      transportNumber: json['transportNumber'],
     );
   }
 }

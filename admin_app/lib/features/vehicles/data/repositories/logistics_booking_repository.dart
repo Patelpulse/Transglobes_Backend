@@ -31,13 +31,17 @@ class LogisticsBookingRepository {
     }
   }
 
-  Future<bool> assignDriver(String bookingId, String driverId) async {
+  Future<bool> assignDriver(String bookingId, String driverId, {String? transportName, String? transportNumber}) async {
     try {
       final url = 'logistics-bookings/$bookingId/assign';
       print('>>> Assign Driver API URL: $url');
-      print('>>> Body: {driverId: $driverId}');
+      print('>>> Body: {driverId: $driverId, transportName: $transportName, transportNumber: $transportNumber}');
       
-      final response = await _dio.post(url, data: {'driverId': driverId});
+      final response = await _dio.post(url, data: {
+        'driverId': driverId,
+        'transportName': transportName,
+        'transportNumber': transportNumber,
+      });
       
       print('>>> Response Status: ${response.statusCode}');
       print('>>> Response Data: ${response.data}');

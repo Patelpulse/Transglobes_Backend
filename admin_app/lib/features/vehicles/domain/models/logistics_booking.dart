@@ -28,6 +28,8 @@ class LogisticsBooking {
   final Map<String, dynamic>? pickupAddressDetails;
   final Map<String, dynamic>? receivedAddressDetails;
   final String? railwayStation;
+  final String? transportName;
+  final String? transportNumber;
 
   LogisticsBooking({
     required this.id,
@@ -50,6 +52,8 @@ class LogisticsBooking {
     this.pickupAddressDetails,
     this.receivedAddressDetails,
     this.railwayStation,
+    this.transportName,
+    this.transportNumber,
   });
 
   factory LogisticsBooking.fromJson(Map<String, dynamic> json) {
@@ -84,6 +88,8 @@ class LogisticsBooking {
       pickupAddressDetails: json['pickupAddress'] is Map ? json['pickupAddress'] : null,
       receivedAddressDetails: json['receivedAddress'] is Map ? json['receivedAddress'] : null,
       railwayStation: json['railwayStation'],
+      transportName: json['transportName'],
+      transportNumber: json['transportNumber'],
     );
   }
 
