@@ -202,111 +202,92 @@ class LogisticsBookingScreen extends ConsumerWidget {
               right: 24,
               top: 24,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Update Billing Details', 
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white60),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
-                  ),
-                  child: const Row(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(Icons.info_outline, color: AppTheme.primaryColor, size: 18),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Updating billing manually will overwrite the original calculation. Please verify all costs before saving.',
-                          style: TextStyle(color: AppTheme.primaryColor, fontSize: 12),
-                        ),
+                      const Text('Update Billing Details', 
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.white60),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 24),
-                _buildEditField('Vehicle Price (₹)', vehiclePriceCtrl, Icons.local_shipping_outlined, (val) => setModalState(() {})),
-                const SizedBox(height: 16),
-                _buildEditField('Helper Cost (₹)', helperCostCtrl, Icons.person_outline, (val) => setModalState(() {})),
-                const SizedBox(height: 16),
-                _buildEditField('Additional Charges (₹)', additionalChargesCtrl, Icons.add_circle_outline, (val) => setModalState(() {})),
-                const SizedBox(height: 16),
-                _buildEditField('Discount (₹)', discountAmountCtrl, Icons.label_off_outlined, (val) => setModalState(() {})),
-                const SizedBox(height: 24),
-                const Divider(color: Colors.white12),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Calculated Total', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    Text('₹${calculateTotal().toInt()}', 
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      // Basic validation
-                      final v = getVal(vehiclePriceCtrl.text);
-                      final h = getVal(helperCostCtrl.text);
-                      final a = getVal(additionalChargesCtrl.text);
-                      final d = getVal(discountAmountCtrl.text);
-
-                      if (v < 0 || h < 0 || a < 0 || d < 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Values cannot be negative')),
-                        );
-                        return;
-                      }
-
-                      final success = await ref.read(logisticsBookingRepoProvider).updateBilling(
-                        bookingId: booking.id,
-                        vehiclePrice: v,
-                        helperCost: h,
-                        additionalCharges: a,
-                        discountAmount: d,
-                        totalPrice: calculateTotal(),
-                      );
-                      
-                      if (success && context.mounted) {
-                        ref.invalidate(logisticsBookingsProvider);
-                        Navigator.pop(context); // Close edit modal
-                        Navigator.pop(context); // Close detail modal to refresh
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Billing updated successfully'),
-                            backgroundColor: AppTheme.success,
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.success,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('SAVE BILLING DETAILS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  const SizedBox(height: 24),
+                  _buildEditField('Vehicle Price (₹)', vehiclePriceCtrl, Icons.local_shipping_outlined, (val) => setModalState(() {})),
+                  const SizedBox(height: 16),
+                  _buildEditField('Helper Cost (₹)', helperCostCtrl, Icons.person_outline, (val) => setModalState(() {})),
+                  const SizedBox(height: 16),
+                  _buildEditField('Additional Charges (₹)', additionalChargesCtrl, Icons.add_circle_outline, (val) => setModalState(() {})),
+                  const SizedBox(height: 16),
+                  _buildEditField('Discount (₹)', discountAmountCtrl, Icons.label_off_outlined, (val) => setModalState(() {})),
+                  const SizedBox(height: 24),
+                  const Divider(color: Colors.white12),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Calculated Total', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                      Text('₹${calculateTotal().toInt()}', 
+                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 48),
-              ],
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        // Basic validation
+                        final v = getVal(vehiclePriceCtrl.text);
+                        final h = getVal(helperCostCtrl.text);
+                        final a = getVal(additionalChargesCtrl.text);
+                        final d = getVal(discountAmountCtrl.text);
+
+                        if (v < 0 || h < 0 || a < 0 || d < 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Values cannot be negative')),
+                          );
+                          return;
+                        }
+
+                        final success = await ref.read(logisticsBookingRepoProvider).updateBilling(
+                          bookingId: booking.id,
+                          vehiclePrice: v,
+                          helperCost: h,
+                          additionalCharges: a,
+                          discountAmount: d,
+                          totalPrice: calculateTotal(),
+                        );
+                        
+                        if (success && context.mounted) {
+                          ref.invalidate(logisticsBookingsProvider);
+                          Navigator.pop(context); // Close edit modal
+                          Navigator.pop(context); // Close detail modal to refresh
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Billing updated successfully'),
+                              backgroundColor: AppTheme.success,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.success,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('SAVE BILLING DETAILS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                ],
+              ),
             ),
           );
         },
@@ -344,8 +325,6 @@ class LogisticsBookingScreen extends ConsumerWidget {
   }
 
   void _showBookingDetailModal(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
-    String? pendingRailwayStation;
-
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.backgroundColorDark,
@@ -409,32 +388,6 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       _buildDetailRow('Mode', booking.modeOfTravel.toUpperCase()),
                       _buildDetailRow('Distance', '${booking.distanceKm.toStringAsFixed(1)} KM'),
                       _buildDetailRow('Helper Count', booking.helperCount.toString()),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(booking.modeOfTravel.toLowerCase() == 'train' ? 'Railway Station' : 'Transit Point', 
-                              style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'Manrope')),
-                            
-                            if (pendingRailwayStation != null || booking.railwayStation != null)
-                              Text(pendingRailwayStation ?? booking.railwayStation!, 
-                                style: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Manrope'))
-                            else
-                              TextButton.icon(
-                                onPressed: () {
-                                  // Show a quick selection dialog
-                                  _showStationSelector(context, (selected) {
-                                    setModalState(() => pendingRailwayStation = selected);
-                                  });
-                                },
-                                icon: const Icon(Icons.add_circle_outline, size: 16, color: AppTheme.primaryColor),
-                                label: const Text('SELECT STATION', style: TextStyle(color: AppTheme.primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
-                                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30)),
-                              ),
-                          ],
-                        ),
-                      ),
                     ]),
                     const SizedBox(height: 24),
                     _buildDetailSection('ROUTE', [
@@ -496,36 +449,6 @@ class LogisticsBookingScreen extends ConsumerWidget {
                     const SizedBox(height: 32),
                         Column(
                           children: [
-                            if (pendingRailwayStation != null)
-                              SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final success = await ref.read(logisticsBookingRepoProvider).updateRailwayStation(booking.id, pendingRailwayStation!);
-                                    if (success) {
-                                      ref.invalidate(logisticsBookingsProvider);
-                                      if (context.mounted) {
-                                        Navigator.pop(context);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Successfully updated to $pendingRailwayStation'),
-                                            backgroundColor: AppTheme.success,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  icon: const Icon(Icons.check_circle_outline),
-                                  label: const Text('SUBMIT STATION CHANGE', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.success,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                ),
-                              ),
-                            if (pendingRailwayStation != null) const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               height: 50,
@@ -554,35 +477,6 @@ class LogisticsBookingScreen extends ConsumerWidget {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppTheme.primaryColor,
                                   foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: OutlinedButton.icon(
-                                onPressed: () async {
-                                  final selected = await _showRailwayStationModal(context, ref, booking.id);
-                                  if (selected != null) {
-                                    setModalState(() {
-                                      pendingRailwayStation = selected;
-                                    });
-                                  }
-                                },
-                                icon: Icon(
-                                  booking.modeOfTravel.toLowerCase() == 'train' ? Icons.train_outlined : Icons.location_on_outlined, 
-                                  color: Colors.white
-                                ),
-                                label: Text(
-                                  pendingRailwayStation != null 
-                                    ? 'CHANGE SELECTION' 
-                                    : (booking.modeOfTravel.toLowerCase() == 'train' ? 'SET RAILWAY STATION' : 'SET TRANSIT POINT'), 
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Colors.white24),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
                               ),
