@@ -150,7 +150,7 @@ class BookingModel {
       if (s == null) return 'pending';
       switch (s.toLowerCase()) {
         case 'confirmed': return 'accepted';
-        case 'pending_for_driver': return 'pending';
+        case 'pending_for_driver': return 'pending_for_driver'; // keep as-is for filter
         case 'processing': return 'pending';
         case 'in_transit': return 'ongoing';
         case 'delivered': return 'completed';
@@ -158,38 +158,52 @@ class BookingModel {
       }
     }
 
+    // Support both nested {address,latitude,longitude} objects (from DB)
+    // and flat strings (from socket events)
+    String resolveAddress(dynamic nested, String flatFallback) {
+      if (nested is Map) return nested['address']?.toString() ?? '';
+      if (nested is String) return nested;
+      return json[flatFallback]?.toString() ?? '';
+    }
+    double? resolveLatFromObj(dynamic nested, String flatKey) {
+      if (nested is Map) return parseOptionalDouble(nested['latitude'] ?? nested['lat']);
+      return parseOptionalDouble(json[flatKey]);
+    }
+    double? resolveLngFromObj(dynamic nested, String flatKey) {
+      if (nested is Map) return parseOptionalDouble(nested['longitude'] ?? nested['lng']);
+      return parseOptionalDouble(json[flatKey]);
+    }
+
+    final pickupRaw = json['pickup'] ?? json['pickupAddress'];
+    final dropRaw   = json['dropoff'] ?? json['dropAddress'] ?? json['receivedAddress'];
     final mode = json['rideMode']?.toString() ?? json['modeOfTravel']?.toString() ?? json['vehicleType']?.toString();
 
     return BookingModel(
       id: json['_id'] ?? json['id'] ?? '',
       userName: json['userName'] ?? 'Customer',
       userPhone: json['userPhone'] ?? json['phone'] ?? '',
-      pickupAddress: json['pickupAddress'] ?? json['pick'] ?? '',
-      dropAddress: json['dropAddress'] ?? json['drop'] ?? '',
-      fare: parseDouble(json['fare']),
+      pickupAddress: resolveAddress(pickupRaw, 'pick'),
+      dropAddress:   resolveAddress(dropRaw, 'drop'),
+      fare: parseDouble(json['totalPrice'] ?? json['fare'] ?? json['vehiclePrice'] ?? 0),
       distanceKm: (json['distanceKm'] != null)
           ? parseDouble(json['distanceKm'])
           : parseDouble(json['distance']?.toString().replaceAll(' km', '')),
       etaMinutes: parseInt(json['etaMinutes'], 10),
       vehicleType: deriveVehicleType(mode),
-      subType: mode?.toUpperCase() ?? 'ECONOMY',
+      subType: mode?.toUpperCase() ?? 'LOGISTICS',
       status: mapStatus(json['status']),
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       otp: json['otp']?.toString(),
       actualFare: parseOptionalDouble(json['actualFare']),
-      pickupLat: parseOptionalDouble(json['pickupLat']),
-      pickupLng: parseOptionalDouble(json['pickupLng']),
-      dropLat: parseOptionalDouble(json['dropLat']),
-      dropLng: parseOptionalDouble(json['dropLng']),
+      pickupLat: resolveLatFromObj(pickupRaw, 'pickupLat'),
+      pickupLng: resolveLngFromObj(pickupRaw, 'pickupLng'),
+      dropLat: resolveLatFromObj(dropRaw, 'dropLat'),
+      dropLng: resolveLngFromObj(dropRaw, 'dropLng'),
       userId: json['userId']?.toString(),
       paymentStatus: json['paymentStatus'] ?? 'unpaid',
       railwayStation: json['railwayStation'] ?? json['transitPoint'],
-      pickupDetails: json['pickupDetails'] is Map
-          ? Map<String, dynamic>.from(json['pickupDetails'])
-          : (json['pickupAddress'] is Map ? Map<String, dynamic>.from(json['pickupAddress']) : null),
-      dropDetails: json['dropDetails'] is Map
-          ? Map<String, dynamic>.from(json['dropDetails'])
-          : (json['receivedAddress'] is Map ? Map<String, dynamic>.from(json['receivedAddress']) : null),
+      pickupDetails: pickupRaw is Map ? Map<String, dynamic>.from(pickupRaw) : null,
+      dropDetails:   dropRaw is Map   ? Map<String, dynamic>.from(dropRaw)   : null,
       items: json['items'] is List ? List<dynamic>.from(json['items']) : null,
       vehiclePrice: parseOptionalDouble(json['vehiclePrice'] ?? json['baseFare']),
       helperCost: parseOptionalDouble(json['helperCost']),

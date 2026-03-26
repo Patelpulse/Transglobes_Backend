@@ -9,8 +9,16 @@ class AppConfig {
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
-    
-    return 'https://transglobesbackend-production.up.railway.app';
+    return 'http://localhost:8080/api';
+  }
+
+  // Socket server root (WITHOUT /api suffix)
+  static String get socketBaseUrl {
+    final envUrl = dotenv.env['SOCKET_BASE_URL'];
+    if (envUrl != null && envUrl.isNotEmpty) {
+      return envUrl;
+    }
+    return 'http://localhost:8080';
   }
   
   // Google Maps API Key

@@ -119,11 +119,23 @@ class DriverService {
 
   // --- New Logistics Booking APIs ---
   Future<void> acceptBooking(String id) async {
-    await _api.patch('/api/booking/$id/accept', {});
+    try {
+      await _api.patch('/api/booking/$id/accept', {});
+      debugPrint('>>> Logistics booking $id accepted successfully');
+    } catch (e) {
+      debugPrint('>>> Error accepting logistics booking: $e');
+      rethrow;
+    }
   }
 
   Future<void> rejectBooking(String id) async {
-    await _api.patch('/api/booking/$id/reject', {});
+    try {
+      await _api.patch('/api/booking/$id/reject', {});
+      debugPrint('>>> Logistics booking $id rejected successfully');
+    } catch (e) {
+      debugPrint('>>> Error rejecting logistics booking: $e');
+      rethrow;
+    }
   }
 
   Future<void> completeRide(String rideId, double actualFare) async {
@@ -142,17 +154,38 @@ class DriverService {
 
   // --- Fetch Bookings ---
   Future<List<BookingModel>> getDriverBookings() async {
+    final List<BookingModel> results = [];
+
+    // 1. Fetch regular ride bookings
     try {
       final res = await _api.get('/api/ride/driver-bookings');
       if (res != null) {
         final List bookings = res['bookings'] ?? [];
-        return bookings.map((e) => BookingModel.fromJson(e)).toList();
+        results.addAll(bookings.map((e) => BookingModel.fromJson(e)));
       }
-      return [];
     } catch (e) {
-      debugPrint('Error fetching driver bookings: $e');
-      return [];
+      debugPrint('Error fetching regular driver bookings: $e');
     }
+
+    // 2. Fetch pending logistics bookings dispatched to all drivers
+    try {
+      final res = await _api.get('/api/driver/pending-bookings');
+      if (res != null) {
+        final List bookings = res['bookings'] ?? [];
+        final logisticsBookings = bookings.map((e) => BookingModel.fromJson(e)).toList();
+        // Merge, avoiding duplicates
+        for (final lb in logisticsBookings) {
+          if (!results.any((b) => b.id == lb.id)) {
+            results.add(lb);
+          }
+        }
+        debugPrint('>>> Fetched ${logisticsBookings.length} pending logistics bookings');
+      }
+    } catch (e) {
+      debugPrint('Error fetching logistics pending bookings: $e');
+    }
+
+    return results;
   }
 
   Future<void> updateStatus(String id, String status) async {
@@ -182,7 +215,7 @@ class DriverService {
     required double totalPrice,
   }) async {
     try {
-      await _api.put('/api/logistics-bookings/$bookingId/billing', {
+      await _api.patch('/api/logistics-bookings/$bookingId/billing', {
         'vehiclePrice': vehiclePrice,
         'helperCost': helperCost,
         'discountAmount': discountAmount,

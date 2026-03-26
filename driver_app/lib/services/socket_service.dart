@@ -37,7 +37,7 @@ class SocketService {
       return;
     }
 
-    final baseUrl = AppConfig.apiBaseUrl;
+    final baseUrl = AppConfig.socketBaseUrl; // Socket.io needs root, not /api
     
     _socket = IO.io(
       baseUrl,

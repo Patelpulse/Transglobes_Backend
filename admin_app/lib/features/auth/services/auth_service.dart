@@ -11,7 +11,7 @@ class AuthService {
   );
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'https://transglobesbackend-production.up.railway.app/api/admin',
+    baseUrl: 'http://localhost:8080/api/admin',
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
   ));

@@ -189,7 +189,11 @@ final bookingProvider =
     NotifierProvider<BookingNotifier, List<BookingModel>>(BookingNotifier.new);
 
 final pendingBookingsProvider = Provider<List<BookingModel>>((ref) {
-  return ref.watch(bookingProvider).where((b) => b.status == 'pending' || b.status == 'processing').toList();
+  return ref.watch(bookingProvider).where((b) =>
+    b.status == 'pending' ||
+    b.status == 'processing' ||
+    b.status == 'pending_for_driver'
+  ).toList();
 });
 
 final activeBookingsProvider = Provider<List<BookingModel>>((ref) {
