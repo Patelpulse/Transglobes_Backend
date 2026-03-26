@@ -89,7 +89,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
     try {
       final service = ref.read(driverServiceProvider);
       final list = await service.getDriverBookings();
-      print('>>> DRIVER FETCHED ${list.length} BOOKINGS: $list');
+      print('>>> DRIVER FETCHED ${list.length} BOOKINGS');
       
       // Merge: Keep local 'updating' status for any ID in _updatingIds
       final mergedRows = list.map((remote) {
@@ -100,7 +100,16 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
         return remote;
       }).toList();
 
-      state = mergedRows;
+      // ── Race-condition fix ──────────────────────────────────────────────
+      // Socket may have pushed a new booking AFTER this HTTP request was sent.
+      // Don't discard those socket-received pending orders — keep them until
+      // the next poll cycle confirms them from the API.
+      final socketOnlyPending = state.where((b) =>
+        (b.status == 'pending' || b.status == 'pending_for_driver') &&
+        !mergedRows.any((r) => r.id == b.id)
+      ).toList();
+
+      state = [...mergedRows, ...socketOnlyPending];
     } catch (e) {
       print('❗️ Error fetching bookings: $e');
     }
