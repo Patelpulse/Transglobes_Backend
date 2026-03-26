@@ -382,7 +382,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                                       final success = await ref.read(authStateProvider.notifier).signInWithGoogle();
                                       if (success && mounted) context.go('/');
                                     },
-                                    icon: Image.asset('assets/images/google_logo.png', height: 20, errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 24)),
+                                    icon: const Icon(Icons.g_mobiledata, size: 28),
                                     label: const Text(
                                       'Continue with Google',
                                       style: TextStyle(
