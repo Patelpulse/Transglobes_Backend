@@ -325,27 +325,34 @@ exports.assignDriver = async (req, res) => {
 // ─── GET /api/driver/pending-bookings ──────────────────
 exports.getDriverPendingBookings = async (req, res) => {
     try {
-        const driverId = req.user.uid || req.user.id;
-        const mongoose = require('mongoose');
-        const Driver = require('../models/Driver');
-        
-        let mongoDriverId = driverId;
-        if (!mongoose.Types.ObjectId.isValid(driverId)) {
-            const d = await Driver.findOne({ $or: [{ uid: driverId }, { firebaseId: driverId }] });
-            if (d) mongoDriverId = d._id;
+        let query = { status: 'pending_for_driver' };
+
+        // If authenticated, exclude bookings this driver already rejected
+        if (req.user) {
+            const driverId = req.user.uid || req.user.id;
+            const mongoose = require('mongoose');
+            const Driver = require('../models/Driver');
+
+            let mongoDriverId = driverId;
+            if (driverId && !mongoose.Types.ObjectId.isValid(driverId)) {
+                const d = await Driver.findOne({ $or: [{ uid: driverId }, { firebaseId: driverId }] });
+                if (d) mongoDriverId = d._id;
+            }
+
+            if (mongoDriverId) {
+                query.rejectedBy = { $ne: mongoDriverId };
+            }
         }
 
-        const bookings = await LogisticsBooking.find({
-            status: 'pending_for_driver',
-            rejectedBy: { $ne: mongoDriverId }
-        }).sort({ createdAt: -1 });
-
+        const bookings = await LogisticsBooking.find(query).sort({ createdAt: -1 });
+        console.log(`[PENDING-BOOKINGS] Found ${bookings.length} bookings (auth: ${req.user ? 'yes' : 'no'})`);
         return res.status(200).json({ success: true, bookings });
     } catch (error) {
         console.error('Error fetching driver pending bookings:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
+
 
 // ─── PATCH /api/booking/:id/accept ─────────────────────
 exports.acceptBooking = async (req, res) => {

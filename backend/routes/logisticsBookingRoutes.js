@@ -21,11 +21,35 @@ router.post('/send-order-to-drivers', (req, res, next) => {
     return assignDriver(req, res);
 });
 
-// GET    /api/driver/pending-bookings      → Driver fetches new orders
-router.get('/driver/pending-bookings', (req, res, next) => {
+// GET    /api/driver/pending-bookings  → optional auth: returns pending_for_driver
+// If token valid, filters out bookings rejected by this driver.
+// If no/invalid token, returns ALL pending_for_driver bookings.
+router.get('/driver/pending-bookings', async (req, res) => {
     const { getDriverPendingBookings } = require('../controllers/logisticsBookingController');
-    const { verifyToken } = require('../middlewares/authMiddleware');
-    return verifyToken(req, res, () => getDriverPendingBookings(req, res));
+    const admin = require('../config/firebase');
+    const jwt = require('jsonwebtoken');
+    
+    let token = req.headers.authorization;
+    if (token && token.startsWith('Bearer ')) token = token.split(' ')[1];
+    
+    if (token) {
+        try {
+            const decoded = await admin.auth().verifyIdToken(token);
+            req.user = decoded;
+        } catch {
+            try {
+                const local = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+                req.user = { uid: local.uid || local.id, email: local.email };
+            } catch {
+                // Token invalid — proceed without user context
+                req.user = null;
+            }
+        }
+    } else {
+        req.user = null;
+    }
+    
+    return getDriverPendingBookings(req, res);
 });
 
 // PATCH  /api/booking/:id/accept           → Driver accepts
