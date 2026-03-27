@@ -9,6 +9,8 @@ const {
     assignDriver,
     updateRailwayStation,
     updateBilling,
+    updateRoadmap,
+    assignSegmentDriver,
 } = require('../controllers/logisticsBookingController');
 
 // ... (other routes)
@@ -90,5 +92,9 @@ router.post('/logistics-bookings/:id/assign', assignDriver);
 // PATCH  /api/logistics-bookings/:id/billing → admin edits billing
 router.patch('/logistics-bookings/:id/billing', updateBilling);
 router.patch('/logistics-booking/:id/billing', updateBilling);
+
+// 🗺️ Roadmap & Multi-segment Journey
+router.patch('/logistics-bookings/:id/roadmap', updateRoadmap);
+router.post('/logistics-bookings/:id/segment/:segmentId/assign', assignSegmentDriver);
 
 module.exports = router;

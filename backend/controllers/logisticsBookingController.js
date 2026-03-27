@@ -1,4 +1,35 @@
 const LogisticsBooking = require('../models/LogisticsBooking');
+const { validateTransition, calculateCancellationCharge } = require('../utils/bookingLifecycle');
+
+const normalizeLocation = (location, fallbackName, fallbackAddress) => {
+    if (!location && !fallbackName && !fallbackAddress) {
+        return null;
+    }
+
+    return {
+        name: location?.name ?? fallbackName ?? fallbackAddress ?? 'Location',
+        address: location?.address ?? fallbackAddress ?? fallbackName ?? 'Location',
+        lat: Number(location?.lat ?? location?.latitude ?? 0),
+        lng: Number(location?.lng ?? location?.longitude ?? 0),
+    };
+};
+
+const normalizeItems = (items = [], fallbackWeight = 0) => {
+    if (!Array.isArray(items)) return [];
+
+    return items
+        .map((item) => ({
+            itemName: item?.itemName ?? item?.name ?? item?.goodsType ?? 'General Goods',
+            type: item?.type ?? 'General',
+            length: Number(item?.length ?? 0),
+            height: Number(item?.height ?? 0),
+            width: Number(item?.width ?? 0),
+            unit: item?.unit ?? 'cm',
+            weight: Number(item?.weight ?? fallbackWeight ?? 0),
+            quantity: Number(item?.quantity ?? 1),
+        }))
+        .filter((item) => item.itemName);
+};
 
 // ─── POST /api/logistics-bookings  ──────────────────────
 // Create a new logistics booking with all details
@@ -22,10 +53,23 @@ exports.createBooking = async (req, res) => {
             appliedCoupon,
             pickupAddress,
             receivedAddress,
+            segments,
+            pickupName,
+            dropName,
+            modeOfTravel,
+            price,
+            weight,
         } = req.body;
 
+        const normalizedPickup = normalizeLocation(pickup, pickupName, pickupName);
+        const normalizedDropoff = normalizeLocation(dropoff, dropName, dropName);
+        const normalizedVehicleType = vehicleType ?? modeOfTravel;
+        const normalizedItems = normalizeItems(items, weight);
+        const normalizedVehiclePrice = Number(vehiclePrice ?? price ?? totalPrice ?? 0);
+        const normalizedTotalPrice = Number(totalPrice ?? price ?? vehiclePrice ?? 0);
+
         // Basic validation
-        if (!userId || !pickup || !dropoff || !vehicleType) {
+        if (!userId || !normalizedPickup || !normalizedDropoff || !normalizedVehicleType) {
             return res.status(400).json({
                 success: false,
                 message: 'userId, pickup, dropoff, and vehicleType are required.',
@@ -36,20 +80,21 @@ exports.createBooking = async (req, res) => {
             userId,
             userName:       userName       ?? "Guest User",
             userPhone:      userPhone      ?? "",
-            pickup,
-            dropoff,
+            pickup:         normalizedPickup,
+            dropoff:        normalizedDropoff,
             distanceKm:     distanceKm     ?? 0,
-            vehicleType,
-            vehiclePrice:   vehiclePrice   ?? 0,
-            items:          items          ?? [],
+            vehicleType:    normalizedVehicleType,
+            vehiclePrice:   normalizedVehiclePrice,
+            items:          normalizedItems,
             helperCount:    helperCount    ?? 0,
             helperCost:     helperCost     ?? 0,
             additionalCharges: additionalCharges ?? 0,
             discountAmount: discountAmount ?? 0,
-            totalPrice:     totalPrice     ?? 0,
+            totalPrice:     normalizedTotalPrice,
             appliedCoupon:  appliedCoupon  ?? null,
             pickupAddress:  pickupAddress  ?? null,
             receivedAddress: receivedAddress ?? null,
+            segments:       segments       ?? [],
             status: 'pending',
         });
 
@@ -188,14 +233,34 @@ exports.getBookingById = async (req, res) => {
 // Update booking status (Admin / Driver)
 exports.updateStatus = async (req, res) => {
     try {
-        const { status } = req.body;
-        const allowed = ['pending', 'confirmed', 'in_transit', 'delivered', 'cancelled'];
+        const { status, adminOverride = false } = req.body;
+        const allowed = ['pending', 'pending_for_driver', 'confirmed', 'processing', 'in_transit', 'delivered', 'cancelled'];
         if (!allowed.includes(status)) {
             return res.status(400).json({ success: false, message: 'Invalid status value.' });
         }
+
+        // Fetch current booking for lifecycle validation
+        const existing = await LogisticsBooking.findById(req.params.id);
+        if (!existing) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        // Enforce lifecycle transitions
+        const { allowed: canTransition, reason } = validateTransition(
+            existing.status, status, 'logistics', adminOverride
+        );
+        if (!canTransition) {
+            return res.status(422).json({ success: false, message: reason });
+        }
+
+        // Calculate cancellation charge if applicable
+        let cancellationCharge = 0;
+        if (status === 'cancelled') {
+            const { charge } = calculateCancellationCharge(existing.createdAt, existing.totalPrice, 'logistics');
+            cancellationCharge = charge;
+        }
+
         const booking = await LogisticsBooking.findByIdAndUpdate(
             req.params.id,
-            { status },
+            { status, ...(cancellationCharge > 0 && { cancellationCharge }) },
             { new: true }
         );
         if (!booking) {
@@ -230,7 +295,7 @@ exports.updateStatus = async (req, res) => {
 // Assign a driver to a logistics booking and notify them
 exports.assignDriver = async (req, res) => {
     try {
-        const { driverId, transportName, transportNumber, bookingId: bodyId } = req.body;
+        const { driverId, transportName, transportNumber, estimatedTime, estimatedDate, bookingId: bodyId } = req.body;
         const bookingId = req.params.id || bodyId;
 
         console.log(`[LOGISTICS-DISPATCH] Request for booking ${bookingId} with target: ${driverId}`);
@@ -261,6 +326,8 @@ exports.assignDriver = async (req, res) => {
         // Add transport details if provided
         if (transportName) updateData.transportName = transportName;
         if (transportNumber) updateData.transportNumber = transportNumber;
+        if (estimatedTime) updateData.estimatedTime = estimatedTime;
+        if (estimatedDate) updateData.estimatedDate = estimatedDate;
 
         const booking = await LogisticsBooking.findByIdAndUpdate(
             bookingId,
@@ -295,7 +362,9 @@ exports.assignDriver = async (req, res) => {
                 type: 'LOGISTICS',
                 railwayStation: booking.railwayStation,
                 transportName: booking.transportName,
-                transportNumber: booking.transportNumber
+                transportNumber: booking.transportNumber,
+                estimatedTime: booking.estimatedTime,
+                estimatedDate: booking.estimatedDate
             };
 
             if (driverId === 'all') {
@@ -318,6 +387,107 @@ exports.assignDriver = async (req, res) => {
         });
     } catch (error) {
         console.error('Error assigning driver:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ─── PATCH /api/logistics-bookings/:id/roadmap ──────────
+// Update the entire roadmap (Multi-segment journey)
+exports.updateRoadmap = async (req, res) => {
+    try {
+        const { segments } = req.body;
+        const bookingId = req.params.id;
+
+        if (!segments || !Array.isArray(segments)) {
+            return res.status(400).json({ success: false, message: 'Valid segments array is required.' });
+        }
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            bookingId,
+            { segments },
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        // Notify User via Socket
+        if (req.io) {
+            req.io.to(booking.userId.toString()).emit("roadmap_updated", {
+                rideId: bookingId,
+                segments: booking.segments
+            });
+        }
+
+        // Notify User via Push
+        const { notifyUser } = require('../utils/notificationService');
+        notifyUser(booking.userId, {
+            title: "Journey Updated",
+            body: "A supervisor has updated your shipment roadmap. Check the app for details.",
+            data: {
+                bookingId: booking._id.toString(),
+                type: 'ROADMAP_UPDATE'
+            }
+        });
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Roadmap updated successfully.', 
+            data: booking 
+        });
+    } catch (error) {
+        console.error('Error updating roadmap:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ─── POST /api/logistics-bookings/:id/segment/:segmentId/assign ──────────
+// Assign a driver to a specific segment
+exports.assignSegmentDriver = async (req, res) => {
+    try {
+        const { driverId } = req.body;
+        const { id: bookingId, segmentId } = req.params;
+
+        const booking = await LogisticsBooking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        const segment = booking.segments.id(segmentId);
+        if (!segment) {
+            return res.status(404).json({ success: false, message: 'Segment not found.' });
+        }
+
+        segment.driverId = driverId;
+        segment.status = 'processing';
+        await booking.save();
+
+        if (req.io) {
+            if (driverId !== 'all') {
+                req.io.to(driverId.toString()).emit("new_ride", {
+                    id: booking._id.toString(),
+                    segmentId: segmentId,
+                    userName: booking.userName,
+                    pick: segment.start.address,
+                    drop: segment.end.address,
+                    type: 'LOGISTICS_SEGMENT'
+                });
+            }
+            // Also notify the user to update the roadmap timeline
+            req.io.to(booking.userId.toString()).emit("roadmap_updated", {
+                rideId: bookingId,
+                segments: booking.segments
+            });
+        }
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Segment driver assigned.', 
+            data: booking 
+        });
+    } catch (error) {
+        console.error('Error assigning segment driver:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };

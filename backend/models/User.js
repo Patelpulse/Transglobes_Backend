@@ -38,6 +38,19 @@ const userSchema = new mongoose.Schema({
     fcmToken: {
         type: String,
         default: ''
+    },
+    role: {
+        type: String,
+        enum: ['user', 'corporate'],
+        default: 'user'
+    },
+    lastLoginAt: {
+        type: Date
+    },
+    deviceInfo: {
+        model: String,
+        platform: String,
+        version: String
     }
 }, { timestamps: true });
 

@@ -1,0 +1,66 @@
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+
+const corporateSchema = new mongoose.Schema({
+    companyName: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    gstin: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    contactPhone: {
+        type: String,
+        required: true
+    },
+    address: {
+        type: String,
+        required: true
+    },
+    creditLimit: {
+        type: Number,
+        default: 0
+    },
+    currentBalance: {
+        type: Number,
+        default: 0
+    },
+    accountManagerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin'
+    },
+    status: {
+        type: String,
+        enum: ['active', 'inactive', 'on_hold'],
+        default: 'active'
+    },
+    role: {
+        type: String,
+        default: 'corporate'
+    },
+    password: {
+        type: String,
+        required: true
+    }
+}, { timestamps: true });
+
+corporateSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+});
+
+corporateSchema.methods.comparePassword = async function (candidatePassword) {
+    return bcrypt.compare(candidatePassword, this.password);
+};
+
+module.exports = mongoose.model('Corporate', corporateSchema);

@@ -3,8 +3,44 @@ const express = require('express');
 const connectDB = require('./config/db');
 const http = require('http');
 const initSocket = require('./socket/socketHandler');
+const { requestLogger, centralErrorHandler } = require('./middlewares/requestLogger');
 
 const app = express();
+const requestBuckets = new Map();
+
+const securityHeaders = (req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    next();
+};
+
+const basicRateLimiter = ({
+    windowMs = 15 * 60 * 1000,
+    maxRequests = 300,
+} = {}) => (req, res, next) => {
+    const key = `${req.ip}:${req.path}`;
+    const now = Date.now();
+    const bucket = requestBuckets.get(key);
+
+    if (!bucket || now > bucket.resetAt) {
+        requestBuckets.set(key, { count: 1, resetAt: now + windowMs });
+        return next();
+    }
+
+    if (bucket.count >= maxRequests) {
+        const retryAfterSeconds = Math.ceil((bucket.resetAt - now) / 1000);
+        res.setHeader('Retry-After', retryAfterSeconds);
+        return res.status(429).json({
+            success: false,
+            message: 'Too many requests. Please try again later.',
+        });
+    }
+
+    bucket.count += 1;
+    next();
+};
 
 // Trust proxy for Railway/Heroku
 app.set('trust proxy', 1);
@@ -40,6 +76,9 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use(securityHeaders);
+app.use(basicRateLimiter());
+app.use(requestLogger);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -62,6 +101,10 @@ const typeGoodRoutes = require('./routes/typeGoodRoutes');
 const logisticsVehicleRoutes = require('./routes/logisticsVehicleRoutes');
 const logisticGoodRoutes = require('./routes/logisticGoodRoutes');
 const logisticsBookingRoutes = require('./routes/logisticsBookingRoutes');
+const corporateRoutes = require('./routes/corporateRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const ratingController = require('./controllers/ratingController');
+const { verifyToken } = require('./middlewares/authMiddleware');
 const { updateBilling } = require('./controllers/logisticsBookingController');
 
 // Root & Health Check Routes
@@ -86,6 +129,12 @@ app.use('/api/maps', mapsRoutes);
 app.use('/api/typegood', typeGoodRoutes);
 app.use('/api/logistics-vehicles', logisticsVehicleRoutes);
 app.use('/api/logistic-goods', logisticGoodRoutes);
+app.use('/api/corporate', corporateRoutes);
+app.use('/api/payment', paymentRoutes);
+app.post('/api/ratings', verifyToken, ratingController.submitRating);
+app.get('/api/ratings/booking/:bookingId', ratingController.getBookingRatings);
+app.get('/api/ratings/driver/:driverId', ratingController.getDriverRatings);
+app.get('/api/ratings/user/:userId', ratingController.getUserRatings);
 app.use('/api', logisticsBookingRoutes);
 
 // Database Connection
@@ -102,14 +151,8 @@ app.use((req, res, next) => {
     });
 });
 
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-    console.error('SERVER ERROR:', err.stack);
-    res.status(500).json({
-        message: 'Internal Server Error',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
-});
+// Centralized Error Handler (must be last)
+app.use(centralErrorHandler);
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, '0.0.0.0', () => {

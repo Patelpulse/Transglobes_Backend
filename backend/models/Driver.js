@@ -124,6 +124,18 @@ const driverSchema = new mongoose.Schema({
     insurance: {
         type: String,
         default: ''
+    },
+    role: {
+        type: String,
+        default: 'driver'
+    },
+    lastLoginAt: {
+        type: Date
+    },
+    deviceInfo: {
+        model: String,
+        platform: String,
+        version: String
     }
 }, { timestamps: true });
 

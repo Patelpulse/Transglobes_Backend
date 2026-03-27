@@ -59,6 +59,10 @@ const logisticsBookingSchema = new mongoose.Schema({
     discountAmount:{ type: Number, default: 0 },
     totalPrice:    { type: Number, default: 0 },
     appliedCoupon: { type: String, default: null },
+    
+    // Estimates
+    estimatedTime: { type: String, default: "" }, // e.g. "2 Days", "10:30 AM"
+    estimatedDate: { type: String, default: "" }, // e.g. "2024-03-28"
 
     // Vehicle
     vehicleType: { type: String, required: true }, // Train, Flight, Sea Cargo, etc.
@@ -90,6 +94,25 @@ const logisticsBookingSchema = new mongoose.Schema({
         default: null,
     },
 
+    // ─── Multi-Segment Roadmap (Supervisor Controlled) ─────
+    segments: [{
+        start:           { type: locationSchema },
+        end:             { type: locationSchema },
+        mode:            { type: String, enum: ['Road', 'Train', 'Flight', 'Sea Cargo'], default: 'Road' },
+        distanceKm:      { type: Number, default: 0 },
+        driverId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', default: null },
+        transportName:   { type: String },   // e.g. Train Name
+        transportNumber: { type: String },   // e.g. Train Number
+        estimatedTime:   { type: String },   // e.g. "10:30 AM" or "3 Hours"
+        estimatedDate:   { type: String },   // e.g. "2024-03-28"
+        status: { 
+            type: String, 
+            enum: ['pending', 'processing', 'completed'], 
+            default: 'pending' 
+        },
+        price:           { type: Number, default: 0 }
+      }],
+
     // Railway Station for Train Mode
     railwayStation: {
         type: String,
@@ -105,6 +128,9 @@ const logisticsBookingSchema = new mongoose.Schema({
         type: String,
         default: null,
     },
+
+    // Cancellation charge (if cancelled after free window)
+    cancellationCharge: { type: Number, default: 0 },
 
     // OTP for Hand-off Verification
     otp: {

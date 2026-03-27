@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 const AdminSignup = require('../models/adminSignup');
 
+const isExplicitAdminDevBypassEnabled = () =>
+    process.env.NODE_ENV !== 'production' &&
+    process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
+
 const verifyAdminToken = async (req, res, next) => {
     let token = req.headers.authorization;
     if (token && token.startsWith('Bearer ')) {
@@ -8,7 +12,7 @@ const verifyAdminToken = async (req, res, next) => {
     }
 
     if (!token) {
-        if (process.env.NODE_ENV === 'development') {
+        if (isExplicitAdminDevBypassEnabled()) {
             console.warn('DEV WARNING: Bypassing admin auth because no token was provided');
             req.user = { uid: 'admin_dev', role: 'admin' };
             return next();
@@ -17,11 +21,9 @@ const verifyAdminToken = async (req, res, next) => {
     }
 
     try {
-        // First verify DB existence (Token Save in MongoDB requirement)
-        const admin = await AdminSignup.findOne({ token });
-        if (!admin) {
-            // Fallback for dev/manual bypass if needed, but primarily enforce stored token
-            if (process.env.NODE_ENV === 'development' || token === 'dummy_token') {
+        const adminRecord = await AdminSignup.findOne({ token });
+        if (!adminRecord) {
+            if (isExplicitAdminDevBypassEnabled() && token === 'dummy_token') {
                 req.user = { uid: 'admin_dev', role: 'admin' };
                 return next();
             }
@@ -29,7 +31,15 @@ const verifyAdminToken = async (req, res, next) => {
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
-        req.user = decoded;
+
+        // Attach full role from Admin DB record (supports supervisor role)
+        req.user = {
+            ...decoded,
+            role: adminRecord.role || decoded.role || 'admin',
+            adminId: adminRecord._id,
+            adminName: adminRecord.name,
+        };
+
         next();
     } catch (error) {
         console.error('Error verifying admin token:', error);
@@ -37,4 +47,33 @@ const verifyAdminToken = async (req, res, next) => {
     }
 };
 
-module.exports = { verifyAdminToken };
+/**
+ * Middleware: Only allow supervisor or higher roles on admin routes
+ */
+const requireSupervisorRole = (req, res, next) => {
+    const role = req.user?.role;
+    const allowed = ['supervisor', 'admin', 'superadmin', 'moderator'];
+    if (!allowed.includes(role)) {
+        return res.status(403).json({
+            success: false,
+            message: `Access denied. This action requires supervisor or admin role. Your role: ${role}`,
+        });
+    }
+    next();
+};
+
+/**
+ * Middleware: Only allow admin/superadmin (not supervisor)
+ */
+const requireStrictAdmin = (req, res, next) => {
+    const role = req.user?.role;
+    if (!['admin', 'superadmin'].includes(role)) {
+        return res.status(403).json({
+            success: false,
+            message: `Access denied. Admin role required. Your role: ${role}`,
+        });
+    }
+    next();
+};
+
+module.exports = { verifyAdminToken, requireSupervisorRole, requireStrictAdmin };

@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const adminSignupController = require('../controllers/adminsigup');
+const pricingController = require('../controllers/pricingController');
+const supervisorController = require('../controllers/supervisorController');
+const analyticsController = require('../controllers/analyticsController');
 const { verifyAdminToken } = require('../middlewares/authMiddlewareAdmin');
 const upload = require('../middlewares/uploadMiddleware');
 
@@ -74,5 +77,36 @@ router.get('/cms', adminController.getCMSContent);
 
 // Delay Logs
 router.post('/delays', adminController.logDelay);
+
+// ─── Analytics & Reports ─────────────────────────────────
+router.get('/analytics/dashboard', analyticsController.getDashboard);
+router.get('/analytics/revenue', analyticsController.getRevenueReport);
+router.get('/analytics/driver/:driverId/performance', analyticsController.getDriverPerformance);
+router.post('/analytics/delay-log', analyticsController.logDelay);
+router.get('/analytics/delay-logs/:bookingId', analyticsController.getDelayLogs);
+
+// ─── Pricing Configuration (Admin + Supervisor) ──────────
+router.get('/pricing', pricingController.getAllConfigs);
+router.get('/pricing/active', pricingController.getActiveConfig);
+router.post('/pricing', pricingController.createConfig);
+router.put('/pricing/:id', pricingController.updateConfig);
+router.delete('/pricing/:id', pricingController.deleteConfig);
+router.post('/pricing/calculate', pricingController.calculateFare);
+
+// ─── Supervisor Panel Routes ─────────────────────────────
+// Edit logistics booking goods details
+router.patch('/supervisor/bookings/:bookingId/goods', supervisorController.editGoodsDetails);
+// Override pricing charges for a booking
+router.patch('/supervisor/bookings/:bookingId/pricing-override', supervisorController.overridePricing);
+// Approve and finalize a booking (sets status to processing)
+router.patch('/supervisor/bookings/:bookingId/approve', supervisorController.approveBooking);
+// Get supervisor dashboard stats
+router.get('/supervisor/stats', supervisorController.getSupervisorStats);
+// Block/Unblock user
+router.patch('/users/:userId/block', supervisorController.blockUser);
+// Block/Unblock driver
+router.patch('/drivers/:driverId/block', supervisorController.blockDriver);
+// Toggle driver online/offline
+router.patch('/drivers/:driverId/online', supervisorController.toggleDriverOnline);
 
 module.exports = router;

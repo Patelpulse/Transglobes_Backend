@@ -13,6 +13,7 @@ const {
     sendOTP,
     verifyOTP
 } = require('../controllers/driverController');
+const { getDriverPendingBookings } = require('../controllers/logisticsBookingController');
 const { verifyToken } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/uploadMiddleware');
 
@@ -47,6 +48,33 @@ router.put('/status', verifyToken, updateStatus);
 
 // PUT /api/driver/location - Updates driver GPS location
 router.put('/location', verifyToken, updateLocation);
+
+// GET /api/driver/pending-bookings - Gets pending logistics bookings for all/specific driver
+router.get('/pending-bookings', (req, res, next) => {
+    // Optional auth: if token present, use it; otherwise proceed as null user
+    const admin = require('../config/firebase');
+    const jwt = require('jsonwebtoken');
+    let token = req.headers.authorization;
+    if (token && token.startsWith('Bearer ')) token = token.split(' ')[1];
+    
+    if (token) {
+        admin.auth().verifyIdToken(token)
+            .then(decoded => { req.user = decoded; next(); })
+            .catch(() => {
+                try {
+                    const local = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+                    req.user = { uid: local.uid || local.id, email: local.email };
+                    next();
+                } catch {
+                    req.user = null;
+                    next();
+                }
+            });
+    } else {
+        req.user = null;
+        next();
+    }
+}, getDriverPendingBookings);
 
 // POST /api/driver/upload - Uploads driver documents
 router.post('/upload', (req, res, next) => {
