@@ -12,12 +12,12 @@ const upload = require('../middlewares/uploadMiddleware');
 router.post('/login', adminSignupController.login);
 router.post('/register', adminSignupController.signup);
 router.post('/auth', adminSignupController.auth);
+router.post('/sync', adminController.syncAdminData);
 
 // All admin routes below should be protected
 router.use(verifyAdminToken);
 
 // Admin sync/auth
-router.post('/sync', adminController.syncAdminData);
 router.post('/logout', adminSignupController.logout);
 
 // Profile

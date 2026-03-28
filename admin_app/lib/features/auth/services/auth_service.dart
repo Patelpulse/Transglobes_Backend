@@ -1,48 +1,33 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: '1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com',
-  );
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://localhost:8080/api/admin',
+    baseUrl: 'https://srv1123536.hstgr.cloud/api/admin/',
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
   ));
 
   Future<Map<String, dynamic>> signInWithGoogle() async {
     try {
-      // 1. Google sign in
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return {'success': false, 'message': 'Sign-In cancelled'};
+      // Use Firebase signInWithPopup — works on web without redirect_uri_mismatch
+      final UserCredential userCredential = await _auth.signInWithPopup(GoogleAuthProvider());
+      final String? googleToken = await userCredential.user?.getIdToken();
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // 2. Firebase sign in
-      final UserCredential userCredential = await _auth.signInWithCredential(credential);
-      final String? token = await userCredential.user?.getIdToken();
-
-      if (token == null) return {'success': false, 'message': 'Failed to get auth token'};
+      if (googleToken == null) return {'success': false, 'message': 'Failed to get auth token'};
 
       // 3. Sync with backend
-      final response = await _dio.post('/sync', options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+      final response = await _dio.post('sync', options: Options(
+        headers: {'Authorization': 'Bearer $googleToken'},
       ));
 
       if (response.statusCode == 200) {
         final data = response.data;
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', token);
+        await prefs.setString('token', data['token']);
         await prefs.setString('admin_uid', data['admin']['_id'] ?? data['admin']['id']);
         return {'success': true, 'data': data};
       }
@@ -54,7 +39,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await _dio.post('/login', data: {
+      final response = await _dio.post('login', data: {
         'email': email,
         'password': password,
       });
@@ -83,7 +68,7 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final response = await _dio.post('/register', data: {
+      final response = await _dio.post('register', data: {
         'name': name,
         'email': email,
         'password': password,
@@ -108,7 +93,7 @@ class AuthService {
     final token = prefs.getString('token');
     if (token != null) {
       try {
-        await _dio.post('/logout', options: Options(
+        await _dio.post('logout', options: Options(
           headers: {'Authorization': 'Bearer $token'},
         ));
       } catch (e) {
@@ -123,7 +108,7 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await _dio.get('/profile', options: Options(
+      final response = await _dio.get('profile', options: Options(
         headers: {'Authorization': 'Bearer $token'},
       ));
       if (response.statusCode == 200) {
@@ -142,7 +127,7 @@ class AuthService {
       FormData formData = FormData.fromMap({
         'photo': MultipartFile.fromBytes(bytes, filename: fileName),
       });
-      final response = await _dio.post('/profile/photo', data: formData, options: Options(
+      final response = await _dio.post('profile/photo', data: formData, options: Options(
         headers: {'Authorization': 'Bearer $token'},
       ));
       if (response.statusCode == 200) {
@@ -158,7 +143,7 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await _dio.post('/profile/change-password', data: {
+      final response = await _dio.post('profile/change-password', data: {
         'currentPassword': currentPassword,
         'newPassword': newPassword,
       }, options: Options(

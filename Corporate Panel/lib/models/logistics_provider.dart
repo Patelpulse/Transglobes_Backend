@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 import '../models/logistics_request.dart';
+import '../models/corporate_auth_provider.dart';
 
 class JourneySegment {
   String start;
@@ -21,22 +22,27 @@ class LogisticsProvider with ChangeNotifier {
     JourneySegment(start: '', end: '', mode: TransportMode.land)
   ];
   bool _isLoading = false;
-  
+
   static const String googleApiKey = 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I';
-  
+  static const String baseUrl =
+      'https://srv1123536.hstgr.cloud';
+
   // Web needs backend proxy to avoid CORS. Android/iOS can call Google directly.
   static String get _geocodeBaseUrl {
-    if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app/api/maps/geocode';
+    if (kIsWeb)
+      return 'https://srv1123536.hstgr.cloud/api/maps/geocode';
     return 'https://maps.googleapis.com/maps/api/geocode/json';
   }
 
   static String get _directionsBaseUrl {
-    if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app/api/maps/directions';
+    if (kIsWeb)
+      return 'https://srv1123536.hstgr.cloud/api/maps/directions';
     return 'https://maps.googleapis.com/maps/api/directions/json';
   }
 
   static String get _autocompleteBaseUrl {
-    if (kIsWeb) return 'https://transglobesbackend-production.up.railway.app/api/maps/autocomplete';
+    if (kIsWeb)
+      return 'https://srv1123536.hstgr.cloud/api/maps/autocomplete';
     return 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
   }
 
@@ -49,6 +55,69 @@ class LogisticsProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  LogisticsRequest _requestFromBooking(Map<String, dynamic> booking) {
+    final items = (booking['items'] as List?) ?? const [];
+    final segments = (booking['segments'] as List?) ?? const [];
+    final modes = segments.isNotEmpty
+        ? segments
+            .map((segment) =>
+                _parseMode(segment is Map ? segment['mode']?.toString() : null))
+            .toList()
+        : [_parseMode(booking['vehicleType']?.toString())];
+
+    final pickup = booking['pickup'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(booking['pickup'] as Map<String, dynamic>)
+        : <String, dynamic>{};
+    final dropoff = booking['dropoff'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(booking['dropoff'] as Map<String, dynamic>)
+        : <String, dynamic>{};
+
+    double totalWeight = 0;
+    for (final item in items) {
+      if (item is Map) {
+        final rawWeight = item['weight'];
+        if (rawWeight is num) totalWeight += rawWeight.toDouble();
+      }
+    }
+
+    return LogisticsRequest(
+      id: booking['_id']?.toString() ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      pickupLocation: pickup['address']?.toString() ??
+          pickup['name']?.toString() ??
+          'Pickup',
+      destinationLocation: dropoff['address']?.toString() ??
+          dropoff['name']?.toString() ??
+          'Drop',
+      weight: totalWeight > 0 ? totalWeight : 1,
+      goodsType: items.isNotEmpty && items.first is Map
+          ? (items.first['itemName']?.toString() ?? 'Cargo')
+          : 'Cargo',
+      modes: modes,
+      selectedVehicles: const {},
+      estimatedPrice:
+          ((booking['totalPrice'] ?? booking['vehiclePrice'] ?? 0) as num)
+              .toDouble(),
+      status: booking['status']?.toString() ?? 'Pending',
+      createdAt: DateTime.tryParse(booking['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+
+  TransportMode _parseMode(String? mode) {
+    switch ((mode ?? '').toLowerCase()) {
+      case 'flight':
+      case 'air':
+        return TransportMode.air;
+      case 'sea cargo':
+      case 'water':
+      case 'ship':
+        return TransportMode.water;
+      default:
+        return TransportMode.land;
+    }
+  }
+
   void updateSegments(List<JourneySegment> newSegments) {
     _journeySegments = newSegments;
     notifyListeners();
@@ -58,14 +127,16 @@ class LogisticsProvider with ChangeNotifier {
     if (address.isEmpty) return null;
     try {
       final url = Uri.parse(
-        '$_geocodeBaseUrl?address=${Uri.encodeComponent(address)}&key=$googleApiKey'
-      );
+          '$_geocodeBaseUrl?address=${Uri.encodeComponent(address)}&key=$googleApiKey');
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'OK') {
           final loc = data['results'][0]['geometry']['location'];
-          return [(loc['lat'] as num).toDouble(), (loc['lng'] as num).toDouble()];
+          return [
+            (loc['lat'] as num).toDouble(),
+            (loc['lng'] as num).toDouble()
+          ];
         } else {
           debugPrint("Geocode API status: ${data['status']}");
         }
@@ -87,7 +158,7 @@ class LogisticsProvider with ChangeNotifier {
         // Step 1: Geocode both addresses to get lat/lng
         final startCoords = await getCoordsFromAddress(segment.start);
         final endCoords = await getCoordsFromAddress(segment.end);
-        
+
         debugPrint("🗺️ Start: ${segment.start} → $startCoords");
         debugPrint("🗺️ End: ${segment.end} → $endCoords");
 
@@ -102,24 +173,26 @@ class LogisticsProvider with ChangeNotifier {
             final origin = '${startCoords[0]},${startCoords[1]}';
             final dest = '${endCoords[0]},${endCoords[1]}';
             final url = Uri.parse(
-              '$_directionsBaseUrl?origin=$origin&destination=$dest&key=$googleApiKey'
-            );
+                '$_directionsBaseUrl?origin=$origin&destination=$dest&key=$googleApiKey');
             debugPrint("📍 Directions URL: $url");
-            
+
             final response = await http.get(url);
-            
+
             if (response.statusCode == 200) {
               final data = json.decode(response.body);
               debugPrint("📍 Directions API status: ${data['status']}");
-              
-              if (data['status'] == 'OK' && data['routes'] != null && (data['routes'] as List).isNotEmpty) {
+
+              if (data['status'] == 'OK' &&
+                  data['routes'] != null &&
+                  (data['routes'] as List).isNotEmpty) {
                 final route = data['routes'][0];
                 final polylineStr = route['overview_polyline']?['points'];
-                
+
                 if (polylineStr != null && polylineStr.toString().isNotEmpty) {
                   segment.points = _decodePolyline(polylineStr);
-                  debugPrint("✅ Decoded ${segment.points.length} polyline points");
-                  
+                  debugPrint(
+                      "✅ Decoded ${segment.points.length} polyline points");
+
                   final distVal = route['legs']?[0]?['distance']?['value'];
                   if (distVal != null) {
                     segment.distance = (distVal as num).toDouble() / 1000.0;
@@ -129,7 +202,8 @@ class LogisticsProvider with ChangeNotifier {
                   _fallbackStraightLine(segment, startCoords, endCoords);
                 }
               } else {
-                debugPrint("⚠️ Directions error: ${data['status']} - ${data['error_message'] ?? ''}");
+                debugPrint(
+                    "⚠️ Directions error: ${data['status']} - ${data['error_message'] ?? ''}");
                 _fallbackStraightLine(segment, startCoords, endCoords);
               }
             } else {
@@ -157,7 +231,8 @@ class LogisticsProvider with ChangeNotifier {
     }
   }
 
-  void _fallbackStraightLine(JourneySegment segment, List<double> startCoords, List<double> endCoords) {
+  void _fallbackStraightLine(JourneySegment segment, List<double> startCoords,
+      List<double> endCoords) {
     segment.points = [
       LatLng(startCoords[0], startCoords[1]),
       LatLng(endCoords[0], endCoords[1])
@@ -173,11 +248,22 @@ class LogisticsProvider with ChangeNotifier {
     int lat = 0, lng = 0;
     while (index < len) {
       int b, shift = 0, result = 0;
-      do { b = encoded.codeUnitAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1)); lat += dlat;
-      shift = 0; result = 0;
-      do { b = encoded.codeUnitAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1)); lng += dlng;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
       polyline.add(LatLng(lat / 1E5, lng / 1E5));
     }
     return polyline;
@@ -190,7 +276,7 @@ class LogisticsProvider with ChangeNotifier {
     double total = 0;
     for (var segment in _journeySegments) {
       if (segment.distance <= 0) continue;
-      
+
       double basePrice = 500.0;
       double ratePerKm = 15.0;
 
@@ -208,5 +294,163 @@ class LogisticsProvider with ChangeNotifier {
     total += (weight * 10);
     if (goodsType.toLowerCase().contains('fragile')) total *= 1.25;
     return total;
+  }
+
+  Future<bool> submitBooking(
+      LogisticsRequest request, CorporateAccount account, String token) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final List<Map<String, dynamic>> segmentData = _journeySegments
+          .map((s) => {
+                'start': {
+                  'address': s.start,
+                  'latitude':
+                      s.points.isNotEmpty ? s.points.first.latitude : 0.0,
+                  'longitude':
+                      s.points.isNotEmpty ? s.points.first.longitude : 0.0,
+                },
+                'end': {
+                  'address': s.end,
+                  'latitude':
+                      s.points.isNotEmpty ? s.points.last.latitude : 0.0,
+                  'longitude':
+                      s.points.isNotEmpty ? s.points.last.longitude : 0.0,
+                },
+                'mode': _getModeString(s.mode),
+                'distanceKm': s.distance,
+                'status': 'pending',
+              })
+          .toList();
+
+      final firstSegment = segmentData.isNotEmpty ? segmentData.first : null;
+      final lastSegment = segmentData.isNotEmpty ? segmentData.last : null;
+
+      final pickup = firstSegment == null
+          ? {
+              'name': request.pickupLocation,
+              'address': request.pickupLocation,
+              'lat': 0.0,
+              'lng': 0.0,
+            }
+          : {
+              'name': request.pickupLocation,
+              'address': request.pickupLocation,
+              'lat': firstSegment['start']['latitude'],
+              'lng': firstSegment['start']['longitude'],
+            };
+
+      final dropoff = lastSegment == null
+          ? {
+              'name': request.destinationLocation,
+              'address': request.destinationLocation,
+              'lat': 0.0,
+              'lng': 0.0,
+            }
+          : {
+              'name': request.destinationLocation,
+              'address': request.destinationLocation,
+              'lat': lastSegment['end']['latitude'],
+              'lng': lastSegment['end']['longitude'],
+            };
+
+      final vehicleType = segmentData.isNotEmpty
+          ? (segmentData.length == 1
+              ? segmentData.first['mode']
+              : 'Multi-Modal')
+          : 'Road';
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/logistics-bookings'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'userId': account.id,
+          'userName': account.companyName,
+          'userPhone': account.contactPhone,
+          'pickup': pickup,
+          'dropoff': dropoff,
+          'distanceKm': segmentData.fold<double>(
+            0.0,
+            (sum, segment) =>
+                sum + ((segment['distanceKm'] as num?)?.toDouble() ?? 0.0),
+          ),
+          'vehicleType': vehicleType,
+          'vehiclePrice': request.estimatedPrice,
+          'totalPrice': request.estimatedPrice,
+          'items': [
+            {
+              'itemName': request.goodsType,
+              'type': request.goodsType,
+              'weight': request.weight,
+              'quantity': 1,
+            }
+          ],
+          'segments': segmentData,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success']) {
+          final booking = Map<String, dynamic>.from(data['data'] as Map);
+          _requests.insert(0, _requestFromBooking(booking));
+          notifyListeners();
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint("❌ Submit Error: $e");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchCorporateBookings(String token) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/corporate/bookings'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && data['success'] == true) {
+        final bookings = (data['data'] as List? ?? const [])
+            .map((item) =>
+                _requestFromBooking(Map<String, dynamic>.from(item as Map)))
+            .toList();
+        _requests
+          ..clear()
+          ..addAll(bookings);
+      }
+    } catch (e) {
+      debugPrint("❌ Fetch Corporate Bookings Error: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  String _getModeString(TransportMode mode) {
+    switch (mode) {
+      case TransportMode.land:
+        return 'Road';
+      case TransportMode.air:
+        return 'Flight';
+      case TransportMode.water:
+        return 'Sea Cargo';
+    }
   }
 }

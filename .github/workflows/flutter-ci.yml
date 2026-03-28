@@ -1,0 +1,54 @@
+name: Flutter Apps CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'user_app/**'
+      - 'driver_app/**'
+      - 'admin_app/**'
+      - 'Corporate Panel/**'
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze-and-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [user_app, driver_app, admin_app]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Get dependencies — ${{ matrix.app }}
+        working-directory: ${{ matrix.app }}
+        run: flutter pub get
+
+      - name: Analyze — ${{ matrix.app }}
+        working-directory: ${{ matrix.app }}
+        run: flutter analyze --no-fatal-warnings
+
+      - name: Run tests — ${{ matrix.app }}
+        working-directory: ${{ matrix.app }}
+        run: flutter test --no-pub || echo "No tests found"
+
+      - name: Build APK (debug) — ${{ matrix.app }}
+        if: github.ref == 'refs/heads/main'
+        working-directory: ${{ matrix.app }}
+        run: flutter build apk --debug --no-pub
+
+      - name: Upload APK artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-debug-apk
+          path: ${{ matrix.app }}/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7

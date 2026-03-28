@@ -28,29 +28,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    // Get phone number from Firebase auth
-    final user = AuthService().currentUser;
+    final authService = ref.read(authServiceProvider);
+    final user = authService.currentUser;
     final phoneNumber = user?.phoneNumber ?? '';
     _phoneController.text = phoneNumber;
     _originalPhone = phoneNumber;
 
-    // Fetch user profile from backend
-    if (phoneNumber.isNotEmpty) {
-      try {
-        final apiService = ref.read(apiServiceProvider);
-        final encodedPhone = Uri.encodeComponent(phoneNumber);
-        final response = await apiService.get('/api/user/profile/$encodedPhone');
-
-        if (response != null && response['user'] != null) {
-          final userData = response['user'];
-          _nameController.text = userData['name'] ?? '';
-        }
-      } catch (e) {
-        debugPrint('Failed to fetch profile: $e');
-        // Fallback to Firebase data
+    try {
+      final fullProfile = await ref.read(fullUserProfileProvider.future);
+      if (fullProfile != null) {
+        _nameController.text = fullProfile.name ?? user?.displayName ?? '';
+        final profilePhone = fullProfile.phoneNumber ?? phoneNumber;
+        _phoneController.text = profilePhone ?? '';
+        _originalPhone = profilePhone ?? phoneNumber;
+      } else {
         _nameController.text = user?.displayName ?? '';
       }
-    } else {
+    } catch (e) {
+      debugPrint('Failed to fetch profile: $e');
       _nameController.text = user?.displayName ?? '';
     }
 
@@ -73,18 +68,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     try {
       final apiService = ref.read(apiServiceProvider);
-      final phoneNumber = _phoneController.text;
-      // use originalPhone for identifying record, fallback to current
-      final encodedPhone = Uri.encodeComponent(_originalPhone ?? phoneNumber);
+      final authService = ref.read(authServiceProvider);
+      final phoneNumber = _phoneController.text.trim();
+      final lookupPhone = (_originalPhone ?? phoneNumber).trim();
+      final userId = authService.currentUser?.uid;
+
+      if (lookupPhone.isEmpty && (userId == null || userId.isEmpty)) {
+        throw Exception('No user identifier available to update profile');
+      }
 
       final body = {
         'name': _nameController.text.trim(),
+        if (userId != null && userId.isNotEmpty) 'uid': userId,
       };
       if (phoneNumber.isNotEmpty) {
         body['mobileNumber'] = phoneNumber;
       }
+      if (lookupPhone.isNotEmpty) {
+        body['currentMobileNumber'] = lookupPhone;
+      }
 
-      await apiService.put('/api/user/profile/$encodedPhone', body);
+      if (lookupPhone.isNotEmpty) {
+        final encodedPhone = Uri.encodeComponent(lookupPhone);
+        await apiService.put('/api/user/profile/$encodedPhone', body);
+      } else {
+        await apiService.put('/api/user/profile', body);
+      }
+
+      if (authService.currentUser is MockUser) {
+        await authService.syncWebSessionUser(phoneNumber: phoneNumber, displayName: _nameController.text.trim());
+      }
 
       if (mounted) {
         // Refresh the user profile provider so header updates

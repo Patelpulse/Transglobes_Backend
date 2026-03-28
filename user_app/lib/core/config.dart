@@ -4,7 +4,7 @@ class AppConfig {
   static const String appName = 'Transglobal';
   static String get apiBaseUrl {
     // Always use production URL for now
-    return 'https://transglobesbackend-production.up.railway.app';
+    return 'https://srv1123536.hstgr.cloud';
   }
 
 

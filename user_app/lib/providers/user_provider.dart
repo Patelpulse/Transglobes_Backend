@@ -34,6 +34,19 @@ class UserProfileNotifier extends AsyncNotifier<UserModel?> {
           return UserModel.fromJson(userData);
         }
       }
+
+      if (userId != null) {
+        final apiService = ref.read(apiServiceProvider);
+        final response = await apiService.get('/api/user/profile?uid=${Uri.encodeQueryComponent(userId)}');
+
+        if (response != null && response['user'] != null) {
+          final userData = Map<String, dynamic>.from(response['user']);
+          if (userData['firebaseId'] == null) {
+            userData['firebaseId'] = userId;
+          }
+          return UserModel.fromJson(userData);
+        }
+      }
       
       if (user != null) {
         return UserModel(

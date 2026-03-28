@@ -18,6 +18,7 @@ const itemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const addressSchema = new mongoose.Schema({
+    type:        { type: String, enum: ['pickup', 'received'], default: null },
     label:       { type: String },
     fullAddress: { type: String },
     houseNumber: { type: String },

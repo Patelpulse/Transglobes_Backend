@@ -115,26 +115,33 @@ exports.saveName = async (req, res) => {
     }
 };
 
-// helper to normalise mobile numbers (strip leading plus)
+// helper to normalise mobile numbers while preserving leading plus
 function normalizeMobile(num) {
     if (!num) return num;
-    num = num.trim();
-    if (num.startsWith(' ')) num = '+' + num.trim();
-    return num;
+    const trimmed = String(num).trim();
+    const hasPlus = trimmed.startsWith('+');
+    const digits = trimmed.replace(/[^\d]/g, '');
+    return hasPlus ? `+${digits}` : digits;
 }
 
 // Get user profile by phone number
 exports.getProfile = async (req, res) => {
     try {
         let { mobileNumber } = req.params;
-
-        if (!mobileNumber) {
-            return res.status(400).json({ message: 'mobileNumber is required' });
-        }
+        const { uid } = req.query;
 
         mobileNumber = normalizeMobile(mobileNumber);
 
-        const user = await User.findOne({ mobileNumber });
+        if (!mobileNumber && !uid) {
+            return res.status(400).json({ message: 'mobileNumber or uid is required' });
+        }
+
+        const user = await User.findOne({
+            $or: [
+                ...(mobileNumber ? [{ mobileNumber }] : []),
+                ...(uid ? [{ uid }] : []),
+            ],
+        });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -151,15 +158,26 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
     try {
         let { mobileNumber } = req.params;
-        const { name, mobileNumber: newMobile } = req.body;
+        const {
+            name,
+            mobileNumber: newMobile,
+            currentMobileNumber,
+            uid,
+            email,
+        } = req.body;
 
-        if (!mobileNumber) {
-            return res.status(400).json({ message: 'mobileNumber is required' });
+        mobileNumber = normalizeMobile(mobileNumber || currentMobileNumber || newMobile);
+
+        if (!mobileNumber && !uid) {
+            return res.status(400).json({ message: 'mobileNumber or uid is required' });
         }
 
-        mobileNumber = normalizeMobile(mobileNumber);
-
-        const user = await User.findOne({ mobileNumber });
+        const user = await User.findOne({
+            $or: [
+                ...(mobileNumber ? [{ mobileNumber }] : []),
+                ...(uid ? [{ uid }] : []),
+            ],
+        });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -169,19 +187,27 @@ exports.updateProfile = async (req, res) => {
         if (newMobile && newMobile !== user.mobileNumber) {
             const normNew = normalizeMobile(newMobile);
             const existing = await User.findOne({ mobileNumber: normNew });
-            if (existing) {
+            if (existing && existing._id.toString() !== user._id.toString()) {
                 return res.status(400).json({ message: 'Mobile number already in use' });
             }
             user.mobileNumber = normNew;
         }
 
         if (name) user.name = name;
+        if (uid) user.uid = uid;
+        if (email !== undefined) user.email = email || undefined;
         user.lastActive = Date.now();
         await user.save();
 
         res.status(200).json({
             message: 'Profile updated successfully',
-            user: { id: user._id, name: user.name, mobileNumber: user.mobileNumber }
+            user: {
+                id: user._id,
+                uid: user.uid,
+                name: user.name,
+                mobileNumber: user.mobileNumber,
+                email: user.email,
+            }
         });
     } catch (error) {
         console.error('Error updating user profile:', error);
@@ -202,5 +228,3 @@ exports.updateFCMToken = async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
-
-

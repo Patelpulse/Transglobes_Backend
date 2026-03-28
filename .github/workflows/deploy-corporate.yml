@@ -1,0 +1,33 @@
+name: Deploy Corporate Panel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Corporate Panel/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.4'
+          channel: 'stable'
+
+      - name: Build web
+        working-directory: 'Corporate Panel'
+        run: flutter build web --release
+
+      - name: Deploy to Vercel
+        working-directory: 'Corporate Panel'
+        run: |
+          npm install -g vercel
+          vercel --prod --yes \
+            --token ${{ secrets.VERCEL_TOKEN }} \
+            --scope transglobe
+        env:
+          VERCEL_ORG_ID: team_1wYsxMX5ypmEtMjFrcoLBCrc
+          VERCEL_PROJECT_ID: prj_ij5EV2JbhbaFldZNXsSVX96ZVnca

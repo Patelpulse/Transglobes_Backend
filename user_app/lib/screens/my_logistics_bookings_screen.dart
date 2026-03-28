@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../core/config.dart';
 import '../services/auth_service.dart';
 import '../core/theme.dart';
+import '../providers/user_provider.dart';
 import 'ride_tracking_screen.dart';
 
 class MyLogisticsBookingsScreen extends ConsumerStatefulWidget {
@@ -28,10 +29,22 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
   Future<void> _fetchBookings() async {
     try {
       final authService = ref.read(authServiceProvider);
-      final userId = authService.currentUser?.uid;
+      // Ensure web session is restored before reading currentUser
+      await authService.waitForSession();
+
+      String? userId = authService.currentUser?.uid as String?;
+
+      if (userId == null) {
+        // Fallback: try backend profile
+        try {
+          final profile = await ref.read(fullUserProfileProvider.future);
+          userId = profile?.firebaseId;
+        } catch (_) {}
+      }
+
       if (userId == null) {
         setState(() {
-          _error = "User not logged in";
+          _error = "Please log in to view your bookings";
           _isLoading = false;
         });
         return;

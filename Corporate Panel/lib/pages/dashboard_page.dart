@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
+import '../models/corporate_auth_provider.dart';
 import '../models/logistics_provider.dart';
 import '../models/logistics_request.dart';
 import 'request_form_page.dart';
@@ -52,18 +53,22 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       bottomNavigationBar: isDesktop ? null : _buildBottomNav(),
-      floatingActionButton: isDesktop ? FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const RequestFormPage()),
-          );
-        },
-        backgroundColor: AppTheme.electricBlue,
-        foregroundColor: Colors.white,
-        elevation: 8,
-        icon: const Icon(LucideIcons.plus),
-        label: Text('NEW SHIPMENT', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-      ) : null,
+      floatingActionButton: isDesktop
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (context) => const RequestFormPage()),
+                );
+              },
+              backgroundColor: AppTheme.electricBlue,
+              foregroundColor: Colors.white,
+              elevation: 8,
+              icon: const Icon(LucideIcons.plus),
+              label: Text('NEW SHIPMENT',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+            )
+          : null,
     );
   }
 
@@ -71,16 +76,22 @@ class _DashboardPageState extends State<DashboardPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: const Border(top: BorderSide(color: AppTheme.glassBorder, width: 1)),
+        border: const Border(
+            top: BorderSide(color: AppTheme.glassBorder, width: 1)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -5)),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, -5)),
         ],
       ),
       child: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
-          if (index == 2) { // New Request center button
-            Navigator.of(context).push(MaterialPageRoute(builder: (context) => const RequestFormPage()));
+          if (index == 2) {
+            // New Request center button
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => const RequestFormPage()));
           } else {
             setState(() => _selectedIndex = index);
           }
@@ -89,12 +100,15 @@ class _DashboardPageState extends State<DashboardPage> {
         backgroundColor: Colors.white,
         selectedItemColor: AppTheme.electricBlue,
         unselectedItemColor: AppTheme.slateGray,
-        selectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11),
+        selectedLabelStyle:
+            GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11),
         unselectedLabelStyle: GoogleFonts.outfit(fontSize: 11),
         elevation: 0,
         items: const [
-          BottomNavigationBarItem(icon: Icon(LucideIcons.layoutDashboard, size: 20), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.ship, size: 20), label: 'Order'),
+          BottomNavigationBarItem(
+              icon: Icon(LucideIcons.layoutDashboard, size: 20), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(LucideIcons.ship, size: 20), label: 'Order'),
           BottomNavigationBarItem(
             icon: CircleAvatar(
               radius: 20,
@@ -103,8 +117,10 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             label: '',
           ),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.map, size: 20), label: 'Track'),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.user, size: 20), label: 'Profile'),
+          BottomNavigationBarItem(
+              icon: Icon(LucideIcons.map, size: 20), label: 'Track'),
+          BottomNavigationBarItem(
+              icon: Icon(LucideIcons.user, size: 20), label: 'Profile'),
         ],
       ),
     );
@@ -116,7 +132,8 @@ class _DashboardPageState extends State<DashboardPage> {
       decoration: const BoxDecoration(
         color: AppTheme.primaryBlue,
         boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(2, 0)),
+          BoxShadow(
+              color: Colors.black26, blurRadius: 10, offset: Offset(2, 0)),
         ],
       ),
       child: _buildDrawerContent(context),
@@ -148,7 +165,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       color: AppTheme.electricBlue,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(LucideIcons.package2, color: Colors.white, size: 24),
+                    child: const Icon(LucideIcons.package2,
+                        color: Colors.white, size: 24),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -165,25 +183,35 @@ class _DashboardPageState extends State<DashboardPage> {
               const Spacer(),
               Text(
                 'Enterprise Dashboard',
-                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.5), fontSize: 12),
               ),
               const Text(
                 'Transglobe Logistics',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
               ),
             ],
           ),
         ),
-        _buildDrawerItem(LucideIcons.layoutDashboard, 'Overview', _selectedIndex == 0, () => setState(() => _selectedIndex = 0)),
-        _buildDrawerItem(LucideIcons.ship, 'My Shipments', _selectedIndex == 1, () => setState(() => _selectedIndex = 1)),
-        _buildDrawerItem(LucideIcons.map, 'Track Maps', _selectedIndex == 3, () => setState(() => _selectedIndex = 3)),
-        _buildDrawerItem(LucideIcons.user, 'Profile', _selectedIndex == 4, () => setState(() => _selectedIndex = 4)),
+        _buildDrawerItem(LucideIcons.layoutDashboard, 'Overview',
+            _selectedIndex == 0, () => setState(() => _selectedIndex = 0)),
+        _buildDrawerItem(LucideIcons.ship, 'My Shipments', _selectedIndex == 1,
+            () => setState(() => _selectedIndex = 1)),
+        _buildDrawerItem(LucideIcons.map, 'Track Maps', _selectedIndex == 3,
+            () => setState(() => _selectedIndex = 3)),
+        _buildDrawerItem(LucideIcons.user, 'Profile', _selectedIndex == 4,
+            () => setState(() => _selectedIndex = 4)),
         const Spacer(),
         const Divider(color: Colors.white10),
         _buildDrawerItem(LucideIcons.settings, 'Settings', false, () {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settings Coming Soon')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Settings Coming Soon')));
         }),
         _buildDrawerItem(LucideIcons.logOut, 'Sign Out', false, () {
+          Provider.of<CorporateAuthProvider>(context, listen: false).logout();
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const LoginPage()),
             (route) => false,
@@ -194,7 +222,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildDrawerItem(IconData icon, String label, bool selected, VoidCallback onTap) {
+  Widget _buildDrawerItem(
+      IconData icon, String label, bool selected, VoidCallback onTap) {
     return ListTile(
       onTap: onTap,
       leading: Icon(
@@ -248,7 +277,8 @@ class _HomeView extends StatelessWidget {
                       const SizedBox(height: 40),
                       _SectionLabel('QUICK ACTIONS'),
                       const SizedBox(height: 20),
-                      _QuickActionsGrid(isDesktop: isDesktop, onTabChange: onTabChange),
+                      _QuickActionsGrid(
+                          isDesktop: isDesktop, onTabChange: onTabChange),
                       const SizedBox(height: 48),
                       _SectionLabel('ANALYTICS SUMMARY'),
                       const SizedBox(height: 20),
@@ -266,10 +296,12 @@ class _HomeView extends StatelessWidget {
                       child: _EmptyState(isDesktop: isDesktop),
                     )
                   : SliverPadding(
-                      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 60 : 20),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: isDesktop ? 60 : 20),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
-                          (context, index) => _RequestCard(req: requests[index]),
+                          (context, index) =>
+                              _RequestCard(req: requests[index]),
                           childCount: requests.length,
                         ),
                       ),
@@ -295,25 +327,26 @@ class _SliverHeader extends StatelessWidget {
       floating: true,
       pinned: true,
       centerTitle: isMobile,
-      automaticallyImplyLeading: false, 
+      automaticallyImplyLeading: false,
       backgroundColor: AppTheme.bgLow.withOpacity(0.8),
       elevation: 0,
       title: Text(
         isMobile ? 'TRANSGLOBE' : 'CONTROL CENTER',
         style: GoogleFonts.outfit(
-          fontSize: 16, 
-          fontWeight: FontWeight.bold, 
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
           letterSpacing: isMobile ? 4 : 2,
           color: AppTheme.primaryBlue,
         ),
       ),
       actions: [
         IconButton(
-          icon: const Icon(LucideIcons.bell, size: 20, color: AppTheme.primaryBlue), 
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No new notifications')));
-          }
-        ),
+            icon: const Icon(LucideIcons.bell,
+                size: 20, color: AppTheme.primaryBlue),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No new notifications')));
+            }),
         const SizedBox(width: 8),
         InkWell(
           onTap: () => onTabChange(4),
@@ -333,7 +366,8 @@ class _UserAvatar extends StatelessWidget {
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppTheme.electricBlue.withOpacity(0.3), width: 2),
+        border:
+            Border.all(color: AppTheme.electricBlue.withOpacity(0.3), width: 2),
       ),
       child: const CircleAvatar(
         radius: 14,
@@ -351,7 +385,7 @@ class _HeroBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: isDesktop ? 350 : 230, 
+      height: isDesktop ? 350 : 230,
       width: double.infinity,
       decoration: BoxDecoration(
         color: AppTheme.primaryBlue,
@@ -362,7 +396,10 @@ class _HeroBanner extends StatelessWidget {
           opacity: 0.5,
         ),
         boxShadow: [
-          BoxShadow(color: AppTheme.primaryBlue.withOpacity(0.2), blurRadius: 40, offset: const Offset(0, 20)),
+          BoxShadow(
+              color: AppTheme.primaryBlue.withOpacity(0.2),
+              blurRadius: 40,
+              offset: const Offset(0, 20)),
         ],
       ),
       child: Container(
@@ -388,19 +425,25 @@ class _HeroBanner extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(color: AppTheme.electricBlue, borderRadius: BorderRadius.circular(30)),
+              decoration: BoxDecoration(
+                  color: AppTheme.electricBlue,
+                  borderRadius: BorderRadius.circular(30)),
               child: Text(
                 'PREMIUM ENTERPRISE',
-                style: GoogleFonts.outfit(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                style: GoogleFonts.outfit(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5),
               ),
             ),
             const SizedBox(height: 20),
             Text(
               'Welcome back,\nTransglobe Client',
               style: GoogleFonts.outfit(
-                color: Colors.white, 
-                fontSize: isDesktop ? 48 : 24, 
-                fontWeight: FontWeight.bold, 
+                color: Colors.white,
+                fontSize: isDesktop ? 48 : 24,
+                fontWeight: FontWeight.bold,
                 height: 1.1,
               ),
             ),
@@ -408,7 +451,7 @@ class _HeroBanner extends StatelessWidget {
             Text(
               'Your logistics pipeline is operating normally.',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7), 
+                color: Colors.white.withOpacity(0.7),
                 fontSize: isDesktop ? 18 : 13,
               ),
             ),
@@ -449,15 +492,44 @@ class _QuickActionsGrid extends StatelessWidget {
     double spacing = isDesktop ? 24 : 16;
 
     return LayoutBuilder(builder: (context, constraints) {
-      final double cardWidth = (constraints.maxWidth - (crossAxisCount - 1) * spacing) / crossAxisCount;
+      final double cardWidth =
+          (constraints.maxWidth - (crossAxisCount - 1) * spacing) /
+              crossAxisCount;
       return Wrap(
         spacing: spacing,
         runSpacing: spacing,
         children: [
-          _ActionCard(icon: LucideIcons.plusCircle, title: 'New Order', sub: 'Shipment startup', color: AppTheme.electricBlue, width: cardWidth, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const RequestFormPage()))),
-          _ActionCard(icon: LucideIcons.mapPin, title: 'Track Live', sub: 'GPS pipeline', color: AppTheme.accentOrange, width: cardWidth, onTap: () => onTabChange(3)),
-          _ActionCard(icon: LucideIcons.fileText, title: 'Billing', sub: 'Invoices & Tax', color: Colors.teal, width: cardWidth, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const BillingPage()))),
-          _ActionCard(icon: LucideIcons.lifeBuoy, title: 'Support', sub: 'Concierge', color: Colors.purple, width: cardWidth, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const SupportPage()))),
+          _ActionCard(
+              icon: LucideIcons.plusCircle,
+              title: 'New Order',
+              sub: 'Shipment startup',
+              color: AppTheme.electricBlue,
+              width: cardWidth,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const RequestFormPage()))),
+          _ActionCard(
+              icon: LucideIcons.mapPin,
+              title: 'Track Live',
+              sub: 'GPS pipeline',
+              color: AppTheme.accentOrange,
+              width: cardWidth,
+              onTap: () => onTabChange(3)),
+          _ActionCard(
+              icon: LucideIcons.fileText,
+              title: 'Billing',
+              sub: 'Invoices & Tax',
+              color: Colors.teal,
+              width: cardWidth,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const BillingPage()))),
+          _ActionCard(
+              icon: LucideIcons.lifeBuoy,
+              title: 'Support',
+              sub: 'Concierge',
+              color: Colors.purple,
+              width: cardWidth,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const SupportPage()))),
         ],
       );
     });
@@ -472,7 +544,13 @@ class _ActionCard extends StatelessWidget {
   final double width;
   final VoidCallback onTap;
 
-  const _ActionCard({required this.icon, required this.title, required this.sub, required this.color, required this.width, required this.onTap});
+  const _ActionCard(
+      {required this.icon,
+      required this.title,
+      required this.sub,
+      required this.color,
+      required this.width,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -492,12 +570,20 @@ class _ActionCard extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(14)),
+              decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14)),
               child: Icon(icon, color: color, size: 24),
             ),
             const SizedBox(height: 20),
-            Text(title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primaryBlue)),
-            Text(sub, style: const TextStyle(fontSize: 11, color: AppTheme.slateGray)),
+            Text(title,
+                style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: AppTheme.primaryBlue)),
+            Text(sub,
+                style:
+                    const TextStyle(fontSize: 11, color: AppTheme.slateGray)),
           ],
         ),
       ),
@@ -517,17 +603,38 @@ class _AnalyticsRow extends StatelessWidget {
     double spacing = isDesktop ? 24 : 16;
 
     return LayoutBuilder(builder: (context, constraints) {
-      final double cardWidth = (constraints.maxWidth - (count - 1) * spacing) / count;
+      final double cardWidth =
+          (constraints.maxWidth - (count - 1) * spacing) / count;
       return Wrap(
         spacing: spacing,
         runSpacing: spacing,
         children: [
-          _StatCard(label: 'Total Orders', value: requests.length.toString(), icon: LucideIcons.package2, color: AppTheme.electricBlue, width: cardWidth),
-          _StatCard(label: 'Success Rate', value: '98.4%', icon: LucideIcons.activity, color: Colors.green, width: cardWidth),
+          _StatCard(
+              label: 'Total Orders',
+              value: requests.length.toString(),
+              icon: LucideIcons.package2,
+              color: AppTheme.electricBlue,
+              width: cardWidth),
+          _StatCard(
+              label: 'Success Rate',
+              value: '98.4%',
+              icon: LucideIcons.activity,
+              color: Colors.green,
+              width: cardWidth),
           if (isDesktop) ...[
-            _StatCard(label: 'Fleet Status', value: 'Optimal', icon: LucideIcons.shieldCheck, color: Colors.teal, width: cardWidth),
+            _StatCard(
+                label: 'Fleet Status',
+                value: 'Optimal',
+                icon: LucideIcons.shieldCheck,
+                color: Colors.teal,
+                width: cardWidth),
             if (screenWidth > 1400)
-              _StatCard(label: 'Active GPS', value: '24/30', icon: LucideIcons.navigation, color: AppTheme.accentOrange, width: cardWidth),
+              _StatCard(
+                  label: 'Active GPS',
+                  value: '24/30',
+                  icon: LucideIcons.navigation,
+                  color: AppTheme.accentOrange,
+                  width: cardWidth),
           ],
         ],
       );
@@ -542,7 +649,12 @@ class _StatCard extends StatelessWidget {
   final Color color;
   final double width;
 
-  const _StatCard({required this.label, required this.value, required this.icon, required this.color, required this.width});
+  const _StatCard(
+      {required this.label,
+      required this.value,
+      required this.icon,
+      required this.color,
+      required this.width});
 
   @override
   Widget build(BuildContext context) {
@@ -559,12 +671,22 @@ class _StatCard extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, size: 20, color: color),
           ),
           const SizedBox(height: 20),
-          Text(value, style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
-          Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.slateGray, fontWeight: FontWeight.w500)),
+          Text(value,
+              style: GoogleFonts.outfit(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryBlue)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.slateGray,
+                  fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -586,7 +708,10 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 32),
           Text(
             'Pipeline Status: Idle',
-            style: GoogleFonts.outfit(fontSize: isDesktop ? 32 : 20, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue),
+            style: GoogleFonts.outfit(
+                fontSize: isDesktop ? 32 : 20,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryBlue),
           ),
           const SizedBox(height: 12),
           const Padding(
@@ -623,8 +748,11 @@ class _RequestCard extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppTheme.bgLow, borderRadius: BorderRadius.circular(12)),
-              child: const Icon(LucideIcons.package, color: AppTheme.electricBlue, size: 18),
+              decoration: BoxDecoration(
+                  color: AppTheme.bgLow,
+                  borderRadius: BorderRadius.circular(12)),
+              child: const Icon(LucideIcons.package,
+                  color: AppTheme.electricBlue, size: 18),
             ),
             const SizedBox(width: 20),
             Expanded(
@@ -633,17 +761,30 @@ class _RequestCard extends StatelessWidget {
                 children: [
                   Text(
                     'SHIPMENT REQ-${req.id.substring(0, 6).toUpperCase()}',
-                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primaryBlue),
+                    style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppTheme.primaryBlue),
                   ),
-                  Text('${req.pickupLocation} → ${req.destinationLocation}', style: const TextStyle(fontSize: 12, color: AppTheme.slateGray)),
+                  Text('${req.pickupLocation} → ${req.destinationLocation}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppTheme.slateGray)),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(currencyFormat.format(req.estimatedPrice), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.electricBlue)),
-                Text(req.status, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange)),
+                Text(currencyFormat.format(req.estimatedPrice),
+                    style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppTheme.electricBlue)),
+                Text(req.status,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange)),
               ],
             ),
           ],

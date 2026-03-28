@@ -385,15 +385,101 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     );
   }
 
+  String? _validateItemInputs() {
+    final name = _itemNameController.text.trim();
+    final length = double.tryParse(_lengthController.text.trim()) ?? 0;
+    final height = double.tryParse(_heightController.text.trim()) ?? 0;
+    final width = double.tryParse(_widthController.text.trim()) ?? 0;
+
+    if (_selectedGoodType == null) {
+      return 'Please select a goods type before adding an item';
+    }
+    if (name.length < 2) {
+      return 'Item name must be at least 2 characters';
+    }
+    if (length <= 0 || height <= 0 || width <= 0) {
+      return 'Length, height, and width must all be greater than 0';
+    }
+
+    return null;
+  }
+
+  String? _validateBookingInputs() {
+    if (_selectedVehicleData == null) {
+      return 'Please select a vehicle before booking';
+    }
+    if (_pickup == null || _dropoff == null) {
+      return 'Please select both pickup and drop locations on the map';
+    }
+    if ((_pickup?['address']?.toString().trim().toLowerCase() ?? '') ==
+        (_dropoff?['address']?.toString().trim().toLowerCase() ?? '')) {
+      return 'Pickup and drop locations must be different';
+    }
+    if (_addedItems.isEmpty) {
+      return 'Please add at least one item with complete details';
+    }
+    // Require pickup address from address book
+    if (_selectedPickupAddress == null) {
+      return 'Please select a Pickup Address from your address book (tap "Pickup Address" below)';
+    }
+    if (_selectedPickupAddress!.type != 'pickup') {
+      return 'The selected pickup address is not of type "Pickup". Please choose a valid pickup address';
+    }
+    // Require delivery address from address book
+    if (_selectedDeliveryAddress == null) {
+      return 'Please select a Delivery Address from your address book (tap "Delivery Address" below)';
+    }
+    if (_selectedDeliveryAddress!.type != 'received') {
+      return 'The selected delivery address is not of type "Received". Please choose a valid delivery address';
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _buildValidatedPickupAddressPayload() {
+    if (_selectedPickupAddress == null || _pickup == null) return null;
+
+    return {
+      'type': 'pickup',
+      'label': _selectedPickupAddress!.label,
+      'fullAddress': _pickup!['address'],
+      'houseNumber': _selectedPickupAddress!.houseNumber,
+      'floorNumber': _selectedPickupAddress!.floorNumber,
+      'landmark': _selectedPickupAddress!.landmark,
+      'city': _selectedPickupAddress!.city,
+      'pincode': _selectedPickupAddress!.pincode,
+      'phone': _selectedPickupAddress!.phone,
+      'email': _selectedPickupAddress!.email,
+    };
+  }
+
+  Map<String, dynamic>? _buildValidatedReceivedAddressPayload() {
+    if (_selectedDeliveryAddress == null || _dropoff == null) return null;
+
+    return {
+      'type': 'received',
+      'label': _selectedDeliveryAddress!.label,
+      'fullAddress': _dropoff!['address'],
+      'houseNumber': _selectedDeliveryAddress!.houseNumber,
+      'floorNumber': _selectedDeliveryAddress!.floorNumber,
+      'landmark': _selectedDeliveryAddress!.landmark,
+      'city': _selectedDeliveryAddress!.city,
+      'pincode': _selectedDeliveryAddress!.pincode,
+      'phone': _selectedDeliveryAddress!.phone,
+      'email': _selectedDeliveryAddress!.email,
+    };
+  }
+
   // ─── Add item to list ────────────────────────────────────
   Future<void> _addItemToList() async {
-    final name = _itemNameController.text.trim();
-    if (name.isEmpty) {
+    final validationError = _validateItemInputs();
+    if (validationError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter item name')),
+        SnackBar(content: Text(validationError)),
       );
       return;
     }
+
+    final name = _itemNameController.text.trim();
 
     String goodTypeName = 'General';
     ref.read(typeGoodsProvider).whenData((goods) {
@@ -421,6 +507,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
         length: double.tryParse(_lengthController.text.trim()) ?? 0,
         height: double.tryParse(_heightController.text.trim()) ?? 0,
         width: double.tryParse(_widthController.text.trim()) ?? 0,
+        unit: _selectedUnit,
         imageBytes: _currentImageBytes,
         imageName: _currentImageName,
         savedImageUrl: uploadedUrl,
@@ -492,6 +579,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
         request.fields['length'] = item.length.toString();
         request.fields['height'] = item.height.toString();
         request.fields['width'] = item.width.toString();
+        request.fields['unit'] = item.unit;
         if (item.savedImageUrl != null) {
           request.fields['imageUrl'] = item.savedImageUrl!;
         }
@@ -1298,6 +1386,14 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                             _dropoff != null &&
                             _addedItems.isNotEmpty)
                         ? () async {
+                            final bookingValidationError = _validateBookingInputs();
+                            if (bookingValidationError != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(bookingValidationError)),
+                              );
+                              return;
+                            }
+
                             String goodTypeName = 'General';
                             ref.read(typeGoodsProvider).whenData((goods) {
                               final sel =
@@ -1320,28 +1416,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               // Save the full booking to MongoDB
                               await _saveLogisticsBooking(
                                 goodTypeName: goodTypeName,
-                                pickupAddress: _selectedPickupAddress != null ? {
-                                  'label': _selectedPickupAddress!.label,
-                                  'fullAddress': _selectedPickupAddress!.fullAddress,
-                                  'houseNumber': _selectedPickupAddress!.houseNumber,
-                                  'floorNumber': _selectedPickupAddress!.floorNumber,
-                                  'landmark': _selectedPickupAddress!.landmark,
-                                  'city': _selectedPickupAddress!.city,
-                                  'pincode': _selectedPickupAddress!.pincode,
-                                  'phone': _selectedPickupAddress!.phone,
-                                  'email': _selectedPickupAddress!.email,
-                                } : null,
-                                receivedAddress: _selectedDeliveryAddress != null ? {
-                                  'label': _selectedDeliveryAddress!.label,
-                                  'fullAddress': _selectedDeliveryAddress!.fullAddress,
-                                  'houseNumber': _selectedDeliveryAddress!.houseNumber,
-                                  'floorNumber': _selectedDeliveryAddress!.floorNumber,
-                                  'landmark': _selectedDeliveryAddress!.landmark,
-                                  'city': _selectedDeliveryAddress!.city,
-                                  'pincode': _selectedDeliveryAddress!.pincode,
-                                  'phone': _selectedDeliveryAddress!.phone,
-                                  'email': _selectedDeliveryAddress!.email,
-                                } : null,
+                                pickupAddress: _buildValidatedPickupAddressPayload(),
+                                receivedAddress: _buildValidatedReceivedAddressPayload(),
                               );
 
                               if (mounted) {

@@ -31,17 +31,19 @@ class LogisticsBookingRepository {
     }
   }
 
-  Future<bool> assignDriver(String bookingId, String driverId, {String? transportName, String? transportNumber}) async {
+  Future<bool> assignDriver(String bookingId, String driverId, {String? transportName, String? transportNumber, String? estimatedTime, String? estimatedDate}) async {
     try {
       final url = driverId == 'all' ? 'send-order-to-drivers' : 'logistics-bookings/$bookingId/assign';
       print('>>> Dispatch API URL: $url');
-      print('>>> Body: {bookingId: $bookingId, driverId: $driverId, transportName: $transportName, transportNumber: $transportNumber}');
+      print('>>> Body: {bookingId: $bookingId, driverId: $driverId, transportName: $transportName, transportNumber: $transportNumber, estimatedTime: $estimatedTime, estimatedDate: $estimatedDate}');
       
       final response = await _dio.post(url, data: {
         'bookingId': bookingId,
         'driverId': driverId,
         'transportName': transportName,
         'transportNumber': transportNumber,
+        'estimatedTime': estimatedTime,
+        'estimatedDate': estimatedDate,
       });
       
       print('>>> Response Status: ${response.statusCode}');
@@ -81,12 +83,36 @@ class LogisticsBookingRepository {
         'vehiclePrice': vehiclePrice,
         'helperCost': helperCost,
         'additionalCharges': additionalCharges,
-        'discount': discountAmount, // Using 'discount' as requested
-        'totalAmount': totalPrice,   // Using 'totalAmount' as requested
+        'discountAmount': discountAmount,
+        'totalPrice': totalPrice,
       });
       return response.statusCode == 200;
     } catch (e) {
       print('Error updating billing: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateRoadmap(String bookingId, List<LogisticsSegment> segments) async {
+    try {
+      final response = await _dio.patch('logistics-bookings/$bookingId/roadmap', data: {
+        'segments': segments.map((s) => s.toJson()).toList(),
+      });
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating roadmap: $e');
+      return false;
+    }
+  }
+
+  Future<bool> assignSegmentDriver(String bookingId, String segmentId, String driverId) async {
+    try {
+      final response = await _dio.post('logistics-bookings/$bookingId/segment/$segmentId/assign', data: {
+        'driverId': driverId,
+      });
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error assigning segment driver: $e');
       return false;
     }
   }

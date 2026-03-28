@@ -14,6 +14,7 @@ import '../widgets/leaflet_map.dart';
 import '../services/location_service.dart';
 import '../services/ride_service.dart';
 import '../services/api_service.dart';
+import '../models/ride_model.dart';
 
 class RideTrackingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -53,6 +54,8 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   double _currentFare = 0.0;
   String _paymentStatus = 'unpaid';
   StreamSubscription? _fareSubscription;
+  StreamSubscription? _roadmapSubscription;
+  List<LogisticsSegment> _segments = [];
 
   late Map<String, dynamic> _driver;
 
@@ -89,6 +92,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
     _rideStatus = _mapStatusLabel(_rawStatus);
 
     _loadRoute();
+    _fetchRideDetails();
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final userProfile = ref.read(fullUserProfileProvider).value;
@@ -200,7 +204,29 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
           }
         }
       });
+
+      _roadmapSubscription = ref.read(socketServiceProvider).roadmapUpdatedStream.listen((data) {
+        if (data['rideId']?.toString() == widget.rideId.toString() && mounted) {
+           final List segmentsList = data['segments'] ?? [];
+           setState(() {
+              _segments = segmentsList.map((s) => LogisticsSegment.fromJson(s)).toList();
+           });
+        }
+      });
     });
+  }
+
+  Future<void> _fetchRideDetails() async {
+    try {
+      final ride = await ref.read(rideServiceProvider).getRideById(widget.rideId);
+      if (ride != null && mounted) {
+        setState(() {
+          _segments = ride.segments;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching ride details: $e");
+    }
   }
 
   @override
@@ -208,6 +234,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
     _statusSubscription?.cancel();
     _locationSubscription?.cancel();
     _fareSubscription?.cancel();
+    _roadmapSubscription?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -1068,6 +1095,11 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                 Divider(color: context.theme.dividerColor.withOpacity(0.1)),
                 const SizedBox(height: 16),
 
+                if (_segments.isNotEmpty) ...[
+                  _buildRoadmapTimeline(),
+                  const Divider(height: 48),
+                ],
+
                 // Pickup/Dropoff
                 _buildLocationDetail(
                   type: "PICKUP",
@@ -1321,6 +1353,165 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
           ),
         ],
       );
+    }
+  }
+
+  Widget _buildRoadmapTimeline() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "SHIPMENT ROADMAP",
+              style: TextStyle(
+                color: context.colors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: context.theme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                "${_segments.length} SEGMENTS",
+                style: TextStyle(
+                  color: context.theme.primaryColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _segments.length,
+          itemBuilder: (context, index) {
+            final segment = _segments[index];
+            final isCompleted = segment.status == 'completed';
+            final isCurrent = segment.status == 'ongoing';
+            final isLast = index == _segments.length - 1;
+
+            return IntrinsicHeight(
+              child: Row(
+                children: [
+                  Column(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isCompleted ? Colors.green : (isCurrent ? context.theme.primaryColor : Colors.grey[800]),
+                          shape: BoxShape.circle,
+                          border: isCurrent ? Border.all(color: Colors.white, width: 2) : null,
+                        ),
+                        child: Icon(
+                          isCompleted ? Icons.check : _getSegmentIcon(segment.mode),
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                      if (!isLast)
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            color: isCompleted ? Colors.green : Colors.grey[800],
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                segment.mode.toUpperCase(),
+                                style: TextStyle(
+                                  color: isCurrent ? context.theme.primaryColor : context.colors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor(segment.status).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  segment.status.toUpperCase(),
+                                  style: TextStyle(
+                                    color: _getStatusColor(segment.status),
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "${segment.start['name']} → ${segment.end['name']}",
+                            style: TextStyle(
+                              color: context.colors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (segment.transportName != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                "${segment.transportName} ${segment.transportNumber ?? ''}",
+                                style: const TextStyle(
+                                  color: Colors.amber,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  IconData _getSegmentIcon(String mode) {
+    switch (mode.toLowerCase()) {
+      case 'road': return Icons.local_shipping;
+      case 'train': return Icons.train;
+      case 'flight': return Icons.flight;
+      case 'sea': return Icons.directions_boat;
+      default: return Icons.local_shipping;
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed': return Colors.green;
+      case 'ongoing': return Colors.blue;
+      case 'pending': return Colors.amber;
+      default: return Colors.grey;
     }
   }
 }

@@ -30,6 +30,8 @@ class AdminScaffold extends ConsumerWidget {
     if (location.startsWith('/super-admin')) return 11;
     if (location.startsWith('/logistics/modes')) return 13;
     if (location.startsWith('/logistics')) return 12;
+    if (location.startsWith('/supervisor')) return 14;
+    if (location.startsWith('/pricing')) return 15;
     return 0; // Dashboard
   }
 
@@ -59,8 +61,13 @@ class AdminScaffold extends ConsumerWidget {
       case 13:
         context.go('/logistics/modes');
         break;
+      case 14:
+        context.go('/supervisor');
+        break;
+      case 15:
+        context.go('/pricing');
+        break;
       default:
-        // Other routes to be implemented
         break;
     }
   }
@@ -296,40 +303,40 @@ class AdminScaffold extends ConsumerWidget {
                   onTap: () => _onItemTapped(11, context),
                 ),
                 _SidebarItem(
+                  icon: Icons.supervisor_account_outlined,
+                  title: 'Supervisor Panel',
+                  isSelected: currentIndex == 14,
+                  onTap: () => _onItemTapped(14, context),
+                ),
+                _SidebarItem(
+                  icon: Icons.price_change_outlined,
+                  title: 'Pricing Management',
+                  isSelected: currentIndex == 15,
+                  onTap: () => _onItemTapped(15, context),
+                ),
+                _SidebarItem(
                   icon: Icons.local_shipping_outlined,
                   title: 'All Logistics Bookings',
-                  isSelected: currentIndex == 12,
+                  isSelected: currentIndex == 12 || currentIndex == 14,
                   onTap: () => _onItemTapped(12, context),
                   subItems: [
                     _SidebarSubItem(
-                      title: 'Logistics on Pending', 
-                      count: getCount(LogisticsBookingStatus.pending), 
+                      title: 'Pending',
+                      count: getCount(LogisticsBookingStatus.pending),
                       color: const Color(0xFFFBBF24),
-                      onTap: () => context.go('/logistics/pending'),
+                      onTap: () => context.go('/logistics'),
                     ),
                     _SidebarSubItem(
-                      title: 'Logistics on Processing', 
-                      count: getCount(LogisticsBookingStatus.processing), 
+                      title: 'Active / Processing',
+                      count: getCount(LogisticsBookingStatus.processing),
                       color: const Color(0xFF60A5FA),
-                      onTap: () => context.go('/logistics/processing'),
+                      onTap: () => context.go('/logistics'),
                     ),
                     _SidebarSubItem(
-                      title: 'In-Transit / Out for Delivery', 
-                      count: getCount(LogisticsBookingStatus.inTransit), 
+                      title: 'In-Transit',
+                      count: getCount(LogisticsBookingStatus.inTransit),
                       color: const Color(0xFF818CF8),
-                      onTap: () => context.go('/logistics/in-transit'),
-                    ),
-                    _SidebarSubItem(
-                      title: 'Logistic Complete on Location', 
-                      count: getCount(LogisticsBookingStatus.completed), 
-                      color: const Color(0xFF34D399),
-                      onTap: () => context.go('/logistics/completed'),
-                    ),
-                    _SidebarSubItem(
-                      title: 'Delayed/Alerts', 
-                      count: getCount(LogisticsBookingStatus.delayed), 
-                      color: const Color(0xFFF43F5E),
-                      onTap: () => context.go('/logistics/alerts'),
+                      onTap: () => context.go('/logistics'),
                     ),
                   ],
                 ),
@@ -487,6 +494,24 @@ class AdminScaffold extends ConsumerWidget {
             title: const Text('Logistics Management', style: TextStyle(color: Colors.white)),
             onTap: () {
               context.go('/logistics');
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.manage_accounts_outlined,
+                color: AppTheme.textMutedLight),
+            title: const Text('Supervisor Panel', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              context.go('/supervisor');
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.price_change_outlined,
+                color: AppTheme.textMutedLight),
+            title: const Text('Pricing Management', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              context.go('/pricing');
               Navigator.pop(context);
             },
           ),

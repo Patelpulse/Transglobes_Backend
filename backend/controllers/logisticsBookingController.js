@@ -31,6 +31,46 @@ const normalizeItems = (items = [], fallbackWeight = 0) => {
         .filter((item) => item.itemName);
 };
 
+const normalizeAddressDetails = (address, fallbackLocation, expectedType) => {
+    if (!address) return null;
+
+    return {
+        type: expectedType,
+        label: address?.label ?? fallbackLocation?.name ?? expectedType,
+        fullAddress: fallbackLocation?.address ?? address?.fullAddress ?? address?.label ?? '',
+        houseNumber: address?.houseNumber ?? '',
+        floorNumber: address?.floorNumber ?? '',
+        landmark: address?.landmark ?? '',
+        city: address?.city ?? '',
+        pincode: address?.pincode ?? '',
+        phone: address?.phone ?? '',
+        email: address?.email ?? '',
+    };
+};
+
+const validateItems = (items = []) => {
+    if (!Array.isArray(items) || items.length === 0) {
+        return 'At least one item is required.';
+    }
+
+    for (const item of items) {
+        const itemName = item?.itemName ?? item?.name ?? item?.goodsType;
+        if (!itemName || !String(itemName).trim()) {
+            return 'Each item must have a valid item name.';
+        }
+
+        const length = Number(item?.length ?? 0);
+        const width = Number(item?.width ?? 0);
+        const height = Number(item?.height ?? 0);
+
+        if (length <= 0 || width <= 0 || height <= 0) {
+            return 'Each item must have length, width, and height greater than zero.';
+        }
+    }
+
+    return null;
+};
+
 // ─── POST /api/logistics-bookings  ──────────────────────
 // Create a new logistics booking with all details
 exports.createBooking = async (req, res) => {
@@ -67,12 +107,32 @@ exports.createBooking = async (req, res) => {
         const normalizedItems = normalizeItems(items, weight);
         const normalizedVehiclePrice = Number(vehiclePrice ?? price ?? totalPrice ?? 0);
         const normalizedTotalPrice = Number(totalPrice ?? price ?? vehiclePrice ?? 0);
+        const normalizedPickupAddress = normalizeAddressDetails(pickupAddress, normalizedPickup, 'pickup');
+        const normalizedReceivedAddress = normalizeAddressDetails(receivedAddress, normalizedDropoff, 'received');
 
         // Basic validation
         if (!userId || !normalizedPickup || !normalizedDropoff || !normalizedVehicleType) {
             return res.status(400).json({
                 success: false,
                 message: 'userId, pickup, dropoff, and vehicleType are required.',
+            });
+        }
+
+        if (
+            String(normalizedPickup.address || '').trim().toLowerCase() ===
+            String(normalizedDropoff.address || '').trim().toLowerCase()
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Pickup and drop locations must be different.',
+            });
+        }
+
+        const itemsValidationError = validateItems(items);
+        if (itemsValidationError) {
+            return res.status(400).json({
+                success: false,
+                message: itemsValidationError,
             });
         }
 
@@ -92,8 +152,8 @@ exports.createBooking = async (req, res) => {
             discountAmount: discountAmount ?? 0,
             totalPrice:     normalizedTotalPrice,
             appliedCoupon:  appliedCoupon  ?? null,
-            pickupAddress:  pickupAddress  ?? null,
-            receivedAddress: receivedAddress ?? null,
+            pickupAddress:  normalizedPickupAddress,
+            receivedAddress: normalizedReceivedAddress,
             segments:       segments       ?? [],
             status: 'pending',
         });

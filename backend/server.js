@@ -7,6 +7,7 @@ const { requestLogger, centralErrorHandler } = require('./middlewares/requestLog
 
 const app = express();
 const requestBuckets = new Map();
+let io = null;
 
 const securityHeaders = (req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -66,7 +67,10 @@ app.use((req, res, next) => {
     }
 
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Dev-Uid, X-Dev-Id, x-dev-uid, x-dev-id');
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Dev-Uid, X-Dev-Id, x-dev-uid, x-dev-id, X-Admin-Fallback-Auth, x-admin-fallback-auth'
+    );
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
 
@@ -82,13 +86,24 @@ app.use(requestLogger);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const server = http.createServer(app);
-const io = initSocket(server);
-
 // Attach socket.io to request object
 app.use((req, res, next) => {
     req.io = io;
     next();
+});
+
+// Ensure MongoDB is connected before hitting any API handler that needs it.
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (error) {
+        res.status(503).json({
+            success: false,
+            message: 'Database connection unavailable.',
+            error: error.message,
+        });
+    }
 });
 
 // Import Routes
@@ -137,9 +152,6 @@ app.get('/api/ratings/driver/:driverId', ratingController.getDriverRatings);
 app.get('/api/ratings/user/:userId', ratingController.getUserRatings);
 app.use('/api', logisticsBookingRoutes);
 
-// Database Connection
-connectDB();
-
 // Catch-all 404 handler for debugging missing routes
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
@@ -154,7 +166,14 @@ app.use((req, res, next) => {
 // Centralized Error Handler (must be last)
 app.use(centralErrorHandler);
 
-const PORT = process.env.PORT || 8080;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`>>> Server is active and listening on port ${PORT}`);
-});
+if (require.main === module) {
+    const server = http.createServer(app);
+    io = initSocket(server);
+
+    const PORT = process.env.PORT || 8080;
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`>>> Server is active and listening on port ${PORT}`);
+    });
+}
+
+module.exports = app;

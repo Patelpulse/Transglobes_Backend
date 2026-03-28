@@ -200,8 +200,14 @@ class _PendingBookingCardState extends ConsumerState<_PendingBookingCard>
                     ],
                     _InfoChip(Icons.route, '${b.distanceKm} km'),
                     const SizedBox(width: 8),
-                    _InfoChip(Icons.access_time, '${b.etaMinutes} min'),
-                    const SizedBox(width: 8),
+                    if (b.estimatedTime != null && b.estimatedTime!.isNotEmpty) ...[
+                      _InfoChip(Icons.access_time, b.estimatedTime!, color: AppTheme.earningsAmber),
+                      const SizedBox(width: 8),
+                    ],
+                    if (b.estimatedDate != null && b.estimatedDate!.isNotEmpty) ...[
+                      _InfoChip(Icons.calendar_today, b.estimatedDate!, color: AppTheme.cabBlue),
+                      const SizedBox(width: 8),
+                    ],
                     _InfoChip(Icons.person, b.userName),
                     const SizedBox(width: 8),
                     _InfoChip(Icons.phone, b.userPhone),
@@ -279,16 +285,18 @@ class _ActiveBookingCard extends ConsumerWidget {
   const _ActiveBookingCard({required this.booking});
 
   final _statuses = const ['accepted', 'on_the_way', 'arrived', 'started', 'completed'];
-  final _logisticsStatuses = const ['confirmed', 'in_transit'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final b = booking;
-    int statusIdx = _statuses.indexOf(b.status);
-    if (statusIdx == -1) {
-       statusIdx = _logisticsStatuses.indexOf(b.status) == 1 ? 3 : 0;
-    }
-    statusIdx = statusIdx.clamp(0, 4);
+    
+    // Calculate progress (0-4)
+    int statusIdx = 0;
+    if (b.status == 'accepted' || b.status == 'confirmed') statusIdx = 0;
+    else if (b.status == 'on_the_way') statusIdx = 1;
+    else if (b.status == 'arrived') statusIdx = 2;
+    else if (b.status == 'ongoing' || b.status == 'in_transit') statusIdx = 3;
+    else if (b.status == 'completed' || b.status == 'delivered') statusIdx = 4;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -350,6 +358,32 @@ class _ActiveBookingCard extends ConsumerWidget {
               ],
             ),
           ],
+          if (b.estimatedTime != null && b.estimatedTime!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.access_time, color: AppTheme.earningsAmber, size: 14),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('ESTIMATED TIME: ${b.estimatedTime}', 
+                    style: const TextStyle(color: AppTheme.earningsAmber, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
+          if (b.estimatedDate != null && b.estimatedDate!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, color: AppTheme.cabBlue, size: 14),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('ESTIMATED DATE: ${b.estimatedDate}', 
+                    style: const TextStyle(color: AppTheme.cabBlue, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           // Progress steps
           _buildProgressBar(statusIdx),
@@ -398,7 +432,9 @@ class _ActiveBookingCard extends ConsumerWidget {
                     width: 110,
                     child: ElevatedButton(
                       onPressed: () {
-                        if (b.status == 'arrived' || b.status == 'confirmed') {
+                        // All accepted statuses (accepted/confirmed/arrived) should allow 
+                        // going to details/OTP screen if it's not ongoing yet.
+                        if (['accepted', 'confirmed', 'arrived', 'on_the_way'].contains(b.status)) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -510,7 +546,21 @@ class _HistoryBookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final b = booking;
-    final isCompleted = b.status == 'completed';
+    final isRejected = b.status == 'rejected';
+    final isAccepted = b.status == 'accepted' || b.status == 'confirmed';
+    final isCompleted = b.status == 'completed' || b.status == 'delivered';
+    
+    Color statusColor = AppTheme.neonGreen;
+    IconData statusIcon = Icons.check_circle;
+    
+    if (isRejected) {
+      statusColor = AppTheme.offlineRed;
+      statusIcon = Icons.cancel;
+    } else if (isAccepted) {
+      statusColor = AppTheme.cabBlue;
+      statusIcon = Icons.info_outline;
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -524,12 +574,12 @@ class _HistoryBookingCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isCompleted ? AppTheme.neonGreen.withValues(alpha: 0.1) : AppTheme.offlineRed.withValues(alpha: 0.1),
+              color: statusColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
-              isCompleted ? Icons.check_circle : Icons.cancel,
-              color: isCompleted ? AppTheme.neonGreen : AppTheme.offlineRed,
+              statusIcon,
+              color: statusColor,
               size: 24,
             ),
           ),
@@ -545,13 +595,13 @@ class _HistoryBookingCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: (isCompleted ? AppTheme.neonGreen : AppTheme.offlineRed).withValues(alpha: 0.15),
+                        color: statusColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         b.status.toUpperCase(),
                         style: TextStyle(
-                          color: isCompleted ? AppTheme.neonGreen : AppTheme.offlineRed,
+                          color: statusColor,
                           fontSize: 8,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.5,
@@ -560,6 +610,7 @@ class _HistoryBookingCard extends StatelessWidget {
                     ),
                   ],
                 ),
+// ...
                 const SizedBox(height: 4),
                 Text('${b.pickupAddress.split(',').first} → ${b.dropAddress.split(',').first}', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (b.railwayStation != null) ...[

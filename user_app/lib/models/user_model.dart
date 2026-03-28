@@ -22,10 +22,10 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['_id'] ?? '',
-      firebaseId: json['firebaseId'] ?? '',
+      firebaseId: json['firebaseId'] ?? json['uid'] ?? '',
       email: json['email'] ?? '',
       name: json['name'],
-      phoneNumber: json['phoneNumber'],
+      phoneNumber: json['phoneNumber'] ?? json['mobileNumber'],
       profilePic: json['profilePic'],
       role: json['role'] ?? 'user',
       isActive: json['isActive'] ?? true,

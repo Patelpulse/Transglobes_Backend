@@ -4,11 +4,36 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
+import '../models/corporate_auth_provider.dart';
 import '../models/logistics_provider.dart';
 import '../models/logistics_request.dart';
 
-class ShipmentsPage extends StatelessWidget {
+class ShipmentsPage extends StatefulWidget {
   const ShipmentsPage({super.key});
+
+  @override
+  State<ShipmentsPage> createState() => _ShipmentsPageState();
+}
+
+class _ShipmentsPageState extends State<ShipmentsPage> {
+  bool _loaded = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loaded) return;
+    _loaded = true;
+    final authProvider =
+        Provider.of<CorporateAuthProvider>(context, listen: false);
+    final token = authProvider.token;
+    if (token != null) {
+      Future.microtask(() {
+        if (!mounted) return;
+        Provider.of<LogisticsProvider>(context, listen: false)
+            .fetchCorporateBookings(token);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,22 +45,40 @@ class ShipmentsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.bgLow,
       appBar: AppBar(
-        title: Text('MY SHIPMENTS', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1)),
+        title: Text('MY SHIPMENTS',
+            style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1)),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: AppTheme.primaryBlue,
+        actions: [
+          IconButton(
+            onPressed: () {
+              final token =
+                  Provider.of<CorporateAuthProvider>(context, listen: false)
+                      .token;
+              if (token != null) {
+                provider.fetchCorporateBookings(token);
+              }
+            },
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
-      body: requests.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: requests.length,
-              itemBuilder: (context, index) {
-                final req = requests[index];
-                return _buildDetailedRequestCard(context, req, currencyFormat, dateFormat);
-              },
-            ),
+      body: provider.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : requests.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: requests.length,
+                  itemBuilder: (context, index) {
+                    final req = requests[index];
+                    return _buildDetailedRequestCard(
+                        context, req, currencyFormat, dateFormat);
+                  },
+                ),
     );
   }
 
@@ -48,16 +91,21 @@ class ShipmentsPage extends StatelessWidget {
           const SizedBox(height: 32),
           Text(
             'No Shipments Found',
-            style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue),
+            style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryBlue),
           ),
           const SizedBox(height: 8),
-          const Text('Your shipment history will appear here.', style: TextStyle(color: AppTheme.slateGray)),
+          const Text('Your shipment history will appear here.',
+              style: TextStyle(color: AppTheme.slateGray)),
         ],
       ),
     );
   }
 
-  Widget _buildDetailedRequestCard(BuildContext context, LogisticsRequest req, NumberFormat currencyFormat, DateFormat dateFormat) {
+  Widget _buildDetailedRequestCard(BuildContext context, LogisticsRequest req,
+      NumberFormat currencyFormat, DateFormat dateFormat) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -65,7 +113,10 @@ class ShipmentsPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.glassBorder),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
         ],
       ),
       child: Padding(
@@ -80,11 +131,15 @@ class ShipmentsPage extends StatelessWidget {
                   children: [
                     Text(
                       'REQ-${req.id.substring(0, 8).toUpperCase()}',
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primaryBlue),
+                      style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: AppTheme.primaryBlue),
                     ),
                     Text(
                       dateFormat.format(req.createdAt),
-                      style: const TextStyle(fontSize: 11, color: AppTheme.slateGray),
+                      style: const TextStyle(
+                          fontSize: 11, color: AppTheme.slateGray),
                     ),
                   ],
                 ),
@@ -99,9 +154,16 @@ class ShipmentsPage extends StatelessWidget {
               children: [
                 const Column(
                   children: [
-                    Icon(LucideIcons.circle, size: 10, color: AppTheme.accentOrange),
-                    SizedBox(height: 30, child: VerticalDivider(width: 1, thickness: 1, color: AppTheme.glassBorder)),
-                    Icon(LucideIcons.mapPin, size: 14, color: AppTheme.electricBlue),
+                    Icon(LucideIcons.circle,
+                        size: 10, color: AppTheme.accentOrange),
+                    SizedBox(
+                        height: 30,
+                        child: VerticalDivider(
+                            width: 1,
+                            thickness: 1,
+                            color: AppTheme.glassBorder)),
+                    Icon(LucideIcons.mapPin,
+                        size: 14, color: AppTheme.electricBlue),
                   ],
                 ),
                 const SizedBox(width: 20),
@@ -109,9 +171,13 @@ class ShipmentsPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(req.pickupLocation, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      Text(req.pickupLocation,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 24),
-                      Text(req.destinationLocation, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      Text(req.destinationLocation,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -127,9 +193,13 @@ class ShipmentsPage extends StatelessWidget {
                   children: [
                     _buildInfoChip(LucideIcons.box, '${req.weight}kg'),
                     ...req.modes.map((mode) => _buildInfoChip(
-                      mode == TransportMode.air ? LucideIcons.plane : mode == TransportMode.water ? LucideIcons.ship : LucideIcons.truck,
-                      mode.name.toUpperCase(),
-                    )),
+                          mode == TransportMode.air
+                              ? LucideIcons.plane
+                              : mode == TransportMode.water
+                                  ? LucideIcons.ship
+                                  : LucideIcons.truck,
+                          mode.name.toUpperCase(),
+                        )),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -138,11 +208,18 @@ class ShipmentsPage extends StatelessWidget {
                   children: [
                     Text(
                       'ESTIMATED TOTAL',
-                      style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.slateGray, letterSpacing: 1),
+                      style: GoogleFonts.outfit(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.slateGray,
+                          letterSpacing: 1),
                     ),
                     Text(
                       currencyFormat.format(req.estimatedPrice),
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: AppTheme.electricBlue),
+                      style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          color: AppTheme.electricBlue),
                     ),
                   ],
                 ),
@@ -165,7 +242,11 @@ class ShipmentsPage extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: AppTheme.primaryBlue),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryBlue)),
         ],
       ),
     );
@@ -173,8 +254,9 @@ class ShipmentsPage extends StatelessWidget {
 
   Widget _buildStatusBadge(String status) {
     Color color = Colors.orange;
-    if (status.contains('Approved') || status.contains('Delivered')) color = Colors.green;
-    
+    if (status.contains('Approved') || status.contains('Delivered'))
+      color = Colors.green;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -183,7 +265,11 @@ class ShipmentsPage extends StatelessWidget {
       ),
       child: Text(
         status.toUpperCase(),
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5),
       ),
     );
   }

@@ -31,6 +31,9 @@ class BookingModel {
   final double? discountAmount;
   final String? transportName;
   final String? transportNumber;
+  final String? estimatedTime;
+  final String? estimatedDate;
+  final List<BookingSegment> segments;
 
   const BookingModel({
     required this.id,
@@ -63,6 +66,9 @@ class BookingModel {
     this.discountAmount,
     this.transportName,
     this.transportNumber,
+    this.estimatedTime,
+    this.estimatedDate,
+    this.segments = const [],
   });
 
   BookingModel copyWith({
@@ -81,6 +87,8 @@ class BookingModel {
     double? vehiclePrice,
     double? helperCost,
     double? discountAmount,
+    String? estimatedTime,
+    String? estimatedDate,
   }) =>
       BookingModel(
         id: id,
@@ -109,6 +117,9 @@ class BookingModel {
         vehiclePrice: vehiclePrice ?? this.vehiclePrice,
         helperCost: helperCost ?? this.helperCost,
         discountAmount: discountAmount ?? this.discountAmount,
+        estimatedTime: estimatedTime ?? this.estimatedTime,
+        estimatedDate: estimatedDate ?? this.estimatedDate,
+        segments: segments,
       );
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
@@ -210,6 +221,44 @@ class BookingModel {
       discountAmount: parseOptionalDouble(json['discountAmount']),
       transportName: json['transportName'],
       transportNumber: json['transportNumber'],
+      estimatedTime: json['estimatedTime']?.toString(),
+      estimatedDate: json['estimatedDate']?.toString(),
+      segments: (json['segments'] as List?)?.map((s) => BookingSegment.fromJson(s)).toList() ?? [],
+    );
+  }
+}
+
+class BookingSegment {
+  final String id;
+  final String mode;
+  final String status;
+  final String? transportName;
+  final String? transportNumber;
+  final Map<String, dynamic> start;
+  final Map<String, dynamic> end;
+  final String? driverId;
+
+  BookingSegment({
+    required this.id,
+    required this.mode,
+    required this.status,
+    this.transportName,
+    this.transportNumber,
+    required this.start,
+    required this.end,
+    this.driverId,
+  });
+
+  factory BookingSegment.fromJson(Map<String, dynamic> json) {
+    return BookingSegment(
+      id: json['_id'] ?? json['id'] ?? '',
+      mode: json['mode'] ?? 'Road',
+      status: json['status'] ?? 'pending',
+      transportName: json['transportName'],
+      transportNumber: json['transportNumber'],
+      start: json['start'] ?? {},
+      end: json['end'] ?? {},
+      driverId: json['driverId']?.toString(),
     );
   }
 }

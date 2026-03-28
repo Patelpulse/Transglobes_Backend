@@ -77,6 +77,7 @@ class _NameInputScreenState extends ConsumerState<NameInputScreen>
       if (user != null) {
         if (user is MockUser) {
            user.displayName = name;
+           await authService.syncWebSessionUser(displayName: name);
         } else {
            await user.updateDisplayName(name);
         }

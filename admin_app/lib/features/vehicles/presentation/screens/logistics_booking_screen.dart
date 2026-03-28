@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/logistics_booking_provider.dart';
 import '../../domain/models/logistics_booking.dart';
 import '../../../drivers/presentation/providers/driver_provider.dart';
+import '../../../supervisor/presentation/screens/supervisor_screen.dart';
 
 import '../../../../core/theme/app_theme.dart';
 
@@ -18,11 +19,11 @@ class LogisticsBookingScreen extends ConsumerWidget {
     final statusLabel = _getStatusLabel(filterStatus);
     
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColorDark,
+      backgroundColor: AppTheme.primaryColor,
       appBar: AppBar(
         title: Text(statusLabel, 
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.primaryColor,
         elevation: 0,
         actions: [
           IconButton(
@@ -45,7 +46,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
           : RefreshIndicator(
               onRefresh: () async => ref.invalidate(logisticsBookingsProvider),
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                 itemCount: bookings.length,
                 itemBuilder: (context, index) {
                   final booking = bookings[index];
@@ -78,7 +79,11 @@ class LogisticsBookingScreen extends ConsumerWidget {
     final dateStr = DateFormat('MMM dd, hh:mm a').format(booking.createdAt);
 
     return InkWell(
-      onTap: () => _showBookingDetailModal(context, ref, booking),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SupervisorBookingDetailScreen(booking: booking),
+        ),
+      ),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -328,6 +333,8 @@ class LogisticsBookingScreen extends ConsumerWidget {
   void _showBookingDetailModal(BuildContext context, WidgetRef ref, LogisticsBooking booking) {
     final transportNameController = TextEditingController(text: booking.transportName);
     final transportNumberController = TextEditingController(text: booking.transportNumber);
+    final estimatedTimeController = TextEditingController(text: booking.estimatedTime);
+    final estimatedDateController = TextEditingController(text: booking.estimatedDate);
 
     showModalBottomSheet(
       context: context,
@@ -364,6 +371,89 @@ class LogisticsBookingScreen extends ConsumerWidget {
                 controller: scrollController,
                 child: StatefulBuilder(
                   builder: (context, setModalState) {
+                    Future<void> pickDate() async {
+                      final now = DateTime.now();
+                      final DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: now,
+                        firstDate: now, // Disable past dates
+                        lastDate: now.add(const Duration(days: 365)),
+                        builder: (context, child) => Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: const ColorScheme.dark(
+                              primary: AppTheme.primaryColor,
+                              onPrimary: Colors.white,
+                              surface: AppTheme.surfaceColorDark,
+                              onSurface: Colors.white,
+                            ),
+                          ),
+                          child: child!,
+                        ),
+                      );
+                      if (picked != null) {
+                        setModalState(() {
+                          estimatedDateController.text = DateFormat('dd/MM/yyyy').format(picked);
+                        });
+                      }
+                    }
+
+                    Future<void> pickTime() async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.now(),
+                        builder: (context, child) => Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: const ColorScheme.dark(
+                              primary: AppTheme.primaryColor,
+                              onPrimary: Colors.white,
+                              surface: AppTheme.surfaceColorDark,
+                              onSurface: Colors.white,
+                            ),
+                          ),
+                          child: child!,
+                        ),
+                      );
+                      if (picked != null) {
+                        // 12-hour Validation
+                        final now = DateTime.now();
+                        final String dateStr = estimatedDateController.text;
+                        bool isInvalid = false;
+                        
+                        if (dateStr.isNotEmpty) {
+                          try {
+                            final selectedDate = DateFormat('dd/MM/yyyy').parse(dateStr);
+                            if (selectedDate.year == now.year && 
+                                selectedDate.month == now.month && 
+                                selectedDate.day == now.day) {
+                              
+                              if (picked.hour < now.hour || (picked.hour == now.hour && picked.minute < now.minute)) {
+                                isInvalid = true;
+                              }
+                            }
+                          } catch (_) {}
+                        }
+
+                        if (isInvalid) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('You cannot select past date or time'),
+                                backgroundColor: AppTheme.danger,
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        setModalState(() {
+                          final hour = picked.hourOfPeriod == 0 ? 12 : picked.hourOfPeriod;
+                          final minute = picked.minute.toString().padLeft(2, '0');
+                          final period = picked.period == DayPeriod.am ? 'AM' : 'PM';
+                          estimatedTimeController.text = '$hour:$minute $period';
+                        });
+                      }
+                    }
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -475,11 +565,21 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       ]),
                     ],
                     const SizedBox(height: 24),
+                    _buildRoadmapBuilder(context, ref, booking, setModalState),
+                    const SizedBox(height: 32),
                     Opacity(
                       opacity: booking.status == LogisticsBookingStatus.processing ? 0.4 : 1.0,
                       child: AbsorbPointer(
                         absorbing: booking.status == LogisticsBookingStatus.processing,
-                        child: _buildTransportFields(booking, transportNameController, transportNumberController),
+                        child: _buildTransportFields(
+                          booking, 
+                          transportNameController, 
+                          transportNumberController, 
+                          estimatedTimeController, 
+                          estimatedDateController,
+                          onDateTap: pickDate,
+                          onTimeTap: pickTime,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -496,22 +596,76 @@ class LogisticsBookingScreen extends ConsumerWidget {
                                     const SnackBar(content: Text('Dispatched order to active drivers...'), duration: Duration(seconds: 1)),
                                   );
                                   
+                                  // --- Final Validation ---
+                                  final now = DateTime.now();
+                                  final dateStr = estimatedDateController.text;
+                                  final timeStr = estimatedTimeController.text;
+
+                                  if (dateStr.isNotEmpty) {
+                                    try {
+                                      final selectedDate = DateFormat('dd/MM/yyyy').parse(dateStr);
+                                      // If it's today, check time too if possible
+                                      if (selectedDate.isBefore(DateTime(now.year, now.month, now.day))) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('You cannot select past date or time'), backgroundColor: AppTheme.danger),
+                                        );
+                                        return;
+                                      }
+                                    } catch (_) {}
+                                  }
+
                                   // Directly dispatch (no modal)
                                   final success = await ref.read(logisticsBookingRepoProvider).assignDriver(
                                     booking.id, 
                                     'all',
                                     transportName: transportNameController.text.trim(),
                                     transportNumber: transportNumberController.text.trim(),
+                                    estimatedTime: estimatedTimeController.text.trim(),
+                                    estimatedDate: estimatedDateController.text.trim(),
                                   );
                                   
                                   if (success && context.mounted) {
                                     ref.invalidate(logisticsBookingsProvider);
+                                    
+                                    // 1. Show Top Notification (Banner)
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Order generated & sent successfully!'),
+                                        content: Text('Order generated & sent successfully!', style: TextStyle(fontWeight: FontWeight.bold)),
                                         backgroundColor: AppTheme.success,
+                                        behavior: SnackBarBehavior.floating,
+                                        margin: EdgeInsets.only(bottom: 50, left: 20, right: 20), // Placeholder for bottom, but I'll add a top dialog after.
                                       ),
                                     );
+
+                                    // 2. 3-Second Delayed Popup
+                                    Future.delayed(const Duration(seconds: 3), () {
+                                      if (context.mounted) {
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            backgroundColor: AppTheme.surfaceColorDark,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                            title: const Row(
+                                              children: [
+                                                Icon(Icons.check_circle, color: AppTheme.success),
+                                                SizedBox(width: 10),
+                                                Text('Success', style: TextStyle(color: Colors.white)),
+                                              ],
+                                            ),
+                                            content: const Text(
+                                              'Your logistics order has been successfully dispatched to all active drivers.',
+                                              style: TextStyle(color: Colors.white70),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context),
+                                                child: const Text('OK', style: TextStyle(color: AppTheme.primaryColor)),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    });
                                   }
                                 },
                                 icon: const Icon(Icons.send_rounded),
@@ -538,7 +692,14 @@ class LogisticsBookingScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTransportFields(LogisticsBooking booking, TextEditingController nameCtrl, TextEditingController numCtrl) {
+  Widget _buildTransportFields(
+    LogisticsBooking booking, 
+    TextEditingController nameCtrl, 
+    TextEditingController numCtrl, 
+    TextEditingController timeCtrl, 
+    TextEditingController dateCtrl,
+    {VoidCallback? onDateTap, VoidCallback? onTimeTap}
+  ) {
     String nameLabel = '';
     String numLabel = '';
     IconData nameIcon = Icons.info_outline;
@@ -559,11 +720,27 @@ class LogisticsBookingScreen extends ConsumerWidget {
       numLabel = 'Voyage Number';
       nameIcon = Icons.directions_boat_outlined;
     } else {
-      return const SizedBox.shrink();
+      // Default logistics fields
+      nameLabel = 'Vehicle Name/Type';
+      numLabel = 'Vehicle Number';
     }
 
-    return _buildDetailSection('TRANSPORT DETAILS', [
+    return _buildDetailSection('DELIVERY & TRANSPORT DETAILS', [
       const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(child: InkWell(
+            onTap: onDateTap,
+            child: IgnorePointer(child: _buildEditField('Estimated Date', dateCtrl, Icons.calendar_today, (_) {}))
+          )),
+          const SizedBox(width: 16),
+          Expanded(child: InkWell(
+            onTap: onTimeTap,
+            child: IgnorePointer(child: _buildEditField('Estimated Time/Duration', timeCtrl, Icons.access_time, (_) {}))
+          )),
+        ],
+      ),
+      const SizedBox(height: 16),
       _buildEditField(nameLabel, nameCtrl, nameIcon, (_) {}),
       const SizedBox(height: 16),
       _buildEditField(numLabel, numCtrl, numIcon, (_) {}),
@@ -815,7 +992,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
       }
     }
   
-    void _showActiveDriversModal(BuildContext context, WidgetRef ref, String bookingId) {
+    void _showActiveDriversModal(BuildContext context, WidgetRef ref, String bookingId, {String? segmentId, VoidCallback? onAssigned}) {
       // Set filter to active when showing the modal
       Future.microtask(() {
         ref.read(driverFilterProvider.notifier).setFilter(DriverFilter.active);
@@ -913,7 +1090,12 @@ class LogisticsBookingScreen extends ConsumerWidget {
                                     onPressed: () async {
                                       Navigator.pop(context);
                                       
-                                      final success = await ref.read(logisticsBookingRepoProvider).assignDriver(bookingId, driver.id);
+                                      final bool success;
+                                      if (segmentId != null) {
+                                        success = await ref.read(logisticsBookingRepoProvider).assignSegmentDriver(bookingId, segmentId, driver.id);
+                                      } else {
+                                        success = await ref.read(logisticsBookingRepoProvider).assignDriver(bookingId, driver.id);
+                                      }
                                       
                                       if (success) {
                                         ref.invalidate(logisticsBookingsProvider);
@@ -925,6 +1107,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
                                             ),
                                           );
                                         }
+                                        if (onAssigned != null) onAssigned();
                                       } else {
                                         if (context.mounted) {
                                           ScaffoldMessenger.of(context).showSnackBar(
@@ -1102,5 +1285,309 @@ class LogisticsBookingScreen extends ConsumerWidget {
           }
         ),
       );
+    }
+
+    Widget _buildRoadmapBuilder(BuildContext context, WidgetRef ref, LogisticsBooking booking, StateSetter setModalState) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('ROADMAP / MULTI-STEP JOURNEY', 
+                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1)),
+              TextButton.icon(
+                onPressed: () => _showAddSegmentDialog(context, ref, booking, (updatedSegments) async {
+                  final success = await ref.read(logisticsBookingRepoProvider).updateRoadmap(booking.id, updatedSegments);
+                  if (success) {
+                    ref.invalidate(logisticsBookingsProvider);
+                    setModalState(() {});
+                  }
+                }),
+                icon: const Icon(Icons.add_circle_outline, size: 16, color: AppTheme.primaryColor),
+                label: const Text('ADD STEP', style: TextStyle(color: AppTheme.primaryColor, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (booking.segments.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: const Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.map_outlined, color: Colors.white24, size: 28),
+                    SizedBox(height: 8),
+                    Text('No roadmap defined yet.', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: booking.segments.length,
+              itemBuilder: (context, index) {
+                final segment = booking.segments[index];
+                return _buildSegmentItem(context, ref, booking, segment, index, setModalState);
+              },
+            ),
+        ],
+      );
+    }
+
+    Widget _buildSegmentItem(BuildContext context, WidgetRef ref, LogisticsBooking booking, LogisticsSegment segment, int index, StateSetter setModalState) {
+      final isLast = index == booking.segments.length - 1;
+      
+      return IntrinsicHeight(
+        child: Row(
+          children: [
+            Column(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: segment.status == 'completed' ? AppTheme.success : AppTheme.primaryColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(child: Text('${index + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      color: Colors.white10,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(segment.mode.toUpperCase(), 
+                          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                        InkWell(
+                          onTap: () => _showSegmentDetailModal(context, ref, booking, segment, setModalState),
+                          child: const Icon(Icons.edit_outlined, size: 14, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text('${segment.start['name'] ?? 'Pickup'} → ${segment.end['name'] ?? 'Drop'}', 
+                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                    if (segment.transportName != null || segment.transportNumber != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('${segment.transportName ?? ""} ${segment.transportNumber ?? ""}', 
+                          style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (segment.mode == 'Road')
+                          segment.driverId == null
+                            ? OutlinedButton.icon(
+                                onPressed: () => _showActiveDriversForSegment(context, ref, booking.id, segment.id, setModalState),
+                                icon: const Icon(Icons.person_add_alt, size: 12),
+                                label: const Text('ASSIGN', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.primaryColor,
+                                  side: const BorderSide(color: AppTheme.primaryColor, width: 1),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  minimumSize: const Size(0, 28),
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.success.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.check_circle, size: 12, color: AppTheme.success),
+                                    SizedBox(width: 4),
+                                    Text('ASSIGNED', style: TextStyle(color: AppTheme.success, fontSize: 9, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(segment.status.toUpperCase(), 
+                            style: const TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    void _showAddSegmentDialog(BuildContext context, WidgetRef ref, LogisticsBooking booking, Function(List<LogisticsSegment>) onUpdated) {
+      final startCtrl = TextEditingController();
+      final endCtrl = TextEditingController();
+      String mode = 'Road';
+
+      showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            backgroundColor: AppTheme.surfaceColorDark,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Add Step to Journey', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildEditField('From / Landmark', startCtrl, Icons.location_on_outlined, (_) {}),
+                _buildEditField('To / Destination', endCtrl, Icons.flag_outlined, (_) {}),
+                const SizedBox(height: 16),
+                const Text('Mode of Transport', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: mode,
+                  dropdownColor: AppTheme.surfaceColorDark,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                  items: ['Road', 'Train', 'Flight', 'Sea Cargo'].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                  onChanged: (val) => setState(() => mode = val!),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () {
+                  final newSegment = LogisticsSegment(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID
+                    start: {'name': startCtrl.text},
+                    end: {'name': endCtrl.text},
+                    mode: mode,
+                    status: 'pending',
+                  );
+                  final updatedList = [...booking.segments, newSegment];
+                  onUpdated(updatedList);
+                  Navigator.pop(context);
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    void _showSegmentDetailModal(BuildContext context, WidgetRef ref, LogisticsBooking booking, LogisticsSegment segment, StateSetter setModalState) {
+      final tNameCtrl = TextEditingController(text: segment.transportName);
+      final tNumCtrl = TextEditingController(text: segment.transportNumber);
+      final eTimeCtrl = TextEditingController(text: segment.estimatedTime);
+      final eDateCtrl = TextEditingController(text: segment.estimatedDate);
+
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppTheme.backgroundColorDark,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (context) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                   Text('Edit ${segment.mode} Details', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                   IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: Colors.white)),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _buildEditField('Transport Name', tNameCtrl, Icons.info_outline, (_) {}),
+              const SizedBox(height: 16),
+              _buildEditField('Transport Number', tNumCtrl, Icons.numbers, (_) {}),
+              const SizedBox(height: 16),
+              _buildEditField('Estimated Date', eDateCtrl, Icons.calendar_today, (_) {}),
+              const SizedBox(height: 16),
+              _buildEditField('Estimated Time', eTimeCtrl, Icons.access_time, (_) {}),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final updatedSegments = booking.segments.map((s) {
+                      if (s.id == segment.id) {
+                        return LogisticsSegment(
+                          id: s.id,
+                          start: s.start,
+                          end: s.end,
+                          mode: s.mode,
+                          distanceKm: s.distanceKm,
+                          driverId: s.driverId,
+                          transportName: tNameCtrl.text,
+                          transportNumber: tNumCtrl.text,
+                          estimatedTime: eTimeCtrl.text,
+                          estimatedDate: eDateCtrl.text,
+                          status: s.status,
+                          price: s.price,
+                        );
+                      }
+                      return s;
+                    }).toList();
+                    
+                    final success = await ref.read(logisticsBookingRepoProvider).updateRoadmap(booking.id, updatedSegments);
+                    if (success && context.mounted) {
+                      ref.invalidate(logisticsBookingsProvider);
+                      setModalState(() {});
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text('UPDATE SEGMENT'),
+                ),
+              ),
+              const SizedBox(height: 48),
+            ],
+          ),
+        ),
+      );
+    }
+
+    void _showActiveDriversForSegment(BuildContext context, WidgetRef ref, String bookingId, String segmentId, StateSetter setModalState) {
+      _showActiveDriversModal(context, ref, bookingId, segmentId: segmentId, onAssigned: () {
+        setModalState(() {});
+      });
     }
   }

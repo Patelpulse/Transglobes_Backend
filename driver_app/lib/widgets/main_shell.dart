@@ -35,7 +35,58 @@ class MainShell extends ConsumerWidget {
     
     return driverProfileAsync.when(
       data: (driverProfile) {
-        if (driverProfile == null) return const Scaffold(body: Center(child: Text('Profile not found')));
+        if (driverProfile == null) return Scaffold(
+          backgroundColor: AppTheme.darkBg,
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.person_off_outlined, color: AppTheme.neonGreen, size: 72),
+                  const SizedBox(height: 24),
+                  const Text('Profile Not Loaded', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Unable to fetch your driver profile.\nPlease check your internet connection and try again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => ref.invalidate(driverProfileProvider),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.neonGreen,
+                        foregroundColor: AppTheme.darkBg,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('RETRY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => ref.read(authServiceProvider).signOut(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white54,
+                        side: const BorderSide(color: Colors.white24),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Sign Out', style: TextStyle(fontSize: 16)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
         final driverId = driverProfile.id;
 
         // Connect socket as soon as we have a profile

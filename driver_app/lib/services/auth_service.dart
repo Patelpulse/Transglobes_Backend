@@ -12,6 +12,7 @@ import 'dart:convert';
 
 
 import 'database_service.dart';
+import '../core/config.dart';
 
 // Demo mode flag - set to false when you have real Firebase configured
 // Google Sign-In always uses real Firebase (bypasses demo mode)
@@ -165,24 +166,8 @@ class AuthService {
   /// Signs in with Google and returns the Firebase [UserCredential].
   /// Works regardless of [kDemoMode] since it always opens a real OAuth flow.
   Future<UserCredential> signInWithGoogle() async {
-    // Step 1 – trigger the account-selection dialog
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) {
-      throw Exception('Google sign-in was cancelled by the user.');
-    }
-
-    // Step 2 – obtain auth details
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
-
-    // Step 3 – create a Firebase credential
-    final OAuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    // Step 4 – sign into Firebase with the credential
-    final cred = await FirebaseAuth.instance.signInWithCredential(credential);
+    final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+    final UserCredential cred = await FirebaseAuth.instance.signInWithPopup(googleProvider);
     await _persistLoginState(true);
     return cred;
   }
@@ -376,7 +361,7 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> _signUpApi(String name, String email, String password, String aadhar, String pan) async {
-    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'https://transglobesbackend-production.up.railway.app'}/api/driver/register');
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/register');
     final response = await _post(url, {
       'name': name,
       'email': email,
@@ -388,7 +373,7 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> _signInApi(String email, String password) async {
-    final url = Uri.parse('${dotenv.env['API_BASE_URL'] ?? 'https://transglobesbackend-production.up.railway.app'}/api/driver/login');
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/login');
     final response = await _post(url, {
       'email': email,
       'password': password,
@@ -411,5 +396,3 @@ class AuthService {
     };
   }
 }
-
-

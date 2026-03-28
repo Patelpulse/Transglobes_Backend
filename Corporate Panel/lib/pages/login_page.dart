@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../models/corporate_auth_provider.dart';
 import 'dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -15,13 +17,48 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isSubmitting = false;
+  bool _isGoogleLoading = false;
 
-  void _handleLogin() {
-    // Basic validation
-    if (_emailController.text.isNotEmpty && _passwordController.text.isNotEmpty) {
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isGoogleLoading = true);
+    final authProvider = context.read<CorporateAuthProvider>();
+    final success = await authProvider.signInWithGoogle();
+    if (!mounted) return;
+    setState(() => _isGoogleLoading = false);
+    if (success) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const DashboardPage()),
       );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authProvider.error ?? 'Google sign-in failed')),
+      );
+    }
+  }
+
+  Future<void> _handleLogin() async {
+    // Basic validation
+    if (_emailController.text.isNotEmpty &&
+        _passwordController.text.isNotEmpty) {
+      setState(() => _isSubmitting = true);
+      final authProvider = context.read<CorporateAuthProvider>();
+      final success = await authProvider.login(
+        _emailController.text,
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      if (success) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const DashboardPage()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(authProvider.error ?? 'Login failed')),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter valid credentials')),
@@ -49,7 +86,7 @@ class _LoginPageState extends State<LoginPage> {
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                   Container(
+                  Container(
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
@@ -123,10 +160,13 @@ class _LoginPageState extends State<LoginPage> {
                             prefixIcon: const Icon(LucideIcons.lock, size: 20),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _isPasswordVisible ? LucideIcons.eye : LucideIcons.eyeOff,
+                                _isPasswordVisible
+                                    ? LucideIcons.eye
+                                    : LucideIcons.eyeOff,
                                 size: 20,
                               ),
-                              onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                              onPressed: () => setState(() =>
+                                  _isPasswordVisible = !_isPasswordVisible),
                             ),
                           ),
                         ),
@@ -146,8 +186,38 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 32),
                         ElevatedButton(
-                          onPressed: _handleLogin,
-                          child: const Text('SIGN IN'),
+                          onPressed: _isSubmitting ? null : _handleLogin,
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('SIGN IN'),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider()),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text('or', style: TextStyle(color: Colors.grey.shade500)),
+                            ),
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: (_isSubmitting || _isGoogleLoading) ? null : _handleGoogleSignIn,
+                          icon: _isGoogleLoading
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Image.network('https://www.google.com/favicon.ico', width: 18, height: 18),
+                          label: const Text('Continue with Google'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: Colors.grey.shade300),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
                         ),
                       ],
                     ),
@@ -157,7 +227,8 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: () {},
                     child: Text(
                       'Partner Integration? Contact Support',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                      style:
+                          TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                     ),
                   ),
                 ],

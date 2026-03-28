@@ -7,6 +7,69 @@ enum LogisticsBookingStatus {
   delayed
 }
 
+class LogisticsSegment {
+  final String id;
+  final Map<String, dynamic> start;
+  final Map<String, dynamic> end;
+  final String mode; // Road, Train, Flight, Sea Cargo
+  final double distanceKm;
+  final String? driverId;
+  final String? transportName;
+  final String? transportNumber;
+  final String? estimatedTime;
+  final String? estimatedDate;
+  final String status;
+  final double price;
+
+  LogisticsSegment({
+    required this.id,
+    required this.start,
+    required this.end,
+    required this.mode,
+    this.distanceKm = 0.0,
+    this.driverId,
+    this.transportName,
+    this.transportNumber,
+    this.estimatedTime,
+    this.estimatedDate,
+    required this.status,
+    this.price = 0.0,
+  });
+
+  factory LogisticsSegment.fromJson(Map<String, dynamic> json) {
+    return LogisticsSegment(
+      id: json['_id'] ?? '',
+      start: json['start'] ?? {},
+      end: json['end'] ?? {},
+      mode: json['mode'] ?? 'Road',
+      distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 0.0,
+      driverId: json['driverId'],
+      transportName: json['transportName'],
+      transportNumber: json['transportNumber'],
+      estimatedTime: json['estimatedTime'],
+      estimatedDate: json['estimatedDate'],
+      status: json['status'] ?? 'pending',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'start': start,
+      'end': end,
+      'mode': mode,
+      'distanceKm': distanceKm,
+      'driverId': driverId,
+      'transportName': transportName,
+      'transportNumber': transportNumber,
+      'estimatedTime': estimatedTime,
+      'estimatedDate': estimatedDate,
+      'status': status,
+      'price': price,
+    };
+  }
+}
+
 class LogisticsBooking {
   final String id;
   final String userId; // Unique user ID
@@ -30,6 +93,9 @@ class LogisticsBooking {
   final String? railwayStation;
   final String? transportName;
   final String? transportNumber;
+  final String? estimatedTime;
+  final String? estimatedDate;
+  final List<LogisticsSegment> segments;
 
   LogisticsBooking({
     required this.id,
@@ -54,6 +120,9 @@ class LogisticsBooking {
     this.railwayStation,
     this.transportName,
     this.transportNumber,
+    this.estimatedTime,
+    this.estimatedDate,
+    this.segments = const [],
   });
 
   factory LogisticsBooking.fromJson(Map<String, dynamic> json) {
@@ -90,6 +159,9 @@ class LogisticsBooking {
       railwayStation: json['railwayStation'],
       transportName: json['transportName'],
       transportNumber: json['transportNumber'],
+      estimatedTime: json['estimatedTime']?.toString(),
+      estimatedDate: json['estimatedDate']?.toString(),
+      segments: (json['segments'] as List?)?.map((s) => LogisticsSegment.fromJson(s)).toList() ?? [],
     );
   }
 

@@ -1,0 +1,33 @@
+name: Deploy User App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'user_app/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.4'
+          channel: 'stable'
+
+      - name: Build web
+        working-directory: user_app
+        run: flutter build web --release
+
+      - name: Deploy to Vercel
+        working-directory: user_app
+        run: |
+          npm install -g vercel
+          vercel --prod --yes \
+            --token ${{ secrets.VERCEL_TOKEN }} \
+            --scope transglobe
+        env:
+          VERCEL_ORG_ID: team_1wYsxMX5ypmEtMjFrcoLBCrc
+          VERCEL_PROJECT_ID: prj_goS2PwTQWqOq0T0slgvQ6a7YcgAI

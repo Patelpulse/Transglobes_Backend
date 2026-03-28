@@ -16,6 +16,7 @@ class SocketService {
   final _driverLocationController = StreamController<Map<String, dynamic>>.broadcast();
   final _fareIncreasedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
+  final _roadmapUpdatedController = StreamController<Map<String, dynamic>>.broadcast();
 
   IO.Socket? get socket => _socket;
 
@@ -26,6 +27,7 @@ class SocketService {
   Stream<Map<String, dynamic>> get driverLocationStream => _driverLocationController.stream;
   Stream<Map<String, dynamic>> get fareIncreasedStream => _fareIncreasedController.stream;
   Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
+  Stream<Map<String, dynamic>> get roadmapUpdatedStream => _roadmapUpdatedController.stream;
 
   void connect(String userId, {String? name}) {
     if (_socket != null) {
@@ -84,6 +86,11 @@ class SocketService {
       print("Fare Increased: $data");
       _fareIncreasedController.add(Map<String, dynamic>.from(data));
     });
+    
+    _socket?.on("roadmap_updated", (data) {
+      print("Roadmap Updated Received: $data");
+      _roadmapUpdatedController.add(Map<String, dynamic>.from(data));
+    });
 
     _socket?.onDisconnect((_) => print("User Socket Disconnected"));
   }
@@ -115,5 +122,6 @@ class SocketService {
     _rideAcceptedController.close();
     _rideStatusController.close();
     _driverLocationController.close();
+    _roadmapUpdatedController.close();
   }
 }

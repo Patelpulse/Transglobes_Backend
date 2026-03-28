@@ -27,6 +27,7 @@ class Driver extends Equatable {
   final double walletBalance;
   final String imageUrl;
   final bool isFraudulent;
+  final bool? isOnline;
 
   const Driver({
     required this.id,
@@ -53,6 +54,7 @@ class Driver extends Equatable {
     required this.walletBalance,
     required this.imageUrl,
     this.isFraudulent = false,
+    this.isOnline,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map) {
@@ -90,6 +92,7 @@ class Driver extends Equatable {
           ? map['photo'] 
           : 'https://images.unsplash.com/photo-1591115765373-520b7a217215?w=200&q=80',
       isFraudulent: map['isFraudulent'] ?? false,
+      isOnline: map['isOnline'] as bool?,
     );
   }
 
@@ -132,5 +135,6 @@ class Driver extends Equatable {
         walletBalance,
         imageUrl,
         isFraudulent,
+        isOnline,
       ];
 }

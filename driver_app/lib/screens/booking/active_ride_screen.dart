@@ -13,6 +13,7 @@ import 'package:latlong2/latlong.dart';
 import '../../services/location_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'items_verification_screen.dart';
+import '../../services/auth_service.dart';
 class ActiveRideScreen extends ConsumerStatefulWidget {
   final BookingModel booking;
 
@@ -48,10 +49,19 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   }
 
   Future<void> _loadRoute() async {
-    final pLat = widget.booking.pickupLat;
-    final pLng = widget.booking.pickupLng;
-    final dLat = widget.booking.dropLat;
-    final dLng = widget.booking.dropLng;
+    // Identify if this driver is assigned to a specific segment
+    final currentUser = ref.read(authServiceProvider).currentUser;
+    final driverId = currentUser?.uid;
+    
+    final mySegment = widget.booking.segments.cast<BookingSegment?>().firstWhere(
+      (s) => s?.driverId == driverId,
+      orElse: () => null,
+    );
+
+    final pLat = mySegment?.start['lat'] ?? widget.booking.pickupLat;
+    final pLng = mySegment?.start['lng'] ?? widget.booking.pickupLng;
+    final dLat = mySegment?.end['lat'] ?? widget.booking.dropLat;
+    final dLng = mySegment?.end['lng'] ?? widget.booking.dropLng;
 
     if (pLat == null || pLng == null || dLat == null || dLng == null) return;
 
@@ -202,42 +212,50 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                         widget.booking.pickupLat ?? 0, widget.booking.pickupLng ?? 0),
                     initialZoom: 14,
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                      subdomains: const ['a', 'b', 'c', 'd'],
-                    ),
-                    if (_routePoints.isNotEmpty)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: _routePoints,
-                            color: Colors.black,
-                            strokeWidth: 4,
-                            strokeCap: StrokeCap.round,
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                        subdomains: const ['a', 'b', 'c', 'd'],
+                      ),
+                      if (_routePoints.isNotEmpty)
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _routePoints,
+                              color: Colors.black,
+                              strokeWidth: 4,
+                              strokeCap: StrokeCap.round,
+                            ),
+                          ],
+                        ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: _routePoints.isNotEmpty ? _routePoints.first : LatLng(widget.booking.pickupLat ?? 0, widget.booking.pickupLng ?? 0),
+                            width: 200,
+                            height: 60,
+                            child: _buildMapLabel(
+                              widget.booking.segments.any((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid)
+                                ? widget.booking.segments.firstWhere((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid).start['name'] ?? 'Pickup'
+                                : widget.booking.pickupAddress, 
+                              true
+                            ),
+                          ),
+                          Marker(
+                            point: _routePoints.isNotEmpty ? _routePoints.last : LatLng(widget.booking.dropLat ?? 0, widget.booking.dropLng ?? 0),
+                            width: 200,
+                            height: 60,
+                            child: _buildMapLabel(
+                              widget.booking.segments.any((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid)
+                                ? widget.booking.segments.firstWhere((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid).end['name'] ?? 'Drop'
+                                : widget.booking.dropAddress, 
+                              false
+                            ),
                           ),
                         ],
                       ),
-                    MarkerLayer(
-                      markers: [
-                        if (widget.booking.pickupLat != null)
-                          Marker(
-                            point: LatLng(widget.booking.pickupLat!, widget.booking.pickupLng!),
-                            width: 200,
-                            height: 60,
-                            child: _buildMapLabel(widget.booking.pickupAddress, true),
-                          ),
-                        if (widget.booking.dropLat != null)
-                          Marker(
-                            point: LatLng(widget.booking.dropLat!, widget.booking.dropLng!),
-                            width: 200,
-                            height: 60,
-                            child: _buildMapLabel(widget.booking.dropAddress, false),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 Positioned(
                   top: 40,
                   left: 16,
@@ -443,9 +461,21 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildLocationRow(const Color(0xFF00E676), 'PICKUP', widget.booking.pickupAddress),
+                                _buildLocationRow(
+                                  const Color(0xFF00E676), 
+                                  'PICKUP', 
+                                  widget.booking.segments.any((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid)
+                                    ? widget.booking.segments.firstWhere((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid).start['name'] ?? 'Pickup'
+                                    : widget.booking.pickupAddress
+                                ),
                                 const SizedBox(height: 24),
-                                _buildLocationRow(Colors.red, 'DROP-OFF', widget.booking.dropAddress),
+                                _buildLocationRow(
+                                  Colors.red, 
+                                  'DROP-OFF', 
+                                  widget.booking.segments.any((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid)
+                                    ? widget.booking.segments.firstWhere((s) => s.driverId == ref.read(authServiceProvider).currentUser?.uid).end['name'] ?? 'Drop'
+                                    : widget.booking.dropAddress
+                                ),
                               ],
                             ),
                           ],

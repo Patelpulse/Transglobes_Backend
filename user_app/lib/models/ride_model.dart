@@ -19,6 +19,7 @@ class RideModel {
   final String? vehicleType;
   final String? typeOfGood;
   final DateTime? createdAt;
+  final List<LogisticsSegment> segments;
 
   RideModel({
     required this.id,
@@ -41,6 +42,7 @@ class RideModel {
     this.vehicleType,
     this.typeOfGood,
     this.createdAt,
+    this.segments = const [],
   });
 
   factory RideModel.fromJson(Map<String, dynamic> json) {
@@ -76,6 +78,7 @@ class RideModel {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : null,
+      segments: (json['segments'] as List?)?.map((s) => LogisticsSegment.fromJson(s)).toList() ?? [],
     );
   }
 
@@ -151,5 +154,37 @@ class LocationPoint {
 
   Map<String, dynamic> toJson() {
     return {'type': type, 'coordinates': coordinates};
+  }
+}
+
+class LogisticsSegment {
+  final String id;
+  final String mode;
+  final String status;
+  final String? transportName;
+  final String? transportNumber;
+  final Map<String, dynamic> start;
+  final Map<String, dynamic> end;
+
+  LogisticsSegment({
+    required this.id,
+    required this.mode,
+    required this.status,
+    this.transportName,
+    this.transportNumber,
+    required this.start,
+    required this.end,
+  });
+
+  factory LogisticsSegment.fromJson(Map<String, dynamic> json) {
+    return LogisticsSegment(
+      id: json['_id'] ?? json['id'] ?? '',
+      mode: json['mode'] ?? 'Road',
+      status: json['status'] ?? 'pending',
+      transportName: json['transportName'],
+      transportNumber: json['transportNumber'],
+      start: json['start'] ?? {},
+      end: json['end'] ?? {},
+    );
   }
 }

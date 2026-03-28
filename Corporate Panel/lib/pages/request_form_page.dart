@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
+import '../models/corporate_auth_provider.dart';
 import '../models/logistics_provider.dart';
 import '../models/logistics_request.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -21,7 +22,7 @@ class RequestFormPage extends StatefulWidget {
 
 class _RequestFormPageState extends State<RequestFormPage> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // Dynamic Segment Controllers
   final List<TextEditingController> _locationControllers = [
     TextEditingController(), // Start
@@ -31,10 +32,10 @@ class _RequestFormPageState extends State<RequestFormPage> {
     FocusNode(),
     FocusNode(),
   ];
-  
+
   final _weightController = TextEditingController();
   final _goodsTypeController = TextEditingController();
-  
+
   // Modes for each segment (there are n-1 segments for n locations)
   final List<TransportMode> _segmentModes = [TransportMode.land];
 
@@ -63,7 +64,8 @@ class _RequestFormPageState extends State<RequestFormPage> {
 
   void _addSegment() {
     setState(() {
-      _locationControllers.add(TextEditingController()..addListener(_onLocationChanged));
+      _locationControllers
+          .add(TextEditingController()..addListener(_onLocationChanged));
       _focusNodes.add(FocusNode());
       _segmentModes.add(TransportMode.land);
     });
@@ -76,7 +78,8 @@ class _RequestFormPageState extends State<RequestFormPage> {
       _locationControllers.removeAt(index);
       _focusNodes[index].dispose();
       _focusNodes.removeAt(index);
-      _segmentModes.removeAt(index < _segmentModes.length ? index : _segmentModes.length - 1);
+      _segmentModes.removeAt(
+          index < _segmentModes.length ? index : _segmentModes.length - 1);
       _onLocationChanged();
     });
   }
@@ -130,14 +133,28 @@ class _RequestFormPageState extends State<RequestFormPage> {
     }
 
     _mapController!.animateCamera(CameraUpdate.newLatLngBounds(
-      LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)),
+      LatLngBounds(
+          southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)),
       70,
     ));
   }
 
-  void _submitRequest() {
+  void _submitRequest() async {
     if (_formKey.currentState!.validate()) {
       final provider = Provider.of<LogisticsProvider>(context, listen: false);
+      final authProvider =
+          Provider.of<CorporateAuthProvider>(context, listen: false);
+      final account = authProvider.account;
+      final token = authProvider.token;
+
+      if (account == null || token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please sign in again to submit shipments.'),
+          backgroundColor: Colors.red,
+        ));
+        return;
+      }
+
       final newRequest = LogisticsRequest(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         pickupLocation: _locationControllers.first.text,
@@ -145,14 +162,24 @@ class _RequestFormPageState extends State<RequestFormPage> {
         weight: double.parse(_weightController.text),
         goodsType: _goodsTypeController.text,
         modes: _segmentModes,
-        selectedVehicles: {}, 
+        selectedVehicles: {},
         estimatedPrice: _estimatedPrice,
         createdAt: DateTime.now(),
       );
 
-      provider.addRequest(newRequest);
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Complex chain shipment deployed')));
+      final success = await provider.submitBooking(newRequest, account, token);
+      if (success && mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Complex chain shipment deployed to backend'),
+          backgroundColor: Colors.green,
+        ));
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Failed to deploy shipment. Check your connection.'),
+          backgroundColor: Colors.red,
+        ));
+      }
     }
   }
 
@@ -165,7 +192,9 @@ class _RequestFormPageState extends State<RequestFormPage> {
     return Scaffold(
       backgroundColor: AppTheme.bgLow,
       appBar: AppBar(
-        title: Text('JOURNEY BUILDER', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1)),
+        title: Text('JOURNEY BUILDER',
+            style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1)),
         centerTitle: true,
       ),
       body: Center(
@@ -188,17 +217,19 @@ class _RequestFormPageState extends State<RequestFormPage> {
                     child: TextButton.icon(
                       onPressed: _addSegment,
                       icon: const Icon(LucideIcons.plusCircle, size: 18),
-                      label: Text('ADD TRIP SEGMENT', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12)),
-                      style: TextButton.styleFrom(foregroundColor: AppTheme.electricBlue),
+                      label: Text('ADD TRIP SEGMENT',
+                          style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold, fontSize: 12)),
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppTheme.electricBlue),
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
                   _buildSectionHeader('CARGO DETAILS', LucideIcons.package2),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                       Expanded(
+                      Expanded(
                         child: _buildStyledField(
                           controller: _weightController,
                           hint: 'Weight (kg)',
@@ -216,20 +247,23 @@ class _RequestFormPageState extends State<RequestFormPage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 48),
                   _buildPremiumEstimateCard(currencyFormat, isDesktop),
                   const SizedBox(height: 40),
-                  
                   ElevatedButton(
                     onPressed: _submitRequest,
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size.fromHeight(64),
                       backgroundColor: AppTheme.electricBlue,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                       elevation: 8,
                     ),
-                    child: Text('CONFIRM FULL CHAIN', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                    child: Text('CONFIRM FULL CHAIN',
+                        style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            letterSpacing: 1)),
                   ),
                   const SizedBox(height: 60),
                 ],
@@ -249,15 +283,27 @@ class _RequestFormPageState extends State<RequestFormPage> {
     for (int i = 0; i < provider.journeySegments.length; i++) {
       final s = provider.journeySegments[i];
       if (s.points.isNotEmpty) {
-        markers.add(Marker(markerId: MarkerId('m_$i'), position: s.points.first, icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure)));
+        markers.add(Marker(
+            markerId: MarkerId('m_$i'),
+            position: s.points.first,
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueAzure)));
         if (i == provider.journeySegments.length - 1) {
-          markers.add(Marker(markerId: const MarkerId('m_last'), position: s.points.last, icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)));
+          markers.add(Marker(
+              markerId: const MarkerId('m_last'),
+              position: s.points.last,
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueOrange)));
         }
-        
+
         polylines.add(Polyline(
           polylineId: PolylineId('p_$i'),
           points: s.points,
-          color: s.mode == TransportMode.land ? AppTheme.electricBlue : (s.mode == TransportMode.air ? AppTheme.accentOrange : Colors.teal),
+          color: s.mode == TransportMode.land
+              ? AppTheme.electricBlue
+              : (s.mode == TransportMode.air
+                  ? AppTheme.accentOrange
+                  : Colors.teal),
           width: 6,
           jointType: JointType.round,
         ));
@@ -276,7 +322,8 @@ class _RequestFormPageState extends State<RequestFormPage> {
       child: Stack(
         children: [
           GoogleMap(
-            initialCameraPosition: const CameraPosition(target: LatLng(20.5937, 78.9629), zoom: 4), 
+            initialCameraPosition:
+                const CameraPosition(target: LatLng(20.5937, 78.9629), zoom: 4),
             onMapCreated: (controller) => _mapController = controller,
             markers: markers,
             polylines: polylines,
@@ -287,7 +334,11 @@ class _RequestFormPageState extends State<RequestFormPage> {
             myLocationButtonEnabled: false,
           ),
           if (provider.isLoading)
-            Container(color: Colors.white60, child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.electricBlue))),
+            Container(
+                color: Colors.white60,
+                child: const Center(
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppTheme.electricBlue))),
         ],
       ),
     );
@@ -307,8 +358,10 @@ class _RequestFormPageState extends State<RequestFormPage> {
   Widget _buildLocationNode(int index) {
     bool isFirst = index == 0;
     bool isLast = index == _locationControllers.length - 1;
-    String label = isFirst ? 'STARTING POINT' : (isLast ? 'FINAL DESTINATION' : 'TRANSIT HUB ${index}');
-    
+    String label = isFirst
+        ? 'STARTING POINT'
+        : (isLast ? 'FINAL DESTINATION' : 'TRANSIT HUB ${index}');
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
@@ -319,10 +372,23 @@ class _RequestFormPageState extends State<RequestFormPage> {
       ),
       child: Row(
         children: [
-          Icon(isFirst ? LucideIcons.circleDot : (isLast ? LucideIcons.mapPin : LucideIcons.refreshCw), size: 18, color: isFirst ? AppTheme.accentOrange : (isLast ? AppTheme.electricBlue : AppTheme.slateGray)),
+          Icon(
+              isFirst
+                  ? LucideIcons.circleDot
+                  : (isLast ? LucideIcons.mapPin : LucideIcons.refreshCw),
+              size: 18,
+              color: isFirst
+                  ? AppTheme.accentOrange
+                  : (isLast ? AppTheme.electricBlue : AppTheme.slateGray)),
           const SizedBox(width: 16),
-          Expanded(child: _buildAutocompleteField(_locationControllers[index], _focusNodes[index], label, index)),
-          if (!isFirst && !isLast) IconButton(icon: const Icon(LucideIcons.trash2, size: 16, color: AppTheme.errorRed), onPressed: () => _removeSegment(index)),
+          Expanded(
+              child: _buildAutocompleteField(_locationControllers[index],
+                  _focusNodes[index], label, index)),
+          if (!isFirst && !isLast)
+            IconButton(
+                icon: const Icon(LucideIcons.trash2,
+                    size: 16, color: AppTheme.errorRed),
+                onPressed: () => _removeSegment(index)),
         ],
       ),
     );
@@ -370,9 +436,15 @@ class _RequestFormPageState extends State<RequestFormPage> {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 14, color: isSelected ? Colors.white : AppTheme.primaryBlue),
+            Icon(icon,
+                size: 14,
+                color: isSelected ? Colors.white : AppTheme.primaryBlue),
             const SizedBox(width: 6),
-            Text(mode.name.toUpperCase(), style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : AppTheme.primaryBlue)),
+            Text(mode.name.toUpperCase(),
+                style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : AppTheme.primaryBlue)),
           ],
         ),
       ),
@@ -384,36 +456,52 @@ class _RequestFormPageState extends State<RequestFormPage> {
       children: [
         Icon(icon, size: 16, color: AppTheme.electricBlue),
         const SizedBox(width: 8),
-        Text(title, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.slateGray, letterSpacing: 1.5)),
+        Text(title,
+            style: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.slateGray,
+                letterSpacing: 1.5)),
       ],
     );
   }
 
-  Widget _buildStyledField({required TextEditingController controller, required String hint, required IconData icon, TextInputType? keyboardType}) {
+  Widget _buildStyledField(
+      {required TextEditingController controller,
+      required String hint,
+      required IconData icon,
+      TextInputType? keyboardType}) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, size: 18, color: AppTheme.slateGray)),
+      decoration: InputDecoration(
+          hintText: hint,
+          prefixIcon: Icon(icon, size: 18, color: AppTheme.slateGray)),
       validator: (v) => v!.isEmpty ? 'Required' : null,
     );
   }
 
-  Widget _buildAutocompleteField(TextEditingController controller, FocusNode focusNode, String hint, int index) {
+  Widget _buildAutocompleteField(TextEditingController controller,
+      FocusNode focusNode, String hint, int index) {
     return RawAutocomplete<String>(
       textEditingController: controller,
       focusNode: focusNode,
       optionsBuilder: (TextEditingValue textEditingValue) async {
-        if (textEditingValue.text.isEmpty) return const Iterable<String>.empty();
+        if (textEditingValue.text.isEmpty)
+          return const Iterable<String>.empty();
         try {
           // On Web: uses backend proxy. On Android: calls Google directly.
           final baseUrl = kIsWeb
-              ? 'https://transglobesbackend-production.up.railway.app/api/maps/autocomplete'
+              ? 'https://srv1123536.hstgr.cloud/api/maps/autocomplete'
               : 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
-          final url = Uri.parse('$baseUrl?input=${Uri.encodeComponent(textEditingValue.text)}&key=${LogisticsProvider.googleApiKey}&components=country:in');
+          final url = Uri.parse(
+              '$baseUrl?input=${Uri.encodeComponent(textEditingValue.text)}&key=${LogisticsProvider.googleApiKey}&components=country:in');
           final response = await http.get(url);
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
-            if (data['status'] == 'OK') return (data['predictions'] as List).map((p) => p['description'] as String);
+            if (data['status'] == 'OK')
+              return (data['predictions'] as List)
+                  .map((p) => p['description'] as String);
           }
         } catch (_) {}
         return const Iterable<String>.empty();
@@ -427,7 +515,13 @@ class _RequestFormPageState extends State<RequestFormPage> {
         return TextFormField(
           controller: controller,
           focusNode: focusNode,
-          decoration: InputDecoration(hintText: hint, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, contentPadding: EdgeInsets.zero, hintStyle: const TextStyle(fontSize: 14)),
+          decoration: InputDecoration(
+              hintText: hint,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+              hintStyle: const TextStyle(fontSize: 14)),
         );
       },
       optionsViewBuilder: (context, onSelected, options) {
@@ -436,7 +530,17 @@ class _RequestFormPageState extends State<RequestFormPage> {
           child: Material(
             elevation: 8,
             borderRadius: BorderRadius.circular(12),
-            child: Container(width: 300, constraints: const BoxConstraints(maxHeight: 200), child: ListView.builder(padding: EdgeInsets.zero, shrinkWrap: true, itemCount: options.length, itemBuilder: (context, index) => ListTile(title: Text(options.elementAt(index), style: const TextStyle(fontSize: 12)), onTap: () => onSelected(options.elementAt(index))))),
+            child: Container(
+                width: 300,
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (context, index) => ListTile(
+                        title: Text(options.elementAt(index),
+                            style: const TextStyle(fontSize: 12)),
+                        onTap: () => onSelected(options.elementAt(index))))),
           ),
         );
       },
@@ -449,7 +553,15 @@ class _RequestFormPageState extends State<RequestFormPage> {
     for (var s in provider.journeySegments) totalKm += s.distance;
 
     return Container(
-      decoration: BoxDecoration(color: AppTheme.primaryBlue, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: AppTheme.electricBlue.withOpacity(0.2), blurRadius: 40, offset: const Offset(0, 20))]),
+      decoration: BoxDecoration(
+          color: AppTheme.primaryBlue,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+                color: AppTheme.electricBlue.withOpacity(0.2),
+                blurRadius: 40,
+                offset: const Offset(0, 20))
+          ]),
       padding: EdgeInsets.all(isDesktop ? 40.0 : 28.0),
       child: Column(
         children: [
@@ -459,12 +571,22 @@ class _RequestFormPageState extends State<RequestFormPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('CHAIN DEPLOYMENT COST', style: GoogleFonts.outfit(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                  Text('CHAIN DEPLOYMENT COST',
+                      style: GoogleFonts.outfit(
+                          color: Colors.white60,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2)),
                   const SizedBox(height: 12),
-                  Text(format.format(_estimatedPrice), style: GoogleFonts.outfit(color: Colors.white, fontSize: isDesktop ? 42 : 32, fontWeight: FontWeight.bold)),
+                  Text(format.format(_estimatedPrice),
+                      style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontSize: isDesktop ? 42 : 32,
+                          fontWeight: FontWeight.bold)),
                 ],
               ),
-              Icon(LucideIcons.zap, color: AppTheme.accentOrange, size: isDesktop ? 32 : 24),
+              Icon(LucideIcons.zap,
+                  color: AppTheme.accentOrange, size: isDesktop ? 32 : 24),
             ],
           ),
           const SizedBox(height: 24),
@@ -473,8 +595,14 @@ class _RequestFormPageState extends State<RequestFormPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Total Distance:', style: TextStyle(color: Colors.white60, fontSize: 11)),
-              Text('${totalKm.toInt()} KM Across ${provider.journeySegments.length} Segments', style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+              Text('Total Distance:',
+                  style: TextStyle(color: Colors.white60, fontSize: 11)),
+              Text(
+                  '${totalKm.toInt()} KM Across ${provider.journeySegments.length} Segments',
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
             ],
           ),
         ],

@@ -26,9 +26,9 @@ class SocketService {
       return;
     }
 
-    const String prodUrl = "https://transglobesbackend-production.up.railway.app";
+    const String prodUrl = "https://srv1123536.hstgr.cloud";
     const String localUrl = "http://localhost:8080";
-    final String baseUrl = localUrl;
+    final String baseUrl = prodUrl;
 
     _socket = IO.io(
       baseUrl,

@@ -1,4 +1,5 @@
 const Admin = require('../models/AdminSchema');
+const AdminSignup = require('../models/adminSignup');
 const Driver = require('../models/Driver');
 const User = require('../models/User');
 const Booking = require('../models/Booking');
@@ -15,26 +16,58 @@ const bcrypt = require('bcryptjs');
 const Transaction = require('../models/Transaction');
 const sendEmail = require('../utils/sendEmail');
 const sendSMS = require('../utils/sendSMS');
+const firebaseAdmin = require('../config/firebase');
 
 // Controller for syncing admin data upon login
 const syncAdminData = async (req, res) => {
     try {
-        const { email, name } = req.user; // Assuming data comes from decoded token or body
-
-        let admin = await Admin.findOne({ email });
-
-        if (!admin) {
-            admin = new Admin({
-                name: name || 'Admin',
-                email,
-                role: 'admin'
-            });
-            await admin.save();
+        let token = req.headers.authorization;
+        if (token && token.startsWith('Bearer ')) {
+            token = token.split(' ')[1];
         }
 
+        if (!token) {
+            return res.status(401).json({ message: 'No Google auth token provided.' });
+        }
+
+        const decoded = await firebaseAdmin.auth().verifyIdToken(token);
+        const email = decoded.email?.toLowerCase().trim();
+        const name = decoded.name || decoded.email || 'Admin';
+
+        if (!email) {
+            return res.status(400).json({ message: 'Google account email not found.' });
+        }
+
+        let admin = await AdminSignup.findOne({ email });
+        if (!admin) {
+            admin = await AdminSignup.create({
+                name,
+                email,
+                password: `google_${decoded.uid}_${Date.now()}`,
+                role: 'admin',
+            });
+        }
+
+        const sessionToken = jwt.sign(
+            { id: admin._id, email: admin.email, role: admin.role },
+            process.env.JWT_SECRET || 'your_secret_key',
+            { expiresIn: '1d' }
+        );
+
+        admin.name = admin.name || name;
+        admin.token = sessionToken;
+        await admin.save();
+
         res.status(200).json({
+            success: true,
             message: 'Admin synced successfully',
-            admin
+            token: sessionToken,
+            admin: {
+                id: admin._id,
+                name: admin.name,
+                email: admin.email,
+                role: admin.role,
+            }
         });
     } catch (error) {
         console.error('Error syncing admin:', error);
