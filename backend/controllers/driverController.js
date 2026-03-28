@@ -211,7 +211,19 @@ const getDriverStatus = async (req, res) => {
 const getDriverProfile = async (req, res) => {
     try {
         // req.user added by authMiddleware
-        const driver = await Driver.findOne({ uid: req.user.uid });
+        const uid = req.user.uid;
+        const email = req.user.email;
+        let driver = await Driver.findOne({
+            $or: [
+                { uid },
+                { _id: (typeof uid === 'string' && uid.length === 24) ? uid : undefined }
+            ].filter(c => c.uid || c._id)
+        });
+        // Fallback to email
+        if (!driver && email) {
+            driver = await Driver.findOne({ email: { $regex: new RegExp(`^${email.toLowerCase().trim()}$`, 'i') } });
+            if (driver && !driver.uid && uid) { driver.uid = uid; await driver.save(); }
+        }
         if (!driver) {
             return res.status(404).json({ message: 'Driver not found' });
         }
@@ -343,8 +355,14 @@ const updateDriverProfile = async (req, res) => {
         const uid = req.user.uid;
         const { name, mobileNumber, signature, vehicleNumberPlate, vehicleModel, vehicleYear } = req.body;
 
+        const driverFilter = {
+            $or: [
+                { uid },
+                { _id: (typeof uid === 'string' && uid.length === 24) ? uid : undefined }
+            ].filter(c => c.uid || c._id)
+        };
         const updatedDriver = await Driver.findOneAndUpdate(
-            { uid },
+            driverFilter,
             {
                 $set: {
                     ...(name && { name }),
@@ -548,7 +566,10 @@ const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        const driver = await Driver.findOne({ email });
+        const emailToSearch = (email || '').toLowerCase().trim();
+        const driver = await Driver.findOne({
+            email: { $regex: new RegExp(`^${emailToSearch}$`, 'i') }
+        });
         if (!driver) {
             return res.status(401).json({ message: 'Invalid credentials.' });
         }
@@ -595,8 +616,15 @@ const checkEmailAvailability = async (req, res) => {
 const updateStatus = async (req, res) => {
     try {
         const { status, isOnline } = req.body;
+        const uid = req.user.uid;
+        const statusFilter = {
+            $or: [
+                { uid },
+                { _id: (typeof uid === 'string' && uid.length === 24) ? uid : undefined }
+            ].filter(c => c.uid || c._id)
+        };
         const driver = await Driver.findOneAndUpdate(
-            { uid: req.user.uid },
+            statusFilter,
             { $set: { status: status || 'offline', isOnline: isOnline ?? false } },
             { new: true }
         );
@@ -610,8 +638,15 @@ const updateStatus = async (req, res) => {
 const updateLocation = async (req, res) => {
     try {
         const { latitude, longitude } = req.body;
+        const uid = req.user.uid;
+        const locationFilter = {
+            $or: [
+                { uid },
+                { _id: (typeof uid === 'string' && uid.length === 24) ? uid : undefined }
+            ].filter(c => c.uid || c._id)
+        };
         const driver = await Driver.findOneAndUpdate(
-            { uid: req.user.uid },
+            locationFilter,
             {
                 $set: {
                     location: {
