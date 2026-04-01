@@ -89,9 +89,9 @@ EOF
 configure_nginx() {
   cat > "$NGINX_SITE" <<EOF
 server {
-  listen 80;
-  listen [::]:80;
-  server_name _;
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name transgloble.com www.transgloble.com api.transgloble.com admin.transgloble.com driver.transgloble.com corporate.transgloble.com transglobe.com www.transglobe.com api.transglobe.com admin.transglobe.com driver.transglobe.com corporate.transglobe.com _;
 
   location / {
     proxy_pass http://127.0.0.1:${PORT};
