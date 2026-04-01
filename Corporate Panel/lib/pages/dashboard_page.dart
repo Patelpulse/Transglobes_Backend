@@ -732,6 +732,13 @@ class _RequestCard extends StatelessWidget {
   final LogisticsRequest req;
   const _RequestCard({required this.req});
 
+  String _shortBookingId(String id, [int length = 6]) {
+    final normalized = id.trim();
+    if (normalized.isEmpty) return 'UNKNOWN';
+    if (normalized.length <= length) return normalized.toUpperCase();
+    return normalized.substring(0, length).toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat.currency(symbol: '₹');
@@ -760,7 +767,7 @@ class _RequestCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'SHIPMENT REQ-${req.id.substring(0, 6).toUpperCase()}',
+                    'SHIPMENT REQ-${_shortBookingId(req.id)}',
                     style: GoogleFonts.outfit(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,

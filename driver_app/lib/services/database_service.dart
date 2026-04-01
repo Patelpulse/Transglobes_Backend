@@ -29,12 +29,12 @@ class DatabaseService {
     return headers;
   }
 
-  Future<bool> saveDriverToBackend(dynamic user) async {
+  Future<bool> saveDriverToBackend(dynamic user, [String? token]) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
       final response = await http.post(
         url,
-        headers: _getHeaders(null, uid: user.uid),
+        headers: _getHeaders(token, uid: user.uid),
         body: json.encode({
           'uid': user.uid,
           'email': user.email ?? '',

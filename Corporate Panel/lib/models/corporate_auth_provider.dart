@@ -38,8 +38,8 @@ class CorporateAccount {
 }
 
 class CorporateAuthProvider with ChangeNotifier {
-  static const String _baseUrl =
-      'https://srv1123536.hstgr.cloud';
+  static String get _baseUrl =>
+      kIsWeb ? Uri.base.origin : 'https://transglobesbackend-production.up.railway.app';
 
   CorporateAccount? _account;
   String? _token;

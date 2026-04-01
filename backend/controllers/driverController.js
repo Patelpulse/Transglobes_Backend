@@ -6,6 +6,39 @@ const History = require('../models/History');
 
 const otpStore = {}; // Memory store: { email: { otp, expires } }
 
+const normalizeEmail = (value) =>
+    typeof value === 'string' ? value.toLowerCase().trim() : '';
+
+const buildDriverLookupQuery = ({ uid, email, includeEmail = true }) => {
+    const safeUid = typeof uid === 'string' ? uid.trim() : uid;
+    const safeEmail = normalizeEmail(email);
+    const query = [];
+
+    if (safeUid) {
+        query.push({ uid: safeUid });
+        query.push({ firebaseId: safeUid });
+        if (typeof safeUid === 'string' && safeUid.length === 24) {
+            query.push({ _id: safeUid });
+        }
+    }
+
+    if (includeEmail && safeEmail) {
+        query.push({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } });
+    }
+
+    return query.filter((condition) => {
+        if (!condition) return false;
+        if (condition._id || condition.uid || condition.firebaseId) return true;
+        return !!condition.email;
+    });
+};
+
+const findDriverByAuthContext = async ({ uid, email, includeEmail = true }) => {
+    const query = buildDriverLookupQuery({ uid, email, includeEmail });
+    if (!query.length) return null;
+    return Driver.findOne({ $or: query });
+};
+
 // Controller for syncing driver data upon login or initial load
 const syncDriverData = async (req, res) => {
     try {
@@ -143,32 +176,20 @@ const syncDriverData = async (req, res) => {
 
 const getDriverStatus = async (req, res) => {
     try {
-        const uid = req.user.uid;
-        const email = req.user.email;
+        const uid = req.user?.uid || req.user?.id || req.user?.firebaseId;
+        const email = req.user?.email;
         
         console.log(`[STATUS] Checking status for UID: ${uid}, Email: ${email}`);
-        // Ensure we have a valid mapping
-        const safeUid = typeof uid === 'string' ? uid.trim() : uid;
-        const safeEmail = typeof email === 'string' ? email.toLowerCase().trim() : email;
+        let driver = await findDriverByAuthContext({ uid, email });
 
-        // Try UID or MongoDB _id
-        let driver = await Driver.findOne({
-            $or: [
-                { uid: safeUid },
-                { _id: (typeof safeUid === 'string' && safeUid.length === 24) ? safeUid : undefined }
-            ].filter(c => c.uid || c._id)
-        });
+        if (!driver && email) {
+            console.log(`[STATUS] UID not found, trying email fallback: ${email}`);
+            driver = await Driver.findOne({ email: { $regex: new RegExp(`^${normalizeEmail(email)}$`, 'i') } });
 
-        // Fallback to email if not found (case-insensitive)
-        if (!driver && safeEmail) {
-            console.log(`[STATUS] UID not found, trying email fallback: ${safeEmail}`);
-            driver = await Driver.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } });
-            
-            // If found by email, sync the UID for future lookups
-            if (driver && !driver.uid && safeUid) {
-                driver.uid = safeUid;
+            if (driver && !driver.uid && uid) {
+                driver.uid = uid;
                 await driver.save();
-                console.log(`[STATUS] Synced UID ${safeUid} for driver ${safeEmail}`);
+                console.log(`[STATUS] Synced UID ${uid} for driver ${email}`);
             }
         }
 
@@ -211,21 +232,40 @@ const getDriverStatus = async (req, res) => {
 const getDriverProfile = async (req, res) => {
     try {
         // req.user added by authMiddleware
-        const uid = req.user.uid;
-        const email = req.user.email;
-        let driver = await Driver.findOne({
-            $or: [
-                { uid },
-                { _id: (typeof uid === 'string' && uid.length === 24) ? uid : undefined }
-            ].filter(c => c.uid || c._id)
-        });
-        // Fallback to email
+        const uid = req.user?.uid || req.user?.id || req.user?.firebaseId;
+        const email = req.user?.email;
+
+        let driver = await findDriverByAuthContext({ uid, email });
+
+        // Fallback to email-only lookup if auth payload is inconsistent
         if (!driver && email) {
-            driver = await Driver.findOne({ email: { $regex: new RegExp(`^${email.toLowerCase().trim()}$`, 'i') } });
-            if (driver && !driver.uid && uid) { driver.uid = uid; await driver.save(); }
+            driver = await Driver.findOne({
+                email: { $regex: new RegExp(`^${normalizeEmail(email)}$`, 'i') }
+            });
+            if (driver && !driver.uid && uid) {
+                driver.uid = uid;
+                await driver.save();
+            }
         }
         if (!driver) {
-            return res.status(404).json({ message: 'Driver not found' });
+            return res.status(200).json({
+                driver: {
+                    id: uid || '',
+                    uid: uid || '',
+                    firebaseId: uid || '',
+                    email: email || '',
+                    name: req.user?.name || req.user?.displayName || 'Driver',
+                    status: 'pending',
+                    isOnline: false,
+                    onboardingComplete: false,
+                    isEmailVerified: !!email,
+                    vehicleId: '',
+                    vehicleModel: '',
+                    vehicleYear: '',
+                    vehicleNumberPlate: '',
+                    documents: [],
+                }
+            });
         }
         res.status(200).json({ driver });
     } catch (error) {
@@ -517,6 +557,9 @@ const register = async (req, res) => {
         if (!password) {
             return res.status(400).json({ message: "Password is required" });
         }
+        if (!email || !name) {
+            return res.status(400).json({ message: "Name and email are required" });
+        }
 
         // check if email already exists (case-insensitive)
         const emailToSearch = (email || '').toLowerCase().trim();
@@ -541,7 +584,11 @@ const register = async (req, res) => {
 
         // Generate Token
         const token = jwt.sign(
-            { id: driver._id, email: driver.email },
+            {
+                id: driver._id.toString(),
+                uid: driver.uid || driver._id.toString(),
+                email: driver.email,
+            },
             process.env.JWT_SECRET || 'your_secret_key',
             { expiresIn: '7d' }
         );
@@ -551,6 +598,7 @@ const register = async (req, res) => {
             token,
             driver: {
                 id: driver._id,
+                uid: driver.uid || driver._id.toString(),
                 name: driver.name,
                 email: driver.email
             }
@@ -558,7 +606,12 @@ const register = async (req, res) => {
 
     } catch (error) {
         console.error('Driver Registration error:', error);
-        res.status(500).json({ error: error.message });
+        if (error.code === 11000) {
+            // Duplicate key (email/uid/phone)
+            const field = Object.keys(error.keyPattern || { email: 1 })[0];
+            return res.status(400).json({ message: `A driver with this ${field} already exists` });
+        }
+        res.status(500).json({ message: 'Server error during registration', error: error.message });
     }
 };
 
@@ -581,7 +634,11 @@ const login = async (req, res) => {
 
         // Generate Token
         const token = jwt.sign(
-            { id: driver._id, email: driver.email },
+            {
+                id: driver._id.toString(),
+                uid: driver.uid || driver._id.toString(),
+                email: driver.email,
+            },
             process.env.JWT_SECRET || 'your_secret_key',
             { expiresIn: '7d' }
         );
@@ -591,6 +648,7 @@ const login = async (req, res) => {
             token,
             driver: {
                 id: driver._id,
+                uid: driver.uid || driver._id.toString(),
                 name: driver.name,
                 email: driver.email
             }
@@ -605,11 +663,17 @@ const checkEmailAvailability = async (req, res) => {
     try {
         const { email } = req.query;
         if (!email) return res.status(400).json({ message: 'Email is required' });
+
+        // Defensive: sanitize to avoid invalid regex patterns
         const emailToSearch = (email || '').toLowerCase().trim();
-        const driver = await Driver.findOne({ email: { $regex: new RegExp(`^${emailToSearch}$`, 'i') } });
-        res.status(200).json({ exists: !!driver });
+        const safeEmail = emailToSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        const driver = await Driver.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } }).lean();
+        return res.status(200).json({ exists: !!driver });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('[CHECK-EMAIL] Failed:', error.message);
+        // Do NOT block signup if lookup fails; default to "not exists" so user can proceed.
+        return res.status(200).json({ exists: false, warning: 'Lookup fallback due to server issue' });
     }
 };
 

@@ -21,12 +21,47 @@ final driverServiceProvider = Provider<DriverService>((ref) {
 final driverProfileProvider = FutureProvider<DriverModel?>((ref) async {
   final authService = ref.watch(authServiceProvider);
   final dbService = ref.watch(databaseServiceProvider);
-  final driverId = authService.currentUser?.uid;
-  if (driverId == null) return null;
+  final currentUser = authService.currentUser;
+  final driverId = currentUser?.uid?.toString();
+  if (driverId == null || driverId.isEmpty) return null;
   final token = await authService.getIdToken();
-  if (token == null) return null;
-  return await dbService.getDriverProfile(driverId, token);
+  if (token == null || token.isEmpty) {
+    return _fallbackDriverProfile(currentUser);
+  }
+
+  final profile = await dbService.getDriverProfile(driverId, token);
+  if (profile != null) return profile;
+
+  try {
+    await dbService.saveDriverToBackend(currentUser, token);
+    final syncedProfile = await dbService.getDriverProfile(driverId, token);
+    if (syncedProfile != null) return syncedProfile;
+  } catch (e) {
+    debugPrint('Driver profile sync fallback failed: $e');
+  }
+
+  return _fallbackDriverProfile(currentUser);
 });
+
+DriverModel _fallbackDriverProfile(dynamic currentUser) {
+  final uid = currentUser?.uid?.toString() ?? '';
+  final email = currentUser?.email?.toString() ?? '';
+  final name = currentUser?.displayName?.toString();
+  return DriverModel(
+    id: uid,
+    firebaseId: uid,
+    email: email,
+    name: (name != null && name.trim().isNotEmpty)
+        ? name
+        : (email.isNotEmpty ? email.split('@').first : 'Driver'),
+    vehicleId: '',
+    status: 'pending',
+    isOnline: false,
+    onboardingComplete: false,
+    isEmailVerified: email.isNotEmpty,
+    documents: const [],
+  );
+}
 
 class DriverService {
   final ApiService _api;

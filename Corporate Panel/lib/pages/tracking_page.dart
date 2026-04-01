@@ -18,13 +18,20 @@ class _TrackingPageState extends State<TrackingPage> {
   LogisticsRequest? _foundRequest;
   bool _hasSearched = false;
 
+  String _shortBookingId(String id, [int length = 8]) {
+    final normalized = id.trim();
+    if (normalized.isEmpty) return 'UNKNOWN';
+    if (normalized.length <= length) return normalized.toUpperCase();
+    return normalized.substring(0, length).toUpperCase();
+  }
+
   void _searchTracking() {
     final provider = Provider.of<LogisticsProvider>(context, listen: false);
     final input = _trackController.text.toUpperCase();
     
     setState(() {
       _foundRequest = provider.requests.firstWhere(
-        (r) => 'REQ-${r.id.substring(0, 8).toUpperCase()}' == input || r.id == input,
+        (r) => 'REQ-${_shortBookingId(r.id)}' == input || r.id.toUpperCase() == input,
         orElse: () => provider.requests.first, // For demo, return first if not found
       );
       _hasSearched = true;
@@ -54,7 +61,7 @@ class _TrackingPageState extends State<TrackingPage> {
             ),
             const SizedBox(height: 16),
             ...Provider.of<LogisticsProvider>(context).requests.take(3).map((r) => 
-              _buildRecentSearch('REQ-${r.id.substring(0, 8).toUpperCase()}', '${r.pickupLocation} → ${r.destinationLocation}', r.status)
+              _buildRecentSearch('REQ-${_shortBookingId(r.id)}', '${r.pickupLocation} → ${r.destinationLocation}', r.status)
             ),
           ],
         ),
@@ -116,7 +123,7 @@ class _TrackingPageState extends State<TrackingPage> {
                   children: [
                     Text('ACTIVE SHIPMENT', style: GoogleFonts.outfit(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                     const SizedBox(height: 4),
-                    Text('REQ-${req.id.substring(0, 8).toUpperCase()}', style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                    Text('REQ-${_shortBookingId(req.id)}', style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),

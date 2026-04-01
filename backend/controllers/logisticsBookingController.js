@@ -14,6 +14,12 @@ const normalizeLocation = (location, fallbackName, fallbackAddress) => {
     };
 };
 
+const normalizeDimension = (value, fallback = 1) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return parsed;
+};
+
 const normalizeItems = (items = [], fallbackWeight = 0) => {
     if (!Array.isArray(items)) return [];
 
@@ -21,12 +27,12 @@ const normalizeItems = (items = [], fallbackWeight = 0) => {
         .map((item) => ({
             itemName: item?.itemName ?? item?.name ?? item?.goodsType ?? 'General Goods',
             type: item?.type ?? 'General',
-            length: Number(item?.length ?? 0),
-            height: Number(item?.height ?? 0),
-            width: Number(item?.width ?? 0),
+            length: normalizeDimension(item?.length, 1),
+            height: normalizeDimension(item?.height, 1),
+            width: normalizeDimension(item?.width, 1),
             unit: item?.unit ?? 'cm',
-            weight: Number(item?.weight ?? fallbackWeight ?? 0),
-            quantity: Number(item?.quantity ?? 1),
+            weight: normalizeDimension(item?.weight ?? fallbackWeight, Math.max(Number(fallbackWeight) || 1, 1)),
+            quantity: Math.max(Number(item?.quantity ?? 1) || 1, 1),
         }))
         .filter((item) => item.itemName);
 };
@@ -112,6 +118,12 @@ exports.createBooking = async (req, res) => {
 
         // Basic validation
         if (!userId || !normalizedPickup || !normalizedDropoff || !normalizedVehicleType) {
+            console.warn('[LOGISTICS] Booking validation failed: missing required fields', {
+                userId,
+                hasPickup: !!normalizedPickup,
+                hasDropoff: !!normalizedDropoff,
+                vehicleType: normalizedVehicleType,
+            });
             return res.status(400).json({
                 success: false,
                 message: 'userId, pickup, dropoff, and vehicleType are required.',
@@ -122,14 +134,25 @@ exports.createBooking = async (req, res) => {
             String(normalizedPickup.address || '').trim().toLowerCase() ===
             String(normalizedDropoff.address || '').trim().toLowerCase()
         ) {
+            console.warn('[LOGISTICS] Booking validation failed: pickup/dropoff identical', {
+                userId,
+                pickup: normalizedPickup.address,
+                dropoff: normalizedDropoff.address,
+            });
             return res.status(400).json({
                 success: false,
                 message: 'Pickup and drop locations must be different.',
             });
         }
 
-        const itemsValidationError = validateItems(items);
+        const itemsValidationError = validateItems(normalizedItems);
         if (itemsValidationError) {
+            console.warn('[LOGISTICS] Booking validation failed: invalid items', {
+                userId,
+                vehicleType: normalizedVehicleType,
+                error: itemsValidationError,
+                items: normalizedItems,
+            });
             return res.status(400).json({
                 success: false,
                 message: itemsValidationError,

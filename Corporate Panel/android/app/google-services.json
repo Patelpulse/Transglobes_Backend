@@ -1,0 +1,127 @@
+{
+  "project_info": {
+    "project_number": "1072284227316",
+    "project_id": "mera-ubar",
+    "storage_bucket": "mera-ubar.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1072284227316:android:3f6b1866921fea5fcd30a1",
+        "android_client_info": {
+          "package_name": "com.example.corporate_panel"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I"
+        },
+        {
+          "current_key": "AIzaSyBcc-cYJ-xfLYwo8Jyc6eZmgk918j0WL28"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1072284227316-qkv0o57vd1bjelafq4qes30dn7qcs1p1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.userApp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1072284227316:android:b1ac2c0612fed2fecd30a1",
+        "android_client_info": {
+          "package_name": "com.example.user_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I"
+        },
+        {
+          "current_key": "AIzaSyBcc-cYJ-xfLYwo8Jyc6eZmgk918j0WL28"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1072284227316-qkv0o57vd1bjelafq4qes30dn7qcs1p1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.userApp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1072284227316:android:967e253fa09ff7e4cd30a1",
+        "android_client_info": {
+          "package_name": "com.transglobe.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I"
+        },
+        {
+          "current_key": "AIzaSyBcc-cYJ-xfLYwo8Jyc6eZmgk918j0WL28"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1072284227316-ep8jv2fj70t5usrodqm813v4lr4jp1sq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1072284227316-qkv0o57vd1bjelafq4qes30dn7qcs1p1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.userApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

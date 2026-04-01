@@ -152,12 +152,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       final authService = ref.read(authServiceProvider);
       final dbService = ref.read(databaseServiceProvider);
       final userCredential = await authService.signInWithGoogle();
+      final token = await authService.getIdToken();
       
       if (mounted) {
         final user = userCredential.user;
         if (user != null) {
           // Save Google user to backend database
-          final isComplete = await dbService.saveDriverToBackend(user);
+          final isComplete = await dbService.saveDriverToBackend(user, token);
 
           if (mounted) {
             if (isComplete) {
@@ -196,12 +197,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       final authService = ref.read(authServiceProvider);
       final dbService = ref.read(databaseServiceProvider);
       final userCredential = await authService.signInWithFacebook();
+      final token = await authService.getIdToken();
       
       if (mounted) {
         final user = userCredential.user;
         if (user != null) {
           // Save Facebook user to backend database
-          final isComplete = await dbService.saveDriverToBackend(user);
+          final isComplete = await dbService.saveDriverToBackend(user, token);
 
           if (mounted) {
             if (isComplete) {

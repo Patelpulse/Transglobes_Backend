@@ -140,46 +140,78 @@ class _RequestFormPageState extends State<RequestFormPage> {
   }
 
   void _submitRequest() async {
-    if (_formKey.currentState!.validate()) {
-      final provider = Provider.of<LogisticsProvider>(context, listen: false);
-      final authProvider =
-          Provider.of<CorporateAuthProvider>(context, listen: false);
-      final account = authProvider.account;
-      final token = authProvider.token;
+    if (!_formKey.currentState!.validate()) return;
 
-      if (account == null || token == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Please sign in again to submit shipments.'),
-          backgroundColor: Colors.red,
-        ));
-        return;
+    if (_locationControllers.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter pickup and destination.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    final provider = Provider.of<LogisticsProvider>(context, listen: false);
+    final authProvider =
+        Provider.of<CorporateAuthProvider>(context, listen: false);
+    final account = authProvider.account;
+    final token = authProvider.token;
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final parsedWeight = double.tryParse(_weightController.text.trim());
+
+    if (account == null || token == null) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Please sign in again to submit shipments.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    if (parsedWeight == null || parsedWeight <= 0) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Please enter a valid weight greater than 0.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    final newRequest = LogisticsRequest(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      pickupLocation: _locationControllers.first.text,
+      destinationLocation: _locationControllers.last.text,
+      weight: parsedWeight,
+      goodsType: _goodsTypeController.text.trim().isEmpty
+          ? 'Goods'
+          : _goodsTypeController.text.trim(),
+      modes: _segmentModes,
+      selectedVehicles: {},
+      estimatedPrice: _estimatedPrice,
+      createdAt: DateTime.now(),
+    );
+
+    bool success = false;
+    try {
+      success = await provider.submitBooking(newRequest, account, token);
+    } catch (e, st) {
+      debugPrint('Submit booking failed: $e');
+      debugPrintStack(stackTrace: st);
+      success = false;
+    }
+    if (!mounted) return;
+
+    if (success) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Shipment deployed to backend'),
+        backgroundColor: Colors.green,
+      ));
+      if (navigator.canPop()) {
+        navigator.pop();
       }
-
-      final newRequest = LogisticsRequest(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        pickupLocation: _locationControllers.first.text,
-        destinationLocation: _locationControllers.last.text,
-        weight: double.parse(_weightController.text),
-        goodsType: _goodsTypeController.text,
-        modes: _segmentModes,
-        selectedVehicles: {},
-        estimatedPrice: _estimatedPrice,
-        createdAt: DateTime.now(),
-      );
-
-      final success = await provider.submitBooking(newRequest, account, token);
-      if (success && mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Complex chain shipment deployed to backend'),
-          backgroundColor: Colors.green,
-        ));
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Failed to deploy shipment. Check your connection.'),
-          backgroundColor: Colors.red,
-        ));
-      }
+    } else {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Failed to deploy shipment. Check your connection.'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
 
@@ -279,6 +311,26 @@ class _RequestFormPageState extends State<RequestFormPage> {
     final provider = Provider.of<LogisticsProvider>(context);
     final Set<Marker> markers = {};
     final Set<Polyline> polylines = {};
+
+    if (kIsWeb) {
+      // Avoid Google Maps JS issues on web; show a lightweight placeholder.
+      return Container(
+        height: 280,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.glassBorder),
+        ),
+        child: Center(
+          child: Text('Route preview not shown on web',
+              style: TextStyle(
+                  color: AppTheme.primaryBlue,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5)),
+        ),
+      );
+    }
 
     for (int i = 0; i < provider.journeySegments.length; i++) {
       final s = provider.journeySegments[i];
@@ -492,7 +544,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
         try {
           // On Web: uses backend proxy. On Android: calls Google directly.
           final baseUrl = kIsWeb
-              ? 'https://srv1123536.hstgr.cloud/api/maps/autocomplete'
+              ? '${Uri.base.origin}/api/maps/autocomplete'
               : 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
           final url = Uri.parse(
               '$baseUrl?input=${Uri.encodeComponent(textEditingValue.text)}&key=${LogisticsProvider.googleApiKey}&components=country:in');

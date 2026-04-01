@@ -24,25 +24,25 @@ class LogisticsProvider with ChangeNotifier {
   bool _isLoading = false;
 
   static const String googleApiKey = 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I';
-  static const String baseUrl =
-      'https://srv1123536.hstgr.cloud';
+  static String get baseUrl =>
+      kIsWeb ? Uri.base.origin : 'https://transglobesbackend-production.up.railway.app';
 
   // Web needs backend proxy to avoid CORS. Android/iOS can call Google directly.
   static String get _geocodeBaseUrl {
     if (kIsWeb)
-      return 'https://srv1123536.hstgr.cloud/api/maps/geocode';
+      return '$baseUrl/api/maps/geocode';
     return 'https://maps.googleapis.com/maps/api/geocode/json';
   }
 
   static String get _directionsBaseUrl {
     if (kIsWeb)
-      return 'https://srv1123536.hstgr.cloud/api/maps/directions';
+      return '$baseUrl/api/maps/directions';
     return 'https://maps.googleapis.com/maps/api/directions/json';
   }
 
   static String get _autocompleteBaseUrl {
     if (kIsWeb)
-      return 'https://srv1123536.hstgr.cloud/api/maps/autocomplete';
+      return '$baseUrl/api/maps/autocomplete';
     return 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
   }
 
@@ -53,6 +53,15 @@ class LogisticsProvider with ChangeNotifier {
   void addRequest(LogisticsRequest request) {
     _requests.insert(0, request);
     notifyListeners();
+  }
+
+  double _toDouble(dynamic value, {double fallback = 0}) {
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value.trim());
+      if (parsed != null) return parsed;
+    }
+    return fallback;
   }
 
   LogisticsRequest _requestFromBooking(Map<String, dynamic> booking) {
@@ -96,8 +105,7 @@ class LogisticsProvider with ChangeNotifier {
       modes: modes,
       selectedVehicles: const {},
       estimatedPrice:
-          ((booking['totalPrice'] ?? booking['vehiclePrice'] ?? 0) as num)
-              .toDouble(),
+          _toDouble(booking['totalPrice'] ?? booking['vehiclePrice'], fallback: 0),
       status: booking['status']?.toString() ?? 'Pending',
       createdAt: DateTime.tryParse(booking['createdAt']?.toString() ?? '') ??
           DateTime.now(),
@@ -387,6 +395,10 @@ class LogisticsProvider with ChangeNotifier {
               'type': request.goodsType,
               'weight': request.weight,
               'quantity': 1,
+              'length': 1,
+              'width': 1,
+              'height': 1,
+              'unit': 'cm',
             }
           ],
           'segments': segmentData,

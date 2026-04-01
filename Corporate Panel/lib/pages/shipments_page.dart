@@ -18,6 +18,13 @@ class ShipmentsPage extends StatefulWidget {
 class _ShipmentsPageState extends State<ShipmentsPage> {
   bool _loaded = false;
 
+  String _shortBookingId(String id, [int length = 8]) {
+    final normalized = id.trim();
+    if (normalized.isEmpty) return 'UNKNOWN';
+    if (normalized.length <= length) return normalized.toUpperCase();
+    return normalized.substring(0, length).toUpperCase();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -130,7 +137,7 @@ class _ShipmentsPageState extends State<ShipmentsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'REQ-${req.id.substring(0, 8).toUpperCase()}',
+                      'REQ-${_shortBookingId(req.id)}',
                       style: GoogleFonts.outfit(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,

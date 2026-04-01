@@ -420,8 +420,10 @@ class SupervisorBookingDetailScreen extends ConsumerStatefulWidget {
 
 class _SupervisorBookingDetailState
     extends ConsumerState<SupervisorBookingDetailScreen> {
-  static const String _fallbackApiBase =
-      'https://srv1123536.hstgr.cloud/api';
+  static String get _fallbackApiBase =>
+      kIsWeb
+          ? '${Uri.base.origin}/api'
+          : 'https://transglobesbackend-production.up.railway.app/api';
   late LogisticsBooking _booking;
   bool _saving = false;
 

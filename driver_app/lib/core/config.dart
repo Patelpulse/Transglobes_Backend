@@ -6,25 +6,27 @@ class AppConfig {
   
   static String get apiBaseUrl {
     if (kIsWeb) {
-      return 'https://srv1123536.hstgr.cloud';
+      return Uri.base.origin;
     }
+
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
-    return 'https://srv1123536.hstgr.cloud';
+    return 'https://transglobesbackend-production.up.railway.app';
   }
 
   // Socket server root (WITHOUT /api suffix)
   static String get socketBaseUrl {
     if (kIsWeb) {
-      return 'https://srv1123536.hstgr.cloud';
+      return Uri.base.origin;
     }
+
     final envUrl = dotenv.env['SOCKET_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
-    return 'https://srv1123536.hstgr.cloud';
+    return 'https://transglobesbackend-production.up.railway.app';
   }
   
   // Google Maps API Key
