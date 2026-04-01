@@ -33,10 +33,12 @@ install_packages() {
 install_deps() {
   cd "$BACKEND_DIR"
   if [[ -f package-lock.json ]]; then
-    npm ci --omit=dev
-  else
-    npm install --omit=dev
+    if npm ci --omit=dev; then
+      return 0
+    fi
   fi
+
+  npm install --omit=dev
 }
 
 ensure_env() {

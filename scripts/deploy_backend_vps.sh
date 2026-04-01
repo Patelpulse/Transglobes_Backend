@@ -34,15 +34,21 @@ need_password() {
 run_expect() {
   local remote_cmd="$1"
 
-  /usr/bin/expect <<EOF
+  REMOTE_HOST="$REMOTE_HOST" \
+  REMOTE_USER="$REMOTE_USER" \
+  REMOTE_PORT="$REMOTE_PORT" \
+  SSH_PASSWORD="$SSH_PASSWORD" \
+  REMOTE_CMD="$remote_cmd" \
+  /usr/bin/expect <<'EOF'
 set timeout -1
-set host "$REMOTE_HOST"
-set user "$REMOTE_USER"
-set port "$REMOTE_PORT"
-set password "$SSH_PASSWORD"
-set command "$remote_cmd"
+set host $env(REMOTE_HOST)
+set user $env(REMOTE_USER)
+set port $env(REMOTE_PORT)
+set password $env(SSH_PASSWORD)
+set command $env(REMOTE_CMD)
 
-spawn ssh -p $REMOTE_PORT -o StrictHostKeyChecking=accept-new $REMOTE_USER@$REMOTE_HOST "$remote_cmd"
+set ssh_args [list ssh -p $port -o StrictHostKeyChecking=accept-new ${user}@${host} $command]
+spawn {*}$ssh_args
 expect {
   -re "(?i)yes/no" {
     send "yes\r"
@@ -64,16 +70,23 @@ copy_env_if_present() {
   fi
 
   log "Syncing backend/.env to the VPS."
-  /usr/bin/expect <<EOF
+  REMOTE_HOST="$REMOTE_HOST" \
+  REMOTE_USER="$REMOTE_USER" \
+  REMOTE_PORT="$REMOTE_PORT" \
+  SSH_PASSWORD="$SSH_PASSWORD" \
+  LOCAL_FILE="$ENV_SOURCE" \
+  REMOTE_FILE="$REMOTE_DIR/backend/.env" \
+  /usr/bin/expect <<'EOF'
 set timeout -1
-set host "$REMOTE_HOST"
-set user "$REMOTE_USER"
-set port "$REMOTE_PORT"
-set password "$SSH_PASSWORD"
-set local_file "$ENV_SOURCE"
-set remote_file "$REMOTE_DIR/backend/.env"
+set host $env(REMOTE_HOST)
+set user $env(REMOTE_USER)
+set port $env(REMOTE_PORT)
+set password $env(SSH_PASSWORD)
+set local_file $env(LOCAL_FILE)
+set remote_file $env(REMOTE_FILE)
 
-spawn scp -P $REMOTE_PORT -o StrictHostKeyChecking=accept-new "$ENV_SOURCE" $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/backend/.env
+set scp_args [list scp -P $port -o StrictHostKeyChecking=accept-new $local_file ${user}@${host}:$remote_file]
+spawn {*}$scp_args
 expect {
   -re "(?i)yes/no" {
     send "yes\r"
@@ -100,7 +113,7 @@ main() {
 
   log "Preparing VPS deployment for ${REMOTE_USER}@${REMOTE_HOST}."
 
-  run_expect "mkdir -p '$REMOTE_DIR' && if [ ! -d '$REMOTE_DIR/.git' ]; then git clone --branch '$BRANCH' '$REPO_URL' '$REMOTE_DIR'; else git -C '$REMOTE_DIR' fetch origin '$BRANCH' && git -C '$REMOTE_DIR' reset --hard 'origin/$BRANCH'; fi"
+  run_expect "if [ -d '$REMOTE_DIR/.git' ]; then git -C '$REMOTE_DIR' fetch origin '$BRANCH' && git -C '$REMOTE_DIR' reset --hard 'origin/$BRANCH'; else rm -rf '$REMOTE_DIR' && git clone --branch '$BRANCH' '$REPO_URL' '$REMOTE_DIR'; fi"
 
   copy_env_if_present
 
