@@ -1,6 +1,6 @@
 # TRSNGLOBE Requirements Status
 
-Last updated: 2026-03-27
+Last updated: 2026-04-07
 
 ## Legend
 
@@ -27,7 +27,7 @@ Last updated: 2026-03-27
 | Notifications | Partial | Push/socket hooks exist, but SMS/email coverage is incomplete and event consistency is still uneven. |
 | Payment integration | Partial | Payment screens/models exist, but real gateway integration is not completed. |
 | Support/help | Done | Support UI exists. |
-| End-to-end booking validation | Partial | Flows exist, but automated end-to-end tests are missing. |
+| End-to-end booking validation | Done | Automated API-level verifier now exists and passes for Car/Shuttle/Logistics (`backend/scripts/e2e-booking-flows.js`). |
 
 ## Driver Panel
 
@@ -54,7 +54,7 @@ Last updated: 2026-03-27
 | Goods details and dimensions | Partial | Goods type and weight exist; full dimensions/quantity depth is still limited. |
 | Estimated price and delivery time | Partial | Price estimation exists; delivery time estimation is not robust. |
 | Booking history | Done | Corporate shipments page now loads bookings from the backend. |
-| Invoice generation | Missing | No real invoice/PDF generation flow found. |
+| Invoice generation | Partial | Backend invoice API exists (`GET /api/payment/invoice/:bookingId`), but Corporate panel billing/invoice UI is still static and not wired. |
 | Dedicated support | Done | Corporate support UI exists. |
 | Same logistics functionality as user panel | Partial | Improved in this pass by aligning payloads, but parity is still not full feature-for-feature. |
 
@@ -80,7 +80,7 @@ Last updated: 2026-03-27
 
 | Requirement | Status | Notes |
 | --- | --- | --- |
-| Dedicated supervisor panel | Missing | Supervisor behavior is effectively merged into admin logistics management. |
+| Dedicated supervisor panel | Done | Supervisor screen and route are present in admin app with booking management tabs. |
 | Edit goods details | Done | Admin logistics detail screen supports edits. |
 | Add helpers/transport/pickup/drop | Partial | Helpers and transport edits exist, but not as a separate supervisor workflow. |
 | Roadmap creation | Done | Multi-segment roadmap model and UI exist. |
@@ -105,7 +105,7 @@ Last updated: 2026-03-27
 | Requirement | Status | Notes |
 | --- | --- | --- |
 | Unit testing | Partial | Minimal test presence only. |
-| Integration testing | Missing | No real backend integration suite found. |
+| Integration testing | Partial | API-level end-to-end booking flow verifier exists for Car/Shuttle/Logistics; broader CI integration test coverage is still pending. |
 | Load testing | Missing | Not found. |
 | UAT coverage | Missing | Not found in repo artifacts. |
 | Multi-segment logistics deep testing | Missing | Not automated. |
@@ -117,6 +117,11 @@ Last updated: 2026-03-27
 - Made backend logistics booking creation more tolerant of mixed payload shapes.
 - Removed implicit localhost auth bypass behavior and gated dev bypass behind `ALLOW_DEV_AUTH_BYPASS=true`.
 - Added lightweight security headers and a basic in-memory rate limiter to the backend server.
+- Added a runnable API-level booking flow verifier for Car, Shuttle, and Logistics:
+  - `cd backend && npm run test:e2e-bookings`
+  - Script: `backend/scripts/e2e-booking-flows.js`
+- Added a project-wide execution checklist aligned to all panel requirements:
+  - `TRSNGLOBE_COMPLETION_CHECKLIST.md`
 
 ## Next Recommended Build Order
 
@@ -125,3 +130,8 @@ Last updated: 2026-03-27
 3. Replace placeholder admin routes with real tracking, bookings, and pricing management pages.
 4. Add automated integration tests for car, shuttle, and logistics booking flows.
 5. Complete payment gateway, refund, and wallet settlement integrations.
+
+## Advanced Requirements Reference
+
+- Advanced modules (8–35) cross-check is tracked in:
+  - `ADVANCED_REQUIREMENTS_STATUS.md`

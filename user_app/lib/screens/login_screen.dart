@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
-import 'package:flutter/foundation.dart';
 import '../providers/app_providers.dart';
 import 'home_screen.dart';
 import 'name_input_screen.dart';
@@ -42,8 +41,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-        );
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
 
     _animationController.forward();
   }
@@ -187,230 +186,293 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final primary = context.theme.primaryColor;
+    final cardBorder = context.theme.dividerColor.withOpacity(0.12);
+
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 20),
-
-                      // Illustration
-                      Center(
-                        child: Image.asset(
-                          'assets/images/login_hero.png',
-                          height: 220,
-                          fit: BoxFit.contain,
+        child: Stack(
+          children: [
+            Positioned(
+              top: -120,
+              right: -70,
+              child: Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: primary.withOpacity(0.10),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -130,
+              left: -90,
+              child: Container(
+                width: 280,
+                height: 280,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: primary.withOpacity(0.08),
+                ),
+              ),
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 470),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: context.theme.cardColor,
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: cardBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 34,
+                              offset: const Offset(0, 16),
+                            ),
+                          ],
                         ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // Title
-                      Center(
-                        child: Text(
-                          _otpSent ? 'Verify OTP' : 'Login or Sign up',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Subtitle
-                      Center(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text(
-                            _otpSent
-                                ? 'Enter the 6-digit code sent to\n+91 ${_phoneController.text}'
-                                : 'Enter your mobile number to proceed. We will send you an OTP to verify.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: context.colors.textSecondary,
-                              height: 1.5,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
+                          padding: const EdgeInsets.all(24),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 8),
 
-                      const SizedBox(height: 40),
-
-                      if (!_otpSent) ...[
-                        // Phone Number Label
-                        Text(
-                          'Enter your phone number',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Phone Input
-                        Container(
-                          decoration: BoxDecoration(
-                            color: context.theme.cardColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: context.theme.dividerColor.withOpacity(0.1),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              // Country Code
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 18,
+                                // Illustration
+                                Center(
+                                  child: Image.asset(
+                                    'assets/images/login_hero.png',
+                                    height: 220,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    right: BorderSide(
-                                      color: context.theme.dividerColor
-                                          .withOpacity(0.1),
+
+                                const SizedBox(height: 20),
+
+                                // Title
+                                Center(
+                                  child: Text(
+                                    _otpSent
+                                        ? 'Verify OTP'
+                                        : 'Login or Sign up',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      color: context.colors.textPrimary,
                                     ),
                                   ),
                                 ),
-                                child: Text(
-                                  '+91',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                    color: context.colors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              // Phone Field
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  maxLength: 10,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
-                                  ],
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter your phone number',
-                                    hintStyle: TextStyle(
-                                      color: context.colors.textSecondary
-                                          ?.withOpacity(0.5),
-                                    ),
-                                    counterText: '',
-                                    border: InputBorder.none,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 18,
+
+                                const SizedBox(height: 12),
+
+                                // Subtitle
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20),
+                                    child: Text(
+                                      _otpSent
+                                          ? 'Enter the 6-digit code sent to\n+91 ${_phoneController.text}'
+                                          : 'Enter your mobile number to proceed. We will send you an OTP to verify.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: context.colors.textSecondary,
+                                        height: 1.5,
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
                                   ),
-                                  style: TextStyle(
-                                    color: context.colors.textPrimary,
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.length != 10) {
-                                      return 'Enter a valid 10-digit number';
-                                    }
-                                    return null;
-                                  },
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        // OTP Input
-                        _buildOtpInput(),
 
-                        const SizedBox(height: 16),
+                                const SizedBox(height: 40),
 
-                        // Change phone number
-                        Center(
-                          child: TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _otpSent = false;
-                                _otpController.clear();
-                              });
-                            },
-                            child: Text(
-                              'Change phone number',
-                              style: TextStyle(
-                                color: context.colors.textSecondary,
-                              ),
+                                if (!_otpSent) ...[
+                                  // Phone Number Label
+                                  Text(
+                                    'Enter your phone number',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: context.colors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  // Phone Input
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: context.theme.cardColor,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: context.theme.dividerColor
+                                            .withOpacity(0.1),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        // Country Code
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 18,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              right: BorderSide(
+                                                color: context
+                                                    .theme.dividerColor
+                                                    .withOpacity(0.1),
+                                              ),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '+91',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 15,
+                                              color: context.colors.textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                        // Phone Field
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: _phoneController,
+                                            keyboardType: TextInputType.phone,
+                                            maxLength: 10,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter
+                                                  .digitsOnly,
+                                            ],
+                                            decoration: InputDecoration(
+                                              hintText:
+                                                  'Enter your phone number',
+                                              hintStyle: TextStyle(
+                                                color: context
+                                                    .colors.textSecondary
+                                                    ?.withOpacity(0.5),
+                                              ),
+                                              counterText: '',
+                                              border: InputBorder.none,
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                                vertical: 18,
+                                              ),
+                                            ),
+                                            style: TextStyle(
+                                              color: context.colors.textPrimary,
+                                            ),
+                                            validator: (value) {
+                                              if (value == null ||
+                                                  value.length != 10) {
+                                                return 'Enter a valid 10-digit number';
+                                              }
+                                              return null;
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else ...[
+                                  // OTP Input
+                                  _buildOtpInput(),
+
+                                  const SizedBox(height: 16),
+
+                                  // Change phone number
+                                  Center(
+                                    child: TextButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _otpSent = false;
+                                          _otpController.clear();
+                                        });
+                                      },
+                                      child: Text(
+                                        'Change phone number',
+                                        style: TextStyle(
+                                          color: context.colors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+
+                                const SizedBox(height: 32),
+
+                                // Continue / Verify Button
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 56,
+                                  child: ElevatedButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : (_otpSent ? _verifyOtp : _sendOtp),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          context.theme.primaryColor,
+                                      disabledBackgroundColor:
+                                          context.theme.disabledColor,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    child: _isLoading
+                                        ? SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2.5,
+                                            ),
+                                          )
+                                        : Text(
+                                            _otpSent ? 'Verify' : 'Continue',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 36),
+                                Center(
+                                  child: Text(
+                                    'Need help?',
+                                    style: TextStyle(
+                                      color: context.theme.primaryColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                              ],
                             ),
                           ),
                         ),
-                      ],
-
-                      const SizedBox(height: 32),
-
-                      // Continue / Verify Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : (_otpSent ? _verifyOtp : _sendOtp),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: context.theme.primaryColor,
-                            disabledBackgroundColor:
-                                context.theme.disabledColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: _isLoading
-                              ? SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2.5,
-                                  ),
-                                )
-                              : Text(
-                                  _otpSent ? 'Verify' : 'Continue',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ),
                       ),
-
-                      const SizedBox(height: 36),
-                      Center(
-                        child: Text(
-                          'Need help?',
-                          style: TextStyle(
-                            color: context.theme.primaryColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

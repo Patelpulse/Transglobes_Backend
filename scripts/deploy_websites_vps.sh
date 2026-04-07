@@ -8,15 +8,22 @@ REMOTE_PORT="${REMOTE_PORT:-22}"
 REPO_URL="${REPO_URL:-$(git -C "$ROOT_DIR" remote get-url origin)}"
 BRANCH="${BRANCH:-main}"
 SSH_PASSWORD="${SSH_PASSWORD:-}"
+REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/var/www/transglobe}"
 REMOTE_STAGE_DIR="${REMOTE_STAGE_DIR:-/tmp/transglobe-web-staging}"
 REMOTE_WEB_DIR="${REMOTE_WEB_DIR:-/var/www/transglobe-sites}"
 BACKEND_DEPLOY_SCRIPT="${BACKEND_DEPLOY_SCRIPT:-$ROOT_DIR/scripts/deploy_backend_vps.sh}"
-WEBSITE_SETUP_SCRIPT="${WEBSITE_SETUP_SCRIPT:-$ROOT_DIR/scripts/vps_remote_websites_setup.sh}"
+WEBSITE_SETUP_SCRIPT="${WEBSITE_SETUP_SCRIPT:-$REMOTE_REPO_DIR/scripts/vps_remote_websites_setup.sh}"
 STAGE_ROOT="${STAGE_ROOT:-/tmp/transglobe-web-builds}"
 FVM_VERSION="${FVM_VERSION:-3.38.4}"
+SKIP_WEB_BUILDS="${SKIP_WEB_BUILDS:-false}"
+WEB_WASM_DRY_RUN="${WEB_WASM_DRY_RUN:-false}"
 
 log() {
   printf '[web-deploy] %s\n' "$*"
+}
+
+to_lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
 need_password() {
@@ -106,19 +113,36 @@ flutter_bin() {
   printf '%s/.fvm/versions/%s/bin/flutter' "$app_dir" "$FVM_VERSION"
 }
 
-build_web_app() {
+stage_web_bundle() {
   local app_dir="$1"
   local stage_name="$2"
-  local flutter_path
-  flutter_path="$(flutter_bin "$app_dir")"
 
-  log "Building ${stage_name} web bundle."
-  (cd "$app_dir" && PUB_CACHE="$HOME/.pub-cache" "$flutter_path" pub get)
-  (cd "$app_dir" && PUB_CACHE="$HOME/.pub-cache" "$flutter_path" build web --release)
+  if [[ ! -d "$app_dir/build/web" ]]; then
+    echo "Missing web build output for ${stage_name} at ${app_dir}/build/web." >&2
+    exit 1
+  fi
 
   rm -rf "$STAGE_ROOT/$stage_name"
   mkdir -p "$STAGE_ROOT/$stage_name"
   cp -R "$app_dir/build/web/." "$STAGE_ROOT/$stage_name/"
+}
+
+build_web_app() {
+  local app_dir="$1"
+  local stage_name="$2"
+  local flutter_path
+  local -a wasm_args
+  flutter_path="$(flutter_bin "$app_dir")"
+  wasm_args=()
+
+  if [[ "$(to_lower "$WEB_WASM_DRY_RUN")" != "true" ]]; then
+    wasm_args+=(--no-wasm-dry-run)
+  fi
+
+  log "Building ${stage_name} web bundle."
+  (cd "$app_dir" && PUB_CACHE="$HOME/.pub-cache" "$flutter_path" pub get)
+  (cd "$app_dir" && PUB_CACHE="$HOME/.pub-cache" "$flutter_path" build web --release "${wasm_args[@]}")
+  stage_web_bundle "$app_dir" "$stage_name"
 }
 
 main() {
@@ -134,10 +158,18 @@ main() {
   rm -rf "$STAGE_ROOT"
   mkdir -p "$STAGE_ROOT"
 
-  build_web_app "$ROOT_DIR/user_app" "root"
-  build_web_app "$ROOT_DIR/admin_app" "admin"
-  build_web_app "$ROOT_DIR/Corporate Panel" "corporate"
-  build_web_app "$ROOT_DIR/driver_app" "driver"
+  if [[ "$(to_lower "$SKIP_WEB_BUILDS")" == "true" ]]; then
+    log "Skipping web builds and reusing existing build/web bundles."
+    stage_web_bundle "$ROOT_DIR/user_app" "root"
+    stage_web_bundle "$ROOT_DIR/admin_app" "admin"
+    stage_web_bundle "$ROOT_DIR/Corporate Panel" "corporate"
+    stage_web_bundle "$ROOT_DIR/driver_app" "driver"
+  else
+    build_web_app "$ROOT_DIR/user_app" "root"
+    build_web_app "$ROOT_DIR/admin_app" "admin"
+    build_web_app "$ROOT_DIR/Corporate Panel" "corporate"
+    build_web_app "$ROOT_DIR/driver_app" "driver"
+  fi
 
   log "Refreshing backend service and API proxy."
   "$BACKEND_DEPLOY_SCRIPT"

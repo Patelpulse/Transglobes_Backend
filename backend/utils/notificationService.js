@@ -1,4 +1,5 @@
 const admin = require('../config/firebase');
+const mongoose = require('mongoose');
 const Driver = require('../models/Driver');
 const User = require('../models/User');
 
@@ -49,7 +50,21 @@ const notifyAllDrivers = async (payload) => {
 
 const notifyUser = async (userId, payload) => {
     try {
-        const user = await User.findById(userId).select('fcmToken');
+        const normalizedUserId = userId?.toString?.() || '';
+        if (!normalizedUserId) return;
+
+        let user = null;
+        if (mongoose.Types.ObjectId.isValid(normalizedUserId)) {
+            user = await User.findById(normalizedUserId).select('fcmToken uid');
+        }
+
+        // Support Firebase UID/string identifiers used by multiple booking flows.
+        if (!user) {
+            user = await User.findOne({
+                $or: [{ uid: normalizedUserId }, { firebaseId: normalizedUserId }],
+            }).select('fcmToken uid');
+        }
+
         if (user && user.fcmToken) {
             await sendPushNotification([user.fcmToken], payload);
         }
