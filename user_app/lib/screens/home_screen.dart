@@ -346,18 +346,17 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   Future<void> _fetchRecentBookings() async {
     try {
       final auth = ref.read(authServiceProvider);
+      await auth.waitForSession();
       final userId = auth.currentUser?.uid;
       if (userId == null) return;
 
       if (mounted) setState(() => _isLoadingBookings = true);
       
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings/user/$userId');
-      final token = await auth.getIdToken();
+      final headers = await auth.buildAuthHeaders(includeContentType: false);
       final response = await http.get(
         url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: headers,
       );
 
       if (response.statusCode == 200 && mounted) {

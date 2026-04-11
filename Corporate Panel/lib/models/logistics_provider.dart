@@ -25,7 +25,7 @@ class LogisticsProvider with ChangeNotifier {
 
   static const String googleApiKey = 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I';
   static String get baseUrl =>
-      kIsWeb ? Uri.base.origin : 'https://transglobesbackend-production.up.railway.app';
+      'https://api.transgloble.com';
 
   // Web needs backend proxy to avoid CORS. Android/iOS can call Google directly.
   static String get _geocodeBaseUrl {

@@ -1,13 +1,17 @@
-import 'package:flutter/foundation.dart';
-
 class AppConfig {
   static const String appName = 'Transglobal';
-  static String get apiBaseUrl {
-    if (kIsWeb) {
-      return Uri.base.origin;
-    }
 
-    return 'https://transglobesbackend-production.up.railway.app';
+  static const String _defaultBackendUrl =
+      'https://api.transgloble.com';
+  static const String _overrideApiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
+
+  static String get apiBaseUrl {
+    return _overrideApiBaseUrl.isNotEmpty
+        ? _overrideApiBaseUrl
+        : _defaultBackendUrl;
   }
 
 

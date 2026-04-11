@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
@@ -115,6 +116,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         _verificationId!,
         _otpController.text,
       );
+
+      await authService.waitForSession();
+      final loginToken = await authService.getIdToken();
+      if (kDebugMode) {
+        debugPrint('[USER AUTH] Login token: ${loginToken ?? "null"}');
+      }
 
       if (mounted) {
         if (kDemoMode) {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../core/config.dart';
+import '../services/auth_service.dart';
 
 class TypeGood {
   final String id;
@@ -20,7 +21,11 @@ class TypeGood {
 }
 
 final typeGoodsProvider = FutureProvider<List<TypeGood>>((ref) async {
-  final response = await http.get(Uri.parse('${AppConfig.apiBaseUrl}/api/typegood'));
+  final authService = ref.read(authServiceProvider);
+  final response = await http.get(
+    Uri.parse('${AppConfig.apiBaseUrl}/api/typegood'),
+    headers: await authService.buildAuthHeaders(),
+  );
   if (response.statusCode == 200) {
     final List data = json.decode(response.body);
     return data.map((item) => TypeGood.fromJson(item)).toList();

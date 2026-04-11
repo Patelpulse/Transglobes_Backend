@@ -1,32 +1,30 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
   static String get appName => dotenv.env['APP_NAME'] ?? 'RideShare';
+
+  static const String _defaultBackendUrl =
+      'https://api.transgloble.com';
+  static const String _overrideApiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
   
   static String get apiBaseUrl {
-    if (kIsWeb) {
-      return Uri.base.origin;
-    }
-
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
-    return 'https://transglobesbackend-production.up.railway.app';
+    return _defaultBackendUrl;
   }
 
   // Socket server root (WITHOUT /api suffix)
   static String get socketBaseUrl {
-    if (kIsWeb) {
-      return Uri.base.origin;
-    }
-
     final envUrl = dotenv.env['SOCKET_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
-    return 'https://transglobesbackend-production.up.railway.app';
+    return _defaultBackendUrl;
   }
   
   // Google Maps API Key

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http;
 import '../services/location_service.dart';
 import '../core/config.dart';
+import '../services/api_service.dart';
 
 class LocationSearchScreen extends ConsumerStatefulWidget {
   final String title;
@@ -175,13 +174,13 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
 
     try {
       final apiKey = AppConfig.googleMapsApiKey;
-      final baseUrl = AppConfig.apiBaseUrl;
-      final url = '$baseUrl/api/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in';
-      final response = await http.get(Uri.parse(url));
+      final apiService = ref.read(apiServiceProvider);
+      final response = await apiService.get(
+        '/api/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in',
+      );
 
-      if (response.statusCode == 200 && mounted) {
-        final data = json.decode(response.body);
-        final List predictions = data['predictions'] ?? [];
+      if (mounted) {
+        final List predictions = (response as Map<String, dynamic>)['predictions'] ?? [];
         setState(() {
           _searchResults = predictions.map((item) => {
             'name': item['structured_formatting']['main_text'] as String,
@@ -211,11 +210,11 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
       if (mounted) setState(() => _isSearching = true);
       try {
         final apiKey = AppConfig.googleMapsApiKey;
-        final baseUrl = AppConfig.apiBaseUrl;
-        final url = '$baseUrl/api/maps/details?place_id=${location['place_id']}&key=$apiKey&fields=geometry';
-        final response = await http.get(Uri.parse(url));
-        final data = json.decode(response.body);
-        final loc = data['result']['geometry']['location'];
+        final apiService = ref.read(apiServiceProvider);
+        final response = await apiService.get(
+          '/api/maps/details?place_id=${location['place_id']}&key=$apiKey&fields=geometry',
+        );
+        final loc = (response as Map<String, dynamic>)['result']['geometry']['location'];
         target = LatLng(loc['lat'], loc['lng']);
       } catch (e) {
         if (mounted) setState(() => _isSearching = false);

@@ -69,6 +69,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final apiService = ref.read(apiServiceProvider);
       final authService = ref.read(authServiceProvider);
+      await authService.waitForSession();
       final phoneNumber = _phoneController.text.trim();
       final lookupPhone = (_originalPhone ?? phoneNumber).trim();
       final userId = authService.currentUser?.uid;

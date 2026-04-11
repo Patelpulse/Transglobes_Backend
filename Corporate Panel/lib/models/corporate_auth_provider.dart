@@ -39,7 +39,7 @@ class CorporateAccount {
 
 class CorporateAuthProvider with ChangeNotifier {
   static String get _baseUrl =>
-      kIsWeb ? Uri.base.origin : 'https://transglobesbackend-production.up.railway.app';
+      'https://api.transgloble.com';
 
   CorporateAccount? _account;
   String? _token;

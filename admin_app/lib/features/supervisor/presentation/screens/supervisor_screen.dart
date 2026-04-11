@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
@@ -422,9 +421,7 @@ class SupervisorBookingDetailScreen extends ConsumerStatefulWidget {
 class _SupervisorBookingDetailState
     extends ConsumerState<SupervisorBookingDetailScreen> {
   static String get _fallbackApiBase =>
-      kIsWeb
-          ? '${Uri.base.origin}/api'
-          : 'https://transglobesbackend-production.up.railway.app/api';
+      'https://api.transgloble.com/api';
   late LogisticsBooking _booking;
   bool _saving = false;
 

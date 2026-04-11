@@ -1,15 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: kIsWeb
-        ? '${Uri.base.origin}/api/admin/'
-        : 'https://transglobesbackend-production.up.railway.app/api/admin/',
+    baseUrl: 'https://api.transgloble.com/api/admin/',
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
   ));

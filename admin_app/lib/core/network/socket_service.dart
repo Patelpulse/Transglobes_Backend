@@ -1,6 +1,5 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 final socketServiceProvider = Provider<SocketService>((ref) {
@@ -26,8 +25,8 @@ class SocketService {
       return;
     }
 
-    const String prodUrl = "https://transglobesbackend-production.up.railway.app";
-    final String baseUrl = kIsWeb ? Uri.base.origin : prodUrl;
+    const String prodUrl = "https://api.transgloble.com";
+    final String baseUrl = prodUrl;
 
     _socket = IO.io(
       baseUrl,

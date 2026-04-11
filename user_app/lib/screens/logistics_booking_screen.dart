@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/config.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import 'dart:async';
 import 'address_book_screen.dart';
 import '../models/address_model.dart';
@@ -155,6 +156,12 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     super.dispose();
   }
 
+  Future<Map<String, String>> _authHeaders({bool includeContentType = true}) {
+    return ref.read(authServiceProvider).buildAuthHeaders(
+          includeContentType: includeContentType,
+        );
+  }
+
   // ─── Suggestions & Selection ────────────────────────────
   Future<void> _fetchSuggestions(String query) async {
     if (query.trim().isEmpty) {
@@ -171,14 +178,13 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
     try {
       final apiKey = AppConfig.googleMapsApiKey;
-      final baseUrl = AppConfig.apiBaseUrl;
-      final url =
-          '$baseUrl/api/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in';
-      final response = await http.get(Uri.parse(url));
+      final apiService = ref.read(apiServiceProvider);
+      final response = await apiService.get(
+        '/api/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in',
+      );
 
-      if (response.statusCode == 200 && mounted) {
-        final data = json.decode(response.body);
-        final List predictions = data['predictions'] ?? [];
+      if (mounted) {
+        final List predictions = (response as Map<String, dynamic>)['predictions'] ?? [];
         setState(() {
           _searchResults = predictions
               .map((item) => {
@@ -199,12 +205,11 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     if (mounted) setState(() => _isSearchingLocations = true);
     try {
       final apiKey = AppConfig.googleMapsApiKey;
-      final baseUrl = AppConfig.apiBaseUrl;
-      final url =
-          '$baseUrl/api/maps/details?place_id=${suggestion['place_id']}&key=$apiKey&fields=geometry';
-      final response = await http.get(Uri.parse(url));
-      final data = json.decode(response.body);
-      final loc = data['result']['geometry']['location'];
+      final apiService = ref.read(apiServiceProvider);
+      final response = await apiService.get(
+        '/api/maps/details?place_id=${suggestion['place_id']}&key=$apiKey&fields=geometry',
+      );
+      final loc = (response as Map<String, dynamic>)['result']['geometry']['location'];
       final lat = loc['lat'] as double;
       final lng = loc['lng'] as double;
 
@@ -543,12 +548,12 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   // ─── Upload image to ImageKit via backend ────────────────
   Future<String?> _uploadImageToImageKit(Uint8List bytes, String fileName) async {
     final authService = ref.read(authServiceProvider);
+    await authService.waitForSession();
     final userId = authService.currentUser?.uid as String? ?? 'guest';
-    final token = await authService.getIdToken();
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistic-goods/upload-image');
     final request = http.MultipartRequest('POST', uri);
-    if (token != null) request.headers['Authorization'] = 'Bearer $token';
+    request.headers.addAll(await _authHeaders(includeContentType: false));
     request.fields['userId'] = userId;
     request.files.add(http.MultipartFile.fromBytes('image', bytes, filename: fileName));
 
@@ -565,14 +570,15 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   // ─── Save all items to DB + book ride ───────────────────
   Future<void> _saveAllItemsAndBook(String goodTypeName) async {
     final authService = ref.read(authServiceProvider);
+    await authService.waitForSession();
     final userId = authService.currentUser?.uid as String? ?? 'guest';
-    final token = await authService.getIdToken();
+    final headers = await _authHeaders(includeContentType: false);
 
     for (final item in _addedItems) {
       try {
         final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistic-goods');
         final request = http.MultipartRequest('POST', uri);
-        if (token != null) request.headers['Authorization'] = 'Bearer $token';
+        request.headers.addAll(headers);
         request.fields['userId'] = userId;
         request.fields['itemName'] = item.name;
         request.fields['type'] = item.type;
@@ -599,6 +605,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     Map<String, dynamic>? receivedAddress,
   }) async {
     final authService = ref.read(authServiceProvider);
+    await authService.waitForSession();
     final user = authService.currentUser;
     final userId = user?.uid as String? ?? 'guest';
     final userPhone = (user is MockUser) ? user.phoneNumber ?? '' : user?.phoneNumber ?? '';
@@ -609,13 +616,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
        userName = (user is MockUser) ? user.displayName ?? 'User' : user?.displayName ?? 'User';
     }
     
-    final token = await authService.getIdToken();
-
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings');
-    final headers = {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
+    final headers = await _authHeaders();
 
     final body = json.encode({
       'userId': userId,

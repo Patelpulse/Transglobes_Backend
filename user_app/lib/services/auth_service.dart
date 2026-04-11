@@ -119,6 +119,10 @@ class AuthService {
       return 'demo-token-for-testing';
     }
 
+    if (kIsWeb) {
+      await _ensureWebSessionLoaded();
+    }
+
     final user = currentUser;
 
     if (user is User) {
@@ -135,6 +139,28 @@ class AuthService {
     }
 
     return kDebugMode ? 'dev-token-bypass' : null;
+  }
+
+  Future<Map<String, String>> buildAuthHeaders({
+    bool includeContentType = true,
+    Map<String, String>? extraHeaders,
+  }) async {
+    final token = await getIdToken();
+    final headers = <String, String>{
+      if (includeContentType) 'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+
+    final uid = currentUser?.uid?.toString();
+    if (uid != null && uid.isNotEmpty) {
+      headers['x-dev-uid'] = uid;
+    }
+
+    if (extraHeaders != null && extraHeaders.isNotEmpty) {
+      headers.addAll(extraHeaders);
+    }
+
+    return headers;
   }
 
   Future<void> _ensureWebSessionLoaded() {

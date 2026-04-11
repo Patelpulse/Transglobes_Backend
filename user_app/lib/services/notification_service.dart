@@ -61,9 +61,11 @@ class NotificationService {
     if (profile == null || profile.id == null || profile.id!.isEmpty) return;
 
     try {
+      final authService = _ref.read(authServiceProvider);
+      final headers = await authService.buildAuthHeaders();
       final response = await http.post(
         Uri.parse('${AppConfig.apiBaseUrl}/api/user/fcm-token'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode({
           'userId': profile.id,
           'fcmToken': token,

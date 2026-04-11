@@ -131,7 +131,7 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
     });
   }
 
-  void sendMessage(String text) {
+  Future<void> sendMessage(String text) async {
     if (_currentReceiverId == null) return;
     
     final userProfile = ref.read(fullUserProfileProvider).value;
@@ -139,9 +139,11 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
     final userName = userProfile?.name ?? 'User';
     
     // Fallback to Firebase if MongoDB ID is missing
+    final authService = ref.read(authServiceProvider);
+    await authService.waitForSession();
     final effectiveUserId = (userId != null && userId.isNotEmpty) 
         ? userId 
-        : ref.read(authServiceProvider).currentUser?.uid;
+        : authService.currentUser?.uid;
 
     if (effectiveUserId == null) return;
 

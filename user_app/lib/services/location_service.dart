@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import '../core/config.dart';
 import 'package:google_polyline_algorithm/google_polyline_algorithm.dart' as poly;
+import 'auth_service.dart';
 
 class LocationService {
   static Future<Position?> getCurrentLocation() async {
@@ -27,7 +28,10 @@ class LocationService {
       final url = kIsWeb
           ? Uri.parse('$baseUrl/api/maps/geocode?latlng=$lat,$lng&key=$apiKey')
           : Uri.parse('https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey');
-      final response = await http.get(url);
+      final headers = kIsWeb
+          ? await AuthService().buildAuthHeaders(includeContentType: false)
+          : null;
+      final response = await http.get(url, headers: headers);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['results'] != null && data['results'].isNotEmpty) {
@@ -51,7 +55,10 @@ class LocationService {
           ? Uri.parse('$baseUrl/api/maps/directions?origin=$origin&destination=$dest&key=$apiKey')
           : Uri.parse('https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$dest&key=$apiKey');
           
-      final response = await http.get(url);
+      final headers = kIsWeb
+          ? await AuthService().buildAuthHeaders(includeContentType: false)
+          : null;
+      final response = await http.get(url, headers: headers);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'OK' && data['routes'].isNotEmpty) {

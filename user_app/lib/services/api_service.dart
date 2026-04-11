@@ -16,15 +16,7 @@ class ApiService {
   ApiService(this._authService);
 
   Future<Map<String, String>> _getHeaders() async {
-    final token = await _authService.getIdToken();
-    final user = _authService.currentUser;
-    final uid = user?.uid;
-    
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-      if (uid != null) 'x-dev-uid': uid,
-    };
+    return _authService.buildAuthHeaders();
   }
 
   Future<dynamic> get(String endpoint) async {

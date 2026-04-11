@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../core/config.dart';
+import '../services/auth_service.dart';
 
 class LogisticsVehicle {
   final String id;
@@ -36,7 +37,11 @@ class LogisticsVehicle {
 }
 
 final logisticsVehiclesProvider = FutureProvider<List<LogisticsVehicle>>((ref) async {
-  final response = await http.get(Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-vehicles'));
+  final authService = ref.read(authServiceProvider);
+  final response = await http.get(
+    Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-vehicles'),
+    headers: await authService.buildAuthHeaders(),
+  );
   if (response.statusCode == 200) {
     final List data = json.decode(response.body);
     return data.map((item) => LogisticsVehicle.fromJson(item)).toList();

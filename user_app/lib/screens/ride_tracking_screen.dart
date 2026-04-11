@@ -94,7 +94,11 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
     _loadRoute();
     _fetchRideDetails();
     
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final authService = ref.read(authServiceProvider);
+      await authService.waitForSession();
+      if (!mounted) return;
+
       final userProfile = ref.read(fullUserProfileProvider).value;
       final userId = userProfile?.id; // This is the MongoDB _id
       final userName = userProfile?.name;
@@ -103,7 +107,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
         ref.read(socketServiceProvider).connect(userId, name: userName);
       } else {
         // Fallback to Firebase UID if MongoDB ID is not available yet
-        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+        final firebaseId = authService.currentUser?.uid;
         if (firebaseId != null) {
           ref.read(socketServiceProvider).connect(firebaseId, name: userName);
         }
@@ -183,7 +187,6 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
           });
         }
       });
-
       // Listen for fare increase
       _fareSubscription = ref.read(socketServiceProvider).fareIncreasedStream.listen((data) {
         if (data['rideId'].toString() == widget.rideId.toString()) {

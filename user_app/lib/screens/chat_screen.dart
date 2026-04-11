@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/chat_provider.dart';
@@ -30,10 +31,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _initChat() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final authService = ref.read(authServiceProvider);
+      await authService.waitForSession();
+      if (!mounted) return;
+
       final userProfile = ref.read(fullUserProfileProvider).asData?.value;
       final userId = userProfile?.id;
-      final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+      final firebaseId = authService.currentUser?.uid;
       
       final effectiveUserId = (userId != null && userId.isNotEmpty) ? userId : firebaseId;
       
@@ -53,7 +58,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _send() {
     final txt = _msgCtrl.text.trim();
     if (txt.isEmpty) return;
-    ref.read(chatProvider.notifier).sendMessage(txt);
+    unawaited(ref.read(chatProvider.notifier).sendMessage(txt));
     _msgCtrl.clear();
     _scrollToBottom();
   }

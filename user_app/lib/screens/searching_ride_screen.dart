@@ -59,7 +59,11 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
     _loadRoute();
     
     // Listen for ride acceptance
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final authService = ref.read(authServiceProvider);
+      await authService.waitForSession();
+      if (!mounted) return;
+
       // Connect to socket to join user room
       final userProfile = ref.read(fullUserProfileProvider).value;
       final userId = userProfile?.id;
@@ -68,7 +72,7 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen> {
       if (userId != null && userId.isNotEmpty) {
         ref.read(socketServiceProvider).connect(userId, name: userName);
       } else {
-        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+        final firebaseId = authService.currentUser?.uid;
         if (firebaseId != null) {
           ref.read(socketServiceProvider).connect(firebaseId, name: userName);
         }

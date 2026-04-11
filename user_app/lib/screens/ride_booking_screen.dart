@@ -70,12 +70,16 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
 
     _loadRoute();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final authService = ref.read(authServiceProvider);
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) _fitBounds();
       });
       
       // Connect socket
+      await authService.waitForSession();
+      if (!mounted) return;
+
       final socketService = ref.read(socketServiceProvider);
       final userProfile = ref.read(fullUserProfileProvider).value;
       final userId = userProfile?.id; // This is the MongoDB _id
@@ -85,7 +89,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
         socketService.connect(userId, name: userName);
       } else {
         // Fallback to Firebase UID if MongoDB ID is not available yet
-        final firebaseId = ref.read(authServiceProvider).currentUser?.uid;
+        final firebaseId = authService.currentUser?.uid;
         if (firebaseId != null) {
           socketService.connect(firebaseId, name: userName);
         }

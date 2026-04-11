@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
 final dioProvider = Provider<Dio>((ref) {
-  const String prodUrl = 'https://transglobesbackend-production.up.railway.app/api/';
-  final String webUrl = '${Uri.base.origin}/api/';
+  const String prodUrl = 'https://api.transgloble.com/api/';
+  final String webUrl = 'https://api.transgloble.com/api/';
 
   final dio = Dio(BaseOptions(
     baseUrl: kIsWeb ? webUrl : prodUrl,

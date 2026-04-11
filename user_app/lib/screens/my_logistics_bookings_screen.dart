@@ -51,13 +51,10 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
       }
 
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings/user/$userId');
-      final token = await authService.getIdToken();
+      final headers = await authService.buildAuthHeaders(includeContentType: false);
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: headers,
       );
 
       if (response.statusCode == 200) {

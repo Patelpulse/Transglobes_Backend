@@ -544,7 +544,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
         try {
           // On Web: uses backend proxy. On Android: calls Google directly.
           final baseUrl = kIsWeb
-              ? '${Uri.base.origin}/api/maps/autocomplete'
+              ? 'https://api.transgloble.com/api/maps/autocomplete'
               : 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
           final url = Uri.parse(
               '$baseUrl?input=${Uri.encodeComponent(textEditingValue.text)}&key=${LogisticsProvider.googleApiKey}&components=country:in');
