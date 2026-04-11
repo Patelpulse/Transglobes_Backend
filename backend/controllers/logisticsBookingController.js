@@ -182,44 +182,6 @@ exports.createBooking = async (req, res) => {
         });
 
         await booking.save();
-        
-        // --- Socket.io Notification (Real-time) ---
-        if (req.io) {
-            req.io.emit("new_ride", {
-                id: booking._id.toString(),
-                userName: booking.userName || 'Customer',
-                phone: booking.userPhone || '',
-                pick: booking.pickup?.address || 'Pickup Location',
-                drop: booking.dropoff?.address || 'Dropoff Location',
-                pickupLat: booking.pickup?.latitude,
-                pickupLng: booking.pickup?.longitude,
-                dropLat: booking.dropoff?.latitude,
-                dropLng: booking.dropoff?.longitude,
-                distance: `${booking.distanceKm} km`,
-                fare: booking.totalPrice || booking.price || 0,
-                rideMode: booking.vehicleType || 'flatbed', // Maps to truck type in Driver App
-                status: 'pending',
-                userId: booking.userId?.toString(),
-                type: 'LOGISTICS',
-                vehiclePrice: booking.vehiclePrice || 0,
-                helperCost: booking.helperCost || 0,
-                additionalCharges: booking.additionalCharges || 0,
-                discountAmount: booking.discountAmount || 0,
-                totalPrice: booking.totalPrice || booking.price || 0,
-            });
-            console.log(`[LOGISTICS] Socket emitted: new_ride for ${booking._id}`);
-        }
-
-        // --- Push Notification To Drivers ---
-        const { notifyAllDrivers } = require('../utils/notificationService');
-        notifyAllDrivers({
-            title: "New Logistics Shipment",
-            body: `New ${vehicleType} Shipment available via ${pickup.address}.`,
-            data: {
-                bookingId: booking._id.toString(),
-                type: 'NEW_LOGISTICS'
-            }
-        });
 
         return res.status(201).json({
             success: true,

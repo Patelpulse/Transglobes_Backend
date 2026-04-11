@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
+
 class AppConfig {
   static const String appName = 'Transglobal';
 
+  static const String _localBackendUrl = 'http://localhost:8082';
   static const String _defaultBackendUrl =
       'https://api.transgloble.com';
   static const String _overrideApiBaseUrl = String.fromEnvironment(
@@ -8,10 +11,25 @@ class AppConfig {
     defaultValue: '',
   );
 
+  static bool get _isLocalhostWeb {
+    if (!kIsWeb) return false;
+    final host = Uri.base.host.toLowerCase();
+    return host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '0.0.0.0' ||
+        host == '::1';
+  }
+
   static String get apiBaseUrl {
-    return _overrideApiBaseUrl.isNotEmpty
-        ? _overrideApiBaseUrl
-        : _defaultBackendUrl;
+    if (_overrideApiBaseUrl.isNotEmpty) {
+      return _overrideApiBaseUrl;
+    }
+
+    if (_isLocalhostWeb) {
+      return _localBackendUrl;
+    }
+
+    return _defaultBackendUrl;
   }
 
 

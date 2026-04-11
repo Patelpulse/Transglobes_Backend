@@ -1,12 +1,30 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+String _resolveAdminAuthBaseUrl() {
+  const String prodUrl = 'https://api.transgloble.com/api/admin/';
+  const String localUrl = 'http://localhost:8082/api/admin/';
+
+  if (kIsWeb) {
+    final host = Uri.base.host.toLowerCase();
+    if (host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '0.0.0.0' ||
+        host == '::1') {
+      return localUrl;
+    }
+  }
+
+  return prodUrl;
+}
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'https://api.transgloble.com/api/admin/',
+    baseUrl: _resolveAdminAuthBaseUrl(),
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
   ));

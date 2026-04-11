@@ -202,24 +202,6 @@ class DriverService {
       debugPrint('Error fetching regular driver bookings: $e');
     }
 
-    // 2. Fetch pending logistics bookings dispatched to all drivers
-    try {
-      final res = await _api.get('/api/driver/pending-bookings');
-      if (res != null) {
-        final List bookings = res['bookings'] ?? [];
-        final logisticsBookings = bookings.map((e) => BookingModel.fromJson(e)).toList();
-        // Merge, avoiding duplicates
-        for (final lb in logisticsBookings) {
-          if (!results.any((b) => b.id == lb.id)) {
-            results.add(lb);
-          }
-        }
-        debugPrint('>>> Fetched ${logisticsBookings.length} pending logistics bookings');
-      }
-    } catch (e) {
-      debugPrint('Error fetching logistics pending bookings: $e');
-    }
-
     return results;
   }
 

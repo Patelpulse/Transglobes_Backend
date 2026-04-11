@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/ride_model.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
 
 final rideServiceProvider = Provider<RideService>((ref) {
   final apiService = ref.watch(apiServiceProvider);
-  return RideService(apiService);
+  final authService = ref.watch(authServiceProvider);
+  return RideService(apiService, authService);
 });
 
 final myRidesProvider = FutureProvider<List<RideModel>>((ref) async {
@@ -14,8 +16,18 @@ final myRidesProvider = FutureProvider<List<RideModel>>((ref) async {
 
 class RideService {
   final ApiService _apiService;
+  final AuthService _authService;
 
-  RideService(this._apiService);
+  RideService(this._apiService, this._authService);
+
+  String? _extractMobileNumber() {
+    final user = _authService.currentUser;
+    final dynamic phone = user?.phoneNumber;
+    if (phone != null && phone.toString().trim().isNotEmpty) {
+      return phone.toString().trim();
+    }
+    return null;
+  }
 
   Future<RideModel> createRide({
     required List<double> pickupCoordinates,
@@ -31,7 +43,9 @@ class RideService {
     String? vehicleType,
     String? typeOfGood,
   }) async {
+    final mobileNumber = _extractMobileNumber();
     final response = await _apiService.post('/api/ride/ride-request', {
+      if (mobileNumber != null) 'mobileNumber': mobileNumber,
       'locations': {
         'pickup': {
           'title': pickupAddress,
@@ -70,7 +84,9 @@ class RideService {
     int? helperCount,
     List<Map<String, dynamic>>? logisticItems,
   }) async {
+    final mobileNumber = _extractMobileNumber();
     final response = await _apiService.post('/api/ride/ride-request', {
+      if (mobileNumber != null) 'mobileNumber': mobileNumber,
       'locations': locations,
       'rideMode': rideMode,
       'fare': fare,

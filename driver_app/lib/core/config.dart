@@ -1,16 +1,36 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
   static String get appName => dotenv.env['APP_NAME'] ?? 'RideShare';
 
-  static const String _defaultBackendUrl =
-      'https://api.transgloble.com';
+  static const String _defaultBackendUrl = 'https://api.transgloble.com';
+  static const String _localBackendUrl = 'http://localhost:8082';
   static const String _overrideApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '',
   );
+  static const String _overrideSocketBaseUrl = String.fromEnvironment(
+    'SOCKET_BASE_URL',
+    defaultValue: '',
+  );
+
+  static bool get _isLocalhostWeb {
+    if (!kIsWeb) return false;
+    final host = Uri.base.host.toLowerCase();
+    return host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '0.0.0.0' ||
+        host == '::1';
+  }
   
   static String get apiBaseUrl {
+    if (_overrideApiBaseUrl.isNotEmpty) {
+      return _overrideApiBaseUrl;
+    }
+    if (_isLocalhostWeb) {
+      return _localBackendUrl;
+    }
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
@@ -20,6 +40,12 @@ class AppConfig {
 
   // Socket server root (WITHOUT /api suffix)
   static String get socketBaseUrl {
+    if (_overrideSocketBaseUrl.isNotEmpty) {
+      return _overrideSocketBaseUrl;
+    }
+    if (_isLocalhostWeb) {
+      return _localBackendUrl;
+    }
     final envUrl = dotenv.env['SOCKET_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;

@@ -1,10 +1,28 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 final socketServiceProvider = Provider<SocketService>((ref) {
   return SocketService();
 });
+
+String _resolveSocketBaseUrl() {
+  const String prodUrl = 'https://api.transgloble.com';
+  const String localUrl = 'http://localhost:8082';
+
+  if (kIsWeb) {
+    final host = Uri.base.host.toLowerCase();
+    if (host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '0.0.0.0' ||
+        host == '::1') {
+      return localUrl;
+    }
+  }
+
+  return prodUrl;
+}
 
 class SocketService {
   IO.Socket? _socket;
@@ -25,8 +43,7 @@ class SocketService {
       return;
     }
 
-    const String prodUrl = "https://api.transgloble.com";
-    final String baseUrl = prodUrl;
+    final String baseUrl = _resolveSocketBaseUrl();
 
     _socket = IO.io(
       baseUrl,

@@ -38,8 +38,22 @@ class CorporateAccount {
 }
 
 class CorporateAuthProvider with ChangeNotifier {
-  static String get _baseUrl =>
-      'https://api.transgloble.com';
+  static String get _baseUrl {
+    const String prodUrl = 'https://api.transgloble.com';
+    const String localUrl = 'http://localhost:8082';
+
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host == 'localhost' ||
+          host == '127.0.0.1' ||
+          host == '0.0.0.0' ||
+          host == '::1') {
+        return localUrl;
+      }
+    }
+
+    return prodUrl;
+  }
 
   CorporateAccount? _account;
   String? _token;

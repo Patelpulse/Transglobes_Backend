@@ -35,6 +35,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
       try {
         final booking = BookingModel.fromJson(data);
         if (_rejectedIds.contains(booking.id)) return;
+        if (booking.status == 'pending_for_driver') return;
         addBooking(booking);
       } catch (e) {
         print('Error parsing socket new_ride: $e');
@@ -48,7 +49,15 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
         state = state.where((b) {
           if (b.id != rideId) return true;
           // Keep if this driver already accepted (it's their active order)
-          const activeStatuses = {'accepted', 'confirmed', 'on_the_way', 'arrived', 'ongoing', 'in_transit'};
+          const activeStatuses = {
+            'accepted',
+            'confirmed',
+            'processing',
+            'on_the_way',
+            'arrived',
+            'ongoing',
+            'in_transit',
+          };
           if (activeStatuses.contains(b.status)) return true;
           return false;
         }).toList();
@@ -94,17 +103,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
       }).toList();
 
       // ── Preservation Logic ────────────────────────────────────────────────
-      // Note: If remote API returns it as 'rejected', it will be in mergedRows.
-      
-      // 1. Preservation of socket-received pending bookings
-      final socketOnlyPending = state.where((b) {
-        if (!['pending', 'pending_for_driver'].contains(b.status)) return false;
-        if (mergedRows.any((r) => r.id == b.id)) return false;
-        if (_rejectedIds.contains(b.id)) return false;
-        return true;
-      }).toList();
-
-      // 2. Preservation of active orders
+      // Keep only active and historical items that still have meaning after a refresh.
       const activeStatuses = {'accepted', 'confirmed', 'on_the_way', 'arrived', 'ongoing', 'in_transit'};
       final localActiveOrders = state.where((b) {
         if (!activeStatuses.contains(b.status)) return false;
@@ -112,7 +111,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
         return true;
       }).toList();
 
-      // 3. Preservation of History (Rejected/Completed/Accepted/Confirmed)
+      // Preserve completed/rejected history cards if the backend response is still catching up.
       const historyStatuses = {'rejected', 'completed', 'delivered', 'cancelled', 'accepted', 'confirmed'};
       final localHistoryOrders = state.where((b) {
         if (!historyStatuses.contains(b.status)) return false;
@@ -120,7 +119,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
         return true;
       }).toList();
 
-      state = [...mergedRows, ...socketOnlyPending, ...localActiveOrders, ...localHistoryOrders];
+      state = [...mergedRows, ...localActiveOrders, ...localHistoryOrders];
       
       // deduplicate
       final seenIds = <String>{};
@@ -219,6 +218,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
   void addBooking(BookingModel booking) {
     if (state.any((b) => b.id == booking.id)) return;
     if (_rejectedIds.contains(booking.id)) return; 
+    if (booking.status == 'pending' || booking.status == 'pending_for_driver') return;
     state = [booking, ...state];
   }
 
@@ -247,7 +247,7 @@ final bookingProvider = NotifierProvider<BookingNotifier, List<BookingModel>>(Bo
 
 final pendingBookingsProvider = Provider<List<BookingModel>>((ref) {
   return ref.watch(bookingProvider).where((b) =>
-    b.status == 'pending' || b.status == 'processing' || b.status == 'pending_for_driver'
+    b.status == 'processing'
   ).toList();
 });
 

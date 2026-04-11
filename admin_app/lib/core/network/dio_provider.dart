@@ -4,12 +4,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter/foundation.dart';
 
-final dioProvider = Provider<Dio>((ref) {
+String _resolveAdminApiBaseUrl() {
   const String prodUrl = 'https://api.transgloble.com/api/';
-  final String webUrl = 'https://api.transgloble.com/api/';
+  const String localUrl = 'http://localhost:8082/api/';
 
+  if (kIsWeb) {
+    final host = Uri.base.host.toLowerCase();
+    if (host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '0.0.0.0' ||
+        host == '::1') {
+      return localUrl;
+    }
+  }
+
+  return prodUrl;
+}
+
+final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
-    baseUrl: kIsWeb ? webUrl : prodUrl,
+    baseUrl: _resolveAdminApiBaseUrl(),
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

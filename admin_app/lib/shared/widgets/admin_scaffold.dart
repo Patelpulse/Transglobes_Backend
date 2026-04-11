@@ -17,6 +17,16 @@ class AdminScaffold extends ConsumerWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.toString();
+    final bool isDesktop = MediaQuery.of(context).size.width >= 900;
+
+    if (!isDesktop) {
+      if (location.startsWith('/users')) return 1;
+      if (location.startsWith('/finance')) return 2;
+      if (location.startsWith('/alerts')) return 3;
+      if (location.startsWith('/settings')) return 4;
+      return 0;
+    }
+
     if (location.startsWith('/trips')) return 1;
     if (location.startsWith('/country-code')) return 2;
     if (location.startsWith('/page')) return 3;
@@ -32,6 +42,7 @@ class AdminScaffold extends ConsumerWidget {
     if (location.startsWith('/logistics')) return 12;
     if (location.startsWith('/supervisor')) return 14;
     if (location.startsWith('/pricing')) return 15;
+    if (location.startsWith('/bookings')) return 16;
     return 0; // Dashboard
   }
 
@@ -66,6 +77,9 @@ class AdminScaffold extends ConsumerWidget {
         break;
       case 15:
         context.go('/pricing');
+        break;
+      case 16:
+        context.go('/bookings');
         break;
       default:
         break;
@@ -241,6 +255,12 @@ class AdminScaffold extends ConsumerWidget {
                     _SidebarSubItem(title: 'Completed Trips', count: 2, color: const Color(0xFF4ADE80)),
                     _SidebarSubItem(title: 'Cancelled Trips', count: 0, color: const Color(0xFFF43F5E)),
                   ],
+                ),
+                _SidebarItem(
+                  icon: Icons.receipt_long,
+                  title: 'Ride Queue',
+                  isSelected: currentIndex == 16,
+                  onTap: () => _onItemTapped(16, context),
                 ),
                 _SidebarItem(
                   icon: Icons.phone,
@@ -438,6 +458,16 @@ class AdminScaffold extends ConsumerWidget {
                 style: TextStyle(color: Colors.white)),
             onTap: () {
               context.go('/finance');
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.receipt_long_outlined,
+                color: AppTheme.textMutedLight),
+            title: const Text('Ride Queue',
+                style: TextStyle(color: Colors.white)),
+            onTap: () {
+              context.go('/bookings');
               Navigator.pop(context);
             },
           ),

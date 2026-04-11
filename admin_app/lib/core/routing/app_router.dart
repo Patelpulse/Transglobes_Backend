@@ -18,6 +18,7 @@ import '../../features/drivers/presentation/screens/driver_form_screen.dart';
 import '../../features/settings/presentation/screens/country_code_management_screen.dart';
 import '../../features/pricing/presentation/screens/pricing_screen.dart';
 import '../../features/supervisor/presentation/screens/supervisor_screen.dart';
+import '../../features/bookings/presentation/screens/bookings_queue_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -131,8 +132,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/bookings',
-            builder: (context, state) =>
-                const Center(child: Text('Bookings & Operations')),
+            builder: (context, state) => const BookingsQueueScreen(),
           ),
           GoRoute(
             path: '/tracking',

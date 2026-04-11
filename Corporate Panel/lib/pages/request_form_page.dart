@@ -37,7 +37,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
   final _goodsTypeController = TextEditingController();
 
   // Modes for each segment (there are n-1 segments for n locations)
-  final List<TransportMode> _segmentModes = [TransportMode.land];
+  final List<TransportMode> _segmentModes = [TransportMode.road];
 
   double _estimatedPrice = 0;
   GoogleMapController? _mapController;
@@ -67,7 +67,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
       _locationControllers
           .add(TextEditingController()..addListener(_onLocationChanged));
       _focusNodes.add(FocusNode());
-      _segmentModes.add(TransportMode.land);
+      _segmentModes.add(TransportMode.road);
     });
   }
 
@@ -351,7 +351,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
         polylines.add(Polyline(
           polylineId: PolylineId('p_$i'),
           points: s.points,
-          color: s.mode == TransportMode.land
+          color: s.mode == TransportMode.road
               ? AppTheme.electricBlue
               : (s.mode == TransportMode.air
                   ? AppTheme.accentOrange
@@ -457,7 +457,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
           Expanded(
             child: Row(
               children: [
-                _buildMiniMode(index, TransportMode.land, LucideIcons.truck),
+                _buildMiniMode(index, TransportMode.road, LucideIcons.truck),
                 const SizedBox(width: 8),
                 _buildMiniMode(index, TransportMode.air, LucideIcons.plane),
                 const SizedBox(width: 8),
@@ -544,7 +544,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
         try {
           // On Web: uses backend proxy. On Android: calls Google directly.
           final baseUrl = kIsWeb
-              ? 'https://api.transgloble.com/api/maps/autocomplete'
+              ? '${LogisticsProvider.baseUrl}/api/maps/autocomplete'
               : 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
           final url = Uri.parse(
               '$baseUrl?input=${Uri.encodeComponent(textEditingValue.text)}&key=${LogisticsProvider.googleApiKey}&components=country:in');

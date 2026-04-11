@@ -233,8 +233,13 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
 
     try {
       final apiService = ref.read(apiServiceProvider);
+      final authService = ref.read(authServiceProvider);
+      await authService.waitForSession();
+      final mobileNumber = authService.currentUser?.phoneNumber?.toString();
       
       final response = await apiService.post('/api/ride/ride-request', {
+        if (mobileNumber != null && mobileNumber.trim().isNotEmpty)
+          'mobileNumber': mobileNumber.trim(),
         'locations': {
           'pickup': {
             'title': widget.pickup['name'] ?? 'Pickup',

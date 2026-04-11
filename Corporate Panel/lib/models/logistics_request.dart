@@ -1,10 +1,10 @@
-enum TransportMode { land, air, water }
+enum TransportMode { road, air, water }
 
 enum VehicleType {
-  // Land Vehicles
-  miniTruck('Mini Truck', 40, 1000, 'Small local deliveries', TransportMode.land),
-  cargoXL('Cargo XL', 80, 5000, 'Standard medium freight', TransportMode.land),
-  multiAxle('Multi-axle', 150, 20000, 'Heavy industrial haulage', TransportMode.land),
+  // Road Vehicles
+  miniTruck('Mini Truck', 40, 1000, 'Small local deliveries', TransportMode.road),
+  cargoXL('Cargo XL', 80, 5000, 'Standard medium freight', TransportMode.road),
+  multiAxle('Multi-axle', 150, 20000, 'Heavy industrial haulage', TransportMode.road),
   
   // Air Vehicles
   smallPlane('Propeller Cargo', 500, 2000, 'Quick regional air freight', TransportMode.air),

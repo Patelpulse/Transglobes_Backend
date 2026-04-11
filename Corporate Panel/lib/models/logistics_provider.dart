@@ -19,13 +19,27 @@ class JourneySegment {
 class LogisticsProvider with ChangeNotifier {
   final List<LogisticsRequest> _requests = [];
   List<JourneySegment> _journeySegments = [
-    JourneySegment(start: '', end: '', mode: TransportMode.land)
+    JourneySegment(start: '', end: '', mode: TransportMode.road)
   ];
   bool _isLoading = false;
 
   static const String googleApiKey = 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I';
-  static String get baseUrl =>
-      'https://api.transgloble.com';
+  static String get baseUrl {
+    const String prodUrl = 'https://api.transgloble.com';
+    const String localUrl = 'http://localhost:8082';
+
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host == 'localhost' ||
+          host == '127.0.0.1' ||
+          host == '0.0.0.0' ||
+          host == '::1') {
+        return localUrl;
+      }
+    }
+
+    return prodUrl;
+  }
 
   // Web needs backend proxy to avoid CORS. Android/iOS can call Google directly.
   static String get _geocodeBaseUrl {
@@ -121,8 +135,14 @@ class LogisticsProvider with ChangeNotifier {
       case 'water':
       case 'ship':
         return TransportMode.water;
+      case 'road':
+      case 'land':
+      case 'truck':
+      case 'mini truck':
+      case 'cargo xl':
+      case 'multi-axle':
       default:
-        return TransportMode.land;
+        return TransportMode.road;
     }
   }
 
@@ -175,7 +195,7 @@ class LogisticsProvider with ChangeNotifier {
           continue;
         }
 
-        if (segment.mode == TransportMode.land) {
+        if (segment.mode == TransportMode.road) {
           // Step 2: Use lat/lng for directions
           try {
             final origin = '${startCoords[0]},${startCoords[1]}';
@@ -457,7 +477,7 @@ class LogisticsProvider with ChangeNotifier {
 
   String _getModeString(TransportMode mode) {
     switch (mode) {
-      case TransportMode.land:
+      case TransportMode.road:
         return 'Road';
       case TransportMode.air:
         return 'Flight';
