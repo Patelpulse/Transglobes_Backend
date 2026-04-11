@@ -71,7 +71,9 @@ const verifyToken = async (req, res, next) => {
     ];
     const isDevToken = devBypassTokens.includes(normalizedToken);
 
-    if (isDevToken) {
+    const allowDevBypass = process.env.NODE_ENV !== 'production' || isExplicitDevBypassEnabled();
+
+    if (allowDevBypass && isDevToken) {
         const devUid = req.headers['x-dev-uid'] || req.headers['x-dev-id'] || 'dev-user-uid';
         const devEmail = req.headers['x-dev-email'] || `${devUid}@dev.local`;
         const devRole =
@@ -88,7 +90,7 @@ const verifyToken = async (req, res, next) => {
     }
 
     // Legacy env‑guarded bypass (kept for backwards compatibility)
-    if (normalizedToken.includes('dev-token-bypass') && isExplicitDevBypassEnabled()) {
+    if (normalizedToken.includes('dev-token-bypass') && allowDevBypass) {
         console.log(`[AUTH-DEBUG] >>> Dev Bypass Triggered (legacy flag)`);
         const devUid = req.headers['x-dev-uid'] || req.headers['x-dev-id'];
         req.user = { uid: devUid || 'dev-user-uid', email: 'dev@example.com', role: 'driver' };
@@ -138,7 +140,7 @@ const verifyToken = async (req, res, next) => {
                     ...localDecoded,
                 };
             } catch (jwtErr) {
-                if (isExplicitDevBypassEnabled()) {
+                if (allowDevBypass) {
                     console.warn('[AUTH-DEV] Explicit development auth bypass enabled.');
                     req.user = {
                         uid: req.headers['x-dev-uid'] || req.headers['x-dev-id'] || 'dev-user-uid',

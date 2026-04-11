@@ -1,6 +1,6 @@
 # TRSNGLOBE Completion Checklist
 
-Last updated: 2026-04-07
+Last updated: 2026-04-11
 
 This checklist converts the project points into execution-ready deliverables.
 
@@ -9,8 +9,8 @@ This checklist converts the project points into execution-ready deliverables.
 - [ ] OTP login (mobile) is stable for Android, iOS, and web
 - [ ] Optional email login works and links to the same user profile safely
 - [ ] Profile management supports edit profile, image, and contact updates
-- [ ] Car booking flow works end-to-end (request -> assign -> OTP -> complete)
-- [ ] Shuttle booking flow works end-to-end (request -> assign -> OTP -> complete)
+- [x] Car booking flow works end-to-end (request -> assign -> OTP -> complete)
+- [x] Shuttle booking flow works end-to-end (request -> assign -> OTP -> complete)
 - [ ] Logistics booking flow captures goods type, dimensions, pickup/drop, transport mode
 - [ ] Logistics estimated price and ETA are shown before confirmation
 - [ ] Booking history includes Car, Shuttle, and Logistics entries
@@ -81,9 +81,9 @@ This checklist converts the project points into execution-ready deliverables.
 
 ## 7) Mandatory Testing Gate
 
-- [ ] Car booking flow passes end-to-end validation
-- [ ] Shuttle booking flow passes end-to-end validation
-- [ ] Logistics booking flow passes end-to-end validation
+- [x] Car booking flow passes end-to-end validation
+- [x] Shuttle booking flow passes end-to-end validation
+- [x] Logistics booking flow passes end-to-end validation
 - [ ] Failure scenarios are validated (invalid OTP, driver reject, payment fail)
 - [ ] Regression suite is run before release
 
@@ -91,4 +91,4 @@ Backend verifier added in this pass:
 
 - Command: `cd backend && npm run test:e2e-bookings`
 - Script: `backend/scripts/e2e-booking-flows.js`
-
+- Live run: passed against `http://localhost:8080/api` on 2026-04-11.

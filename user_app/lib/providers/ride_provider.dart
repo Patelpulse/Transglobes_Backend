@@ -4,7 +4,7 @@ import '../services/api_service.dart';
 
 final rideTypesProvider = FutureProvider<List<RideTypeModel>>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
-  final response = await apiService.get('/rides/ride-types');
+  final response = await apiService.get('/api/ride/ride-types');
   
   if (response['success'] == true) {
     final List data = response['data'];

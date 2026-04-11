@@ -53,31 +53,88 @@ class RideModel {
       return null;
     }
 
+    double? parseDistance(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      if (val is String) {
+        final cleaned = val.replaceAll(RegExp(r'[^0-9.]'), '');
+        return cleaned.isEmpty ? null : double.tryParse(cleaned);
+      }
+      return null;
+    }
+
+    DateTime? parseDate(dynamic val) {
+      if (val == null) return null;
+      if (val is DateTime) return val;
+      return DateTime.tryParse(val.toString());
+    }
+
+    Map<String, dynamic> asMap(dynamic value) {
+      if (value is Map<String, dynamic>) return value;
+      if (value is Map) return Map<String, dynamic>.from(value);
+      return {};
+    }
+
+    String extractAddress(dynamic value, Map<String, dynamic> fallback) {
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+      final map = asMap(value);
+      final candidates = [
+        map['address'],
+        map['fullAddress'],
+        map['label'],
+        map['name'],
+        map['title'],
+        fallback['address'],
+        fallback['fullAddress'],
+        fallback['label'],
+        fallback['name'],
+        fallback['title'],
+      ];
+      for (final candidate in candidates) {
+        final text = candidate?.toString().trim() ?? '';
+        if (text.isNotEmpty) return text;
+      }
+      return '';
+    }
+
+    dynamic pickupRaw = json['pickupLocation'] ?? json['pickup'];
+    dynamic dropoffRaw = json['dropoffLocation'] ?? json['dropoff'] ?? json['receivedAddress'];
+
+    if (pickupRaw == null && json['locations'] is List && (json['locations'] as List).isNotEmpty) {
+      pickupRaw = (json['locations'] as List).first;
+    }
+
+    if (dropoffRaw == null && json['locations'] is List && (json['locations'] as List).length > 1) {
+      dropoffRaw = (json['locations'] as List)[1];
+    }
+
+    final pickupMap = asMap(pickupRaw);
+    final dropoffMap = asMap(dropoffRaw);
+    final rideMode = json['rideMode']?.toString() ?? json['vehicleType']?.toString() ?? json['serviceType']?.toString();
+    final fareValue = json['fareEstimation'] ?? json['fare'] ?? json['totalPrice'] ?? json['vehiclePrice'];
+    final distanceValue = json['distanceKm'] ?? json['distance'];
+
     return RideModel(
-      id: json['_id'] ?? '',
-      userId: json['userId'] ?? '',
-      driverId: json['driverId'],
-      pickupLocation: LocationPoint.fromJson(json['pickupLocation'] ?? {}),
-      dropoffLocation: LocationPoint.fromJson(json['dropoffLocation'] ?? {}),
-      pickupAddress: json['pickupAddress'] ?? '',
-      dropoffAddress: json['dropoffAddress'] ?? '',
-      serviceType: json['serviceType'] ?? 'cab',
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      userId: json['userId']?.toString() ?? '',
+      driverId: json['driverId']?.toString(),
+      pickupLocation: LocationPoint.fromJson(pickupMap),
+      dropoffLocation: LocationPoint.fromJson(dropoffMap),
+      pickupAddress: extractAddress(json['pickupAddress'], pickupMap),
+      dropoffAddress: extractAddress(json['dropoffAddress'] ?? json['receivedAddress'], dropoffMap),
+      serviceType: rideMode ?? 'cab',
       status: json['status'] ?? 'pending',
-      fareEstimation: parseDouble(json['fareEstimation']),
-      actualFare: parseDouble(json['actualFare']),
-      distance: parseDouble(json['distance']),
+      fareEstimation: parseDouble(fareValue),
+      actualFare: parseDouble(json['actualFare'] ?? fareValue),
+      distance: parseDistance(distanceValue),
       duration: parseDouble(json['duration']),
       otp: json['otp'],
       delayReason: json['delayReason'],
       isScheduled: json['isScheduled'] ?? false,
-      scheduledTime: json['scheduledTime'] != null
-          ? DateTime.parse(json['scheduledTime'])
-          : null,
-      vehicleType: json['vehicleType'],
+      scheduledTime: parseDate(json['scheduledTime']),
+      vehicleType: json['vehicleType']?.toString() ?? rideMode,
       typeOfGood: json['typeOfGood'],
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : null,
+      createdAt: parseDate(json['createdAt']),
       segments: (json['segments'] as List?)?.map((s) => LogisticsSegment.fromJson(s)).toList() ?? [],
     );
   }
@@ -138,17 +195,39 @@ class LocationPoint {
   double get latitude => coordinates.length > 1 ? coordinates[1] : 0;
 
   factory LocationPoint.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic val) {
+      if (val == null) return 0.0;
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val) ?? 0.0;
+      return 0.0;
+    }
+
+    final coordinates = json['coordinates'];
+    if (coordinates is List && coordinates.length >= 2) {
+      return LocationPoint(
+        type: json['type'] ?? 'Point',
+        coordinates: coordinates
+            .map((e) {
+              if (e is num) return e.toDouble();
+              if (e is String) return double.tryParse(e) ?? 0.0;
+              return 0.0;
+            })
+            .toList(),
+      );
+    }
+
+    final lat = json['lat'] ?? json['latitude'];
+    final lng = json['lng'] ?? json['longitude'];
+    if (lat != null && lng != null) {
+      return LocationPoint(
+        type: json['type'] ?? 'Point',
+        coordinates: [parseDouble(lng), parseDouble(lat)],
+      );
+    }
+
     return LocationPoint(
       type: json['type'] ?? 'Point',
-      coordinates:
-          (json['coordinates'] as List<dynamic>?)
-              ?.map((e) {
-                if (e is num) return e.toDouble();
-                if (e is String) return double.tryParse(e) ?? 0.0;
-                return 0.0;
-              })
-              .toList() ??
-          [0, 0],
+      coordinates: [0, 0],
     );
   }
 

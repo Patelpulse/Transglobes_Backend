@@ -115,8 +115,26 @@ class AuthService {
   }
 
   Future<String?> getIdToken() async {
-    // Force 'dev-token-bypass' for now to ensure development is not blocked by token verification issues
-    return 'dev-token-bypass';
+    if (kDemoMode) {
+      return 'demo-token-for-testing';
+    }
+
+    final user = currentUser;
+
+    if (user is User) {
+      try {
+        return await user.getIdToken();
+      } catch (e) {
+        debugPrint('[AUTH] Failed to fetch Firebase token: $e');
+        return kDebugMode ? 'dev-token-bypass' : null;
+      }
+    }
+
+    if (user is MockUser) {
+      return 'dev-token-bypass';
+    }
+
+    return kDebugMode ? 'dev-token-bypass' : null;
   }
 
   Future<void> _ensureWebSessionLoaded() {

@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const RideType = require("../models/RideType");
 const History = require("../models/History");
 const User = require("../models/User"); // used for populating name
@@ -9,9 +10,6 @@ const Review = require("../models/Review");
 exports.getRideTypes = async (req, res) => {
     try {
         let rides = await RideType.find({ status: true });
-        
-        // Only return Transglobe
-        rides = rides.filter(r => r.name.toLowerCase().includes('transglobe'));
 
         res.status(200).json({
             success: true,
@@ -23,6 +21,83 @@ exports.getRideTypes = async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+};
+
+exports.getRideById = async (req, res) => {
+    try {
+        const { rideId } = req.params;
+        if (!rideId) {
+            return res.status(400).json({ success: false, message: 'rideId is required.' });
+        }
+
+        let ride = await History.findById(rideId).lean();
+        let type = 'ride';
+
+        if (!ride) {
+            ride = await LogisticsBooking.findById(rideId).lean();
+            type = 'logistics';
+        }
+
+        if (!ride) {
+            return res.status(404).json({ success: false, message: 'Ride not found.' });
+        }
+
+        return res.status(200).json({
+            success: true,
+            type,
+            data: ride,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getMyRides = async (req, res) => {
+    try {
+        const authUid = req.user?.uid || req.user?.id || req.user?.firebaseId || req.query?.userId;
+        const authEmail = req.user?.email || req.query?.email;
+
+        let user = null;
+        if (authUid) {
+            user = await User.findOne({ $or: [{ uid: authUid }, { _id: authUid }] }).lean();
+        }
+
+        if (!user && authEmail) {
+            user = await User.findOne({ email: authEmail }).lean();
+        }
+
+        const historyQuery = {};
+        const logisticsQuery = {};
+
+        if (user?._id) {
+            historyQuery.userId = user._id;
+        } else if (authUid && mongoose.Types.ObjectId.isValid(authUid)) {
+            historyQuery.userId = authUid;
+        }
+
+        if (user?.uid) {
+            logisticsQuery.userId = { $in: [user.uid, user._id?.toString()].filter(Boolean) };
+        } else if (authUid) {
+            logisticsQuery.userId = authUid;
+        }
+
+        const [historyRides, logisticsBookings] = await Promise.all([
+            Object.keys(historyQuery).length
+                ? History.find(historyQuery).sort({ createdAt: -1 }).lean()
+                : Promise.resolve([]),
+            Object.keys(logisticsQuery).length
+                ? LogisticsBooking.find(logisticsQuery).sort({ createdAt: -1 }).lean()
+                : Promise.resolve([]),
+        ]);
+
+        const data = [...historyRides, ...logisticsBookings].sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 

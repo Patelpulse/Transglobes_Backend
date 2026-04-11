@@ -5,6 +5,8 @@ const { verifyToken } = require("../middlewares/authMiddleware");
 
 router.get("/driver-bookings", verifyToken, rideController.getDriverBookings);
 router.get("/ride-types", rideController.getRideTypes);
+router.get("/my-rides", verifyToken, rideController.getMyRides);
+router.get("/rides/:rideId", verifyToken, rideController.getRideById);
 
 // Route for saving user's input/booking
 router.post("/ride-request", verifyToken, rideController.createRideRequest);

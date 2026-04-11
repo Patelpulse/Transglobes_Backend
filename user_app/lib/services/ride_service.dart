@@ -31,22 +31,32 @@ class RideService {
     String? vehicleType,
     String? typeOfGood,
   }) async {
-    final response = await _apiService.post('/rides', {
-      'pickupLocation': {'coordinates': pickupCoordinates},
-      'dropoffLocation': {'coordinates': dropoffCoordinates},
-      'pickupAddress': pickupAddress,
-      'dropoffAddress': dropoffAddress,
-      'serviceType': serviceType,
-      'fareEstimation': fareEstimation,
+    final response = await _apiService.post('/api/ride/ride-request', {
+      'locations': {
+        'pickup': {
+          'title': pickupAddress,
+          'address': pickupAddress,
+          'latitude': pickupCoordinates.isNotEmpty ? pickupCoordinates[0] : 0,
+          'longitude': pickupCoordinates.length > 1 ? pickupCoordinates[1] : 0,
+        },
+        'dropoff': {
+          'title': dropoffAddress,
+          'address': dropoffAddress,
+          'latitude': dropoffCoordinates.isNotEmpty ? dropoffCoordinates[0] : 0,
+          'longitude': dropoffCoordinates.length > 1 ? dropoffCoordinates[1] : 0,
+        },
+      },
+      'rideMode': serviceType,
+      'fare': fareEstimation,
       'distance': distance,
       'duration': duration,
+      'paymentMode': 'cash',
       'isScheduled': isScheduled,
-      if (scheduledTime != null)
-        'scheduledTime': scheduledTime.toIso8601String(),
+      if (scheduledTime != null) 'scheduledTime': scheduledTime.toIso8601String(),
       if (vehicleType != null) 'vehicleType': vehicleType,
       if (typeOfGood != null) 'typeOfGood': typeOfGood,
     });
-    return RideModel.fromJson(response);
+    return RideModel.fromJson(response['data'] ?? response);
   }
 
   Future<RideModel> createRideRequest({
@@ -60,7 +70,7 @@ class RideService {
     int? helperCount,
     List<Map<String, dynamic>>? logisticItems,
   }) async {
-    final response = await _apiService.post('/ride-request', {
+    final response = await _apiService.post('/api/ride/ride-request', {
       'locations': locations,
       'rideMode': rideMode,
       'fare': fare,
@@ -75,13 +85,18 @@ class RideService {
   }
 
   Future<List<RideModel>> getMyRides() async {
-    final response = await _apiService.get('/rides/my-rides');
-    return (response as List).map((e) => RideModel.fromJson(e)).toList();
+    final response = await _apiService.get('/api/ride/my-rides');
+    final data = response is Map<String, dynamic> ? (response['data'] ?? response['rides'] ?? response) : response;
+    if (data is List) {
+      return data.map((e) => RideModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    }
+    return [];
   }
 
   Future<RideModel?> getRideById(String rideId) async {
-    final response = await _apiService.get('/rides/$rideId');
-    return response != null ? RideModel.fromJson(response) : null;
+    final response = await _apiService.get('/api/ride/rides/$rideId');
+    final data = response is Map<String, dynamic> ? (response['data'] ?? response) : response;
+    return data != null ? RideModel.fromJson(Map<String, dynamic>.from(data as Map)) : null;
   }
 
   Future<RideModel> updateRideStatus(
@@ -89,11 +104,12 @@ class RideService {
     String status, {
     String? delayReason,
   }) async {
-    final response = await _apiService.put('/rides/$rideId/status', {
+    final response = await _apiService.put('/api/ride/rides/$rideId/status', {
       'status': status,
       if (delayReason != null) 'delayReason': delayReason,
     });
-    return RideModel.fromJson(response);
+    final data = response['ride'] ?? response['data'] ?? response;
+    return RideModel.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
   Future<RideModel> cancelRide(String rideId) async {

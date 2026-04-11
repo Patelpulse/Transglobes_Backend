@@ -1,6 +1,6 @@
 # TRSNGLOBE Requirements Status
 
-Last updated: 2026-04-07
+Last updated: 2026-04-11
 
 ## Legend
 
@@ -16,7 +16,7 @@ Last updated: 2026-04-07
 | Email login optional | Done | Present in auth service, though OTP is the primary path. |
 | Profile management | Done | Profile screens and backend profile routes exist. |
 | Car booking | Done | Ride booking flow exists in backend and user app. |
-| Shuttle booking | Partial | UI exists, but dedicated backend shuttle domain is not clearly separated from the generic ride flow. |
+| Shuttle booking | Done | Shuttle now uses the real ride-request/search/track flow and is backed by the ride engine rather than a mock screen. |
 | Logistics booking | Done | User logistics flow posts into backend logistics booking APIs. |
 | Goods type and dimensions | Done | User logistics booking collects items and dimensions. |
 | Pickup and drop locations | Done | Present in user logistics flow and backend. |
@@ -74,7 +74,7 @@ Last updated: 2026-04-07
 | Notification system | Partial | Present in parts of the stack. |
 | Payment gateway management | Missing | No real admin-managed payment gateway integration found. |
 | GPS tracking | Partial | Tracking/socket foundations exist; admin live tracking route is still placeholder UI. |
-| Role-based access | Partial | Roles exist in models/tokens, but complete RBAC enforcement is still incomplete. |
+| Role-based access | Partial | Roles exist in models/tokens, and sensitive admin/supervisor routes now use strict role middleware, but full UI-wide RBAC coverage is still incomplete. |
 
 ## Supervisor Panel
 
@@ -120,6 +120,9 @@ Last updated: 2026-04-07
 - Added a runnable API-level booking flow verifier for Car, Shuttle, and Logistics:
   - `cd backend && npm run test:e2e-bookings`
   - Script: `backend/scripts/e2e-booking-flows.js`
+- Verified the booking verifier live against `http://localhost:8080/api` on 2026-04-11.
+- Aligned user ride API wrappers to the backend `/api/ride/...` routes and converted the shuttle booking screen from a static mock to a real ride request flow.
+- Tightened sensitive admin/supervisor route permissions with strict middleware so privileged booking/pricing actions are no longer token-only.
 - Added a project-wide execution checklist aligned to all panel requirements:
   - `TRSNGLOBE_COMPLETION_CHECKLIST.md`
 

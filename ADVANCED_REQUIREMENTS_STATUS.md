@@ -1,6 +1,6 @@
 # TRSNGLOBE Advanced Requirements Status (Modules 8-35)
 
-Last updated: 2026-04-07
+Last updated: 2026-04-11
 
 Legend:
 - `Done`: Implemented with real code paths.
@@ -11,7 +11,7 @@ Legend:
 - Status: `Partial`
 - Notes:
   - JWT auth exists for admin/driver/corporate.
-  - RBAC middleware exists, but route-level enforcement is not consistently applied.
+  - RBAC middleware exists, and sensitive admin/supervisor routes now use strict role checks.
   - Device tracking exists in auth middleware.
   - Password hashing exists (bcrypt).
   - Basic API rate limiter exists.
@@ -22,6 +22,7 @@ Legend:
 - Status: `Partial`
 - Notes:
   - Instant booking and logistics booking are implemented.
+  - User shuttle booking now uses the same ride-request/search/track pipeline as car booking instead of a static mock.
   - Scheduled booking is not fully implemented end-to-end.
   - Distance/time estimation APIs exist (maps + ETA).
   - Dynamic pricing engine exists.
@@ -157,6 +158,7 @@ Legend:
 - Status: `Partial`
 - Notes:
   - API-level E2E booking verifier exists and passes for Car/Shuttle/Logistics.
+  - The verifier was executed live against the local backend on 2026-04-11.
   - Unit/integration coverage is still limited.
   - Load/UAT/failure-depth automation is incomplete.
 
@@ -219,4 +221,3 @@ Legend:
   - `cd backend && npm run test:e2e-bookings`
 - Current result:
   - Car/Shuttle/Logistics flow validation passed on 2026-04-07.
-

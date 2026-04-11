@@ -5,7 +5,7 @@ const adminSignupController = require('../controllers/adminsigup');
 const pricingController = require('../controllers/pricingController');
 const supervisorController = require('../controllers/supervisorController');
 const analyticsController = require('../controllers/analyticsController');
-const { verifyAdminToken } = require('../middlewares/authMiddlewareAdmin');
+const { verifyAdminToken, requireSupervisorRole, requireStrictAdmin } = require('../middlewares/authMiddlewareAdmin');
 const upload = require('../middlewares/uploadMiddleware');
 
 // Unprotected routes
@@ -27,86 +27,86 @@ router.post('/profile/change-password', adminSignupController.changePassword);
 
 
 // Driver management
-router.get('/drivers', adminController.getAllDrivers);
-router.put('/drivers/:driverId/status', adminController.updateDriverStatus);
-router.put('/drivers/:driverId/warn', adminController.warnDriver);
-router.delete('/drivers/:driverId', adminController.deleteDriver);
+router.get('/drivers', requireStrictAdmin, adminController.getAllDrivers);
+router.put('/drivers/:driverId/status', requireStrictAdmin, adminController.updateDriverStatus);
+router.put('/drivers/:driverId/warn', requireStrictAdmin, adminController.warnDriver);
+router.delete('/drivers/:driverId', requireStrictAdmin, adminController.deleteDriver);
 
 // User management
-router.get('/users', adminController.getAllUsers);
-router.put('/users/:userId/status', adminController.updateUserStatus);
-router.put('/users/:userId/profile', adminController.updateUserProfile);
-router.put('/users/:userId/fraud', adminController.blacklistUser);
-router.delete('/users/:userId', adminController.deleteUser);
-router.get('/users/:userId/bookings', adminController.getUserBookings);
+router.get('/users', requireStrictAdmin, adminController.getAllUsers);
+router.put('/users/:userId/status', requireStrictAdmin, adminController.updateUserStatus);
+router.put('/users/:userId/profile', requireStrictAdmin, adminController.updateUserProfile);
+router.put('/users/:userId/fraud', requireStrictAdmin, adminController.blacklistUser);
+router.delete('/users/:userId', requireStrictAdmin, adminController.deleteUser);
+router.get('/users/:userId/bookings', requireStrictAdmin, adminController.getUserBookings);
 
 // Booking management
-router.get('/bookings', adminController.getAllBookings);
-router.put('/bookings/:bookingId/status', adminController.updateBookingStatus);
+router.get('/bookings', requireSupervisorRole, adminController.getAllBookings);
+router.put('/bookings/:bookingId/status', requireSupervisorRole, adminController.updateBookingStatus);
 
 // Complaint management
-router.get('/complaints', adminController.getAllComplaints);
-router.put('/complaints/:complaintId/status', adminController.updateComplaintStatus);
+router.get('/complaints', requireStrictAdmin, adminController.getAllComplaints);
+router.put('/complaints/:complaintId/status', requireStrictAdmin, adminController.updateComplaintStatus);
 
 // Review management
-router.get('/reviews', adminController.getAllReviews);
+router.get('/reviews', requireStrictAdmin, adminController.getAllReviews);
 
 // Vehicle management
-router.get('/vehicles', adminController.getAllVehicles);
-router.put('/vehicles/:vehicleId/status', adminController.updateVehicleStatus);
+router.get('/vehicles', requireStrictAdmin, adminController.getAllVehicles);
+router.put('/vehicles/:vehicleId/status', requireStrictAdmin, adminController.updateVehicleStatus);
 
 // Service Categories
-router.post('/categories', adminController.createServiceCategory);
-router.get('/categories', adminController.getServiceCategories);
+router.post('/categories', requireStrictAdmin, adminController.createServiceCategory);
+router.get('/categories', requireStrictAdmin, adminController.getServiceCategories);
 
 // Route Management
-router.post('/routes', adminController.createRoute);
-router.get('/routes', adminController.getAllRoutes);
+router.post('/routes', requireStrictAdmin, adminController.createRoute);
+router.get('/routes', requireStrictAdmin, adminController.getAllRoutes);
 
 // Shift Management
-router.post('/shifts', adminController.createShift);
-router.get('/shifts', adminController.getAllShifts);
+router.post('/shifts', requireStrictAdmin, adminController.createShift);
+router.get('/shifts', requireStrictAdmin, adminController.getAllShifts);
 
 // Settlements & Reports
-router.get('/reports/transactions', adminController.getTransactionReports);
-router.get('/stats', adminController.getPlatformStats);
+router.get('/reports/transactions', requireStrictAdmin, adminController.getTransactionReports);
+router.get('/stats', requireSupervisorRole, adminController.getPlatformStats);
 
 // CMS & Notifications
-router.post('/cms', adminController.updateCMSContent);
-router.get('/cms', adminController.getCMSContent);
+router.post('/cms', requireStrictAdmin, adminController.updateCMSContent);
+router.get('/cms', requireStrictAdmin, adminController.getCMSContent);
 
 // Delay Logs
-router.post('/delays', adminController.logDelay);
+router.post('/delays', requireSupervisorRole, adminController.logDelay);
 
 // ─── Analytics & Reports ─────────────────────────────────
-router.get('/analytics/dashboard', analyticsController.getDashboard);
-router.get('/analytics/revenue', analyticsController.getRevenueReport);
-router.get('/analytics/driver/:driverId/performance', analyticsController.getDriverPerformance);
-router.post('/analytics/delay-log', analyticsController.logDelay);
-router.get('/analytics/delay-logs/:bookingId', analyticsController.getDelayLogs);
+router.get('/analytics/dashboard', requireSupervisorRole, analyticsController.getDashboard);
+router.get('/analytics/revenue', requireSupervisorRole, analyticsController.getRevenueReport);
+router.get('/analytics/driver/:driverId/performance', requireSupervisorRole, analyticsController.getDriverPerformance);
+router.post('/analytics/delay-log', requireSupervisorRole, analyticsController.logDelay);
+router.get('/analytics/delay-logs/:bookingId', requireSupervisorRole, analyticsController.getDelayLogs);
 
 // ─── Pricing Configuration (Admin + Supervisor) ──────────
-router.get('/pricing', pricingController.getAllConfigs);
-router.get('/pricing/active', pricingController.getActiveConfig);
-router.post('/pricing', pricingController.createConfig);
-router.put('/pricing/:id', pricingController.updateConfig);
-router.delete('/pricing/:id', pricingController.deleteConfig);
-router.post('/pricing/calculate', pricingController.calculateFare);
+router.get('/pricing', requireSupervisorRole, pricingController.getAllConfigs);
+router.get('/pricing/active', requireSupervisorRole, pricingController.getActiveConfig);
+router.post('/pricing', requireStrictAdmin, pricingController.createConfig);
+router.put('/pricing/:id', requireStrictAdmin, pricingController.updateConfig);
+router.delete('/pricing/:id', requireStrictAdmin, pricingController.deleteConfig);
+router.post('/pricing/calculate', requireSupervisorRole, pricingController.calculateFare);
 
 // ─── Supervisor Panel Routes ─────────────────────────────
 // Edit logistics booking goods details
-router.patch('/supervisor/bookings/:bookingId/goods', supervisorController.editGoodsDetails);
+router.patch('/supervisor/bookings/:bookingId/goods', requireSupervisorRole, supervisorController.editGoodsDetails);
 // Override pricing charges for a booking
-router.patch('/supervisor/bookings/:bookingId/pricing-override', supervisorController.overridePricing);
+router.patch('/supervisor/bookings/:bookingId/pricing-override', requireSupervisorRole, supervisorController.overridePricing);
 // Approve and finalize a booking (sets status to processing)
-router.patch('/supervisor/bookings/:bookingId/approve', supervisorController.approveBooking);
+router.patch('/supervisor/bookings/:bookingId/approve', requireSupervisorRole, supervisorController.approveBooking);
 // Get supervisor dashboard stats
-router.get('/supervisor/stats', supervisorController.getSupervisorStats);
+router.get('/supervisor/stats', requireSupervisorRole, supervisorController.getSupervisorStats);
 // Block/Unblock user
-router.patch('/users/:userId/block', supervisorController.blockUser);
+router.patch('/users/:userId/block', requireStrictAdmin, supervisorController.blockUser);
 // Block/Unblock driver
-router.patch('/drivers/:driverId/block', supervisorController.blockDriver);
+router.patch('/drivers/:driverId/block', requireStrictAdmin, supervisorController.blockDriver);
 // Toggle driver online/offline
-router.patch('/drivers/:driverId/online', supervisorController.toggleDriverOnline);
+router.patch('/drivers/:driverId/online', requireStrictAdmin, supervisorController.toggleDriverOnline);
 
 module.exports = router;
