@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme.dart';
 import '../../core/app_router.dart';
 import '../../services/auth_service.dart';
@@ -413,6 +414,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                   'Aadhar Number',
                                   _aadharController,
                                   Icons.credit_card_outlined,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 12,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(12),
+                                  ],
                                   onChanged: (_) => setState(() {}),
                                 ),
                                 const SizedBox(height: 16),
@@ -420,7 +427,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                   'PAN Card Number',
                                   _panController,
                                   Icons.badge_outlined,
+                                  keyboardType: TextInputType.text,
+                                  maxLength: 10,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                        RegExp(r'[a-zA-Z0-9]')),
+                                    LengthLimitingTextInputFormatter(10),
+                                    TextInputFormatter.withFunction(
+                                      (oldValue, newValue) => newValue.copyWith(
+                                        text: newValue.text.toUpperCase(),
+                                        selection: newValue.selection,
+                                      ),
+                                    ),
+                                  ],
                                   onChanged: (_) => setState(() {}),
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Aadhaar: 12 digits, PAN: 10 chars (e.g. ABCDE1234F)',
+                                    style: const TextStyle(
+                                      color: AppTheme.darkTextSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
                                 _buildTextField(
@@ -796,11 +829,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     TextEditingController controller,
     IconData icon, {
     bool isPassword = false,
+    TextInputType? keyboardType,
+    int? maxLength,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    List<TextInputFormatter>? inputFormatters,
     Function(String)? onChanged,
   }) {
     return TextField(
       controller: controller,
       obscureText: isPassword,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      textCapitalization: textCapitalization,
+      inputFormatters: inputFormatters,
       onChanged: onChanged,
       style: const TextStyle(color: AppTheme.darkTextPrimary),
       decoration: InputDecoration(
