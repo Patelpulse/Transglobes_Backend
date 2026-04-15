@@ -10,15 +10,31 @@ import '../../../drivers/presentation/providers/driver_provider.dart';
 
 final pendingRideRequestsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('ride/rides/pending');
+  final endpoints = <String>[
+    'ride/rides/pending',
+    'ride/rides',
+  ];
 
-  if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
-    final body = Map<String, dynamic>.from(response.data as Map);
-    if (body['success'] == true && body['data'] is List) {
-      return (body['data'] as List)
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
+  for (final endpoint in endpoints) {
+    try {
+      final response = await dio.get(endpoint);
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        final body = Map<String, dynamic>.from(response.data as Map);
+        if (body['success'] == true && body['data'] is List) {
+          final data = (body['data'] as List)
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          if (endpoint == 'ride/rides') {
+            return data
+                .where((ride) => (ride['status']?.toString().toLowerCase() ?? '') == 'pending')
+                .toList();
+          }
+          return data;
+        }
+      }
+    } on DioException {
+      continue;
     }
   }
 
@@ -31,21 +47,24 @@ class BookingsQueueScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ridesAsync = ref.watch(pendingRideRequestsProvider);
-    final rides = ridesAsync.value ?? const <Map<String, dynamic>>[];
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColorDark,
+      backgroundColor: AppTheme.pageBackground,
       appBar: AppBar(
         title: const Text(
           'Ride Queue',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 34,
+            color: AppTheme.textPrimaryDark,
+          ),
         ),
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.topBarBackground,
         elevation: 0,
         actions: [
           IconButton(
             onPressed: () => ref.invalidate(pendingRideRequestsProvider),
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh, color: AppTheme.textPrimaryDark),
           ),
         ],
       ),
@@ -65,16 +84,16 @@ class BookingsQueueScreen extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, color: Colors.white70, size: 48),
+              const Icon(Icons.error_outline, color: AppTheme.danger, size: 48),
               const SizedBox(height: 16),
               Text(
                 'Failed to load ride queue',
-                style: TextStyle(color: Colors.grey[300]),
+                style: const TextStyle(color: AppTheme.textSecondaryDark),
               ),
               const SizedBox(height: 8),
               Text(
                 err.toString(),
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                style: const TextStyle(color: AppTheme.textSecondaryDark, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -103,12 +122,12 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 16),
           const Text(
             'No pending ride requests',
-            style: TextStyle(color: Colors.white70, fontSize: 16),
+            style: TextStyle(color: AppTheme.textPrimaryDark, fontSize: 16),
           ),
           const SizedBox(height: 8),
           const Text(
             'New bookings will appear here before drivers receive them.',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: AppTheme.textSecondaryDark, fontSize: 12),
           ),
         ],
       ),
@@ -135,9 +154,9 @@ class _RideQueueCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColorDark,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderDark),
+        border: Border.all(color: AppTheme.lineSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,7 +167,7 @@ class _RideQueueCard extends StatelessWidget {
                 child: Text(
                   'REQUEST #${rideId.isEmpty ? 'NEW' : rideId.substring(rideId.length > 6 ? rideId.length - 6 : 0).toUpperCase()}',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppTheme.textPrimaryDark,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -160,7 +179,7 @@ class _RideQueueCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             _stringValue(ride['userName'], 'Customer'),
-            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+            style: const TextStyle(color: AppTheme.textPrimaryDark, fontSize: 16, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(
@@ -227,16 +246,19 @@ class _RideQueueCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: const Color(0xFFF2F4F8),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppTheme.borderDark),
+        border: Border.all(color: AppTheme.lineSoft),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: Colors.white70),
+          Icon(icon, size: 12, color: AppTheme.textSecondaryDark),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          Text(
+            label,
+            style: const TextStyle(color: AppTheme.textSecondaryDark, fontSize: 11),
+          ),
         ],
       ),
     );
@@ -261,12 +283,18 @@ class _RideQueueCard extends StatelessWidget {
             children: [
               Text(
                 start,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  color: AppTheme.textPrimaryDark,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 18),
               Text(
                 end,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  color: AppTheme.textPrimaryDark,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),

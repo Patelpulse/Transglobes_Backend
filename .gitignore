@@ -74,3 +74,6 @@ benchmarks/
 # MacOS related
 **/.DS_Store
 **/DerivedData/
+
+# Client APK bundle output (scripts/build_client_apks.sh)
+dist/client_apks/

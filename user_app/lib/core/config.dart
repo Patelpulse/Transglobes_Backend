@@ -20,9 +20,23 @@ class AppConfig {
         host == '::1';
   }
 
+  /// VPS: Transglobe nginx vhost on :8085 (`/api/` → Node :8080).
+  static const String _vpsBackendUrl = 'http://72.61.172.182:8085';
+
+  static bool get _isVpsWeb {
+    if (!kIsWeb) return false;
+    final h = Uri.base.host.toLowerCase();
+    final p = Uri.base.port;
+    return h == '72.61.172.182' && p == 8085;
+  }
+
   static String get apiBaseUrl {
     if (_overrideApiBaseUrl.isNotEmpty) {
       return _overrideApiBaseUrl;
+    }
+
+    if (_isVpsWeb) {
+      return _vpsBackendUrl;
     }
 
     if (_isLocalhostWeb) {

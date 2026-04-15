@@ -418,6 +418,19 @@ const getCMSContent = async (req, res) => {
     }
 };
 
+const deleteCMSContent = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deleted = await CMS.findByIdAndDelete(id);
+        if (!deleted) {
+            return res.status(404).json({ message: 'CMS content not found' });
+        }
+        res.status(200).json({ success: true, message: 'Deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 // --- DELAY MONITORING ---
 
 const logDelay = async (req, res) => {
@@ -478,6 +491,7 @@ module.exports = {
     getTransactionReports,
     updateCMSContent,
     getCMSContent,
+    deleteCMSContent,
     logDelay,
     getAllBookings,
     updateBookingStatus,

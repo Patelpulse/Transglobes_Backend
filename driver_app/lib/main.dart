@@ -16,11 +16,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: "assets/.env");
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } on UnsupportedError catch (e) {
+    debugPrint('[FIREBASE] Skipping init on this platform: $e');
+  }
 
-  
   runApp(const ProviderScope(child: DriverApp()));
 }
 
@@ -49,14 +54,17 @@ class DriverApp extends ConsumerWidget {
           if (user != null) {
             // Check if backend data is complete
             return ref.watch(isOnboardingCompleteProvider).when(
-                  data: (isComplete) => isComplete ? MainShell() : const OnboardingScreen(),
+                  data: (isComplete) =>
+                      isComplete ? MainShell() : const OnboardingScreen(),
                   loading: () => const Scaffold(
                     body: Center(
-                      child: CircularProgressIndicator(color: AppTheme.neonGreen),
+                      child:
+                          CircularProgressIndicator(color: AppTheme.neonGreen),
                     ),
                   ),
                   error: (err, stack) {
-                    print('[MAIN-DEBUG] Onboarding check failed, proceeding to registration: $err');
+                    print(
+                        '[MAIN-DEBUG] Onboarding check failed, proceeding to registration: $err');
                     return const OnboardingScreen();
                   },
                 );
@@ -116,9 +124,9 @@ class _DriverLoginScreenState extends ConsumerState<DriverLoginScreen> {
               Text(
                 'RideShare Driver',
                 style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(

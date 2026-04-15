@@ -5,8 +5,17 @@ class AppTheme {
   // Brand Colors
   static const Color primaryColor = Color(0xFF135BEC);
   static const Color accentColor = Color(0xFF3B82F6);
-  static const Color backgroundColorDark = Color(0xFF1682B1);
-  static const Color backgroundColorLight = Color(0xFFF6F6F8);
+  static const Color backgroundColorDark = Color(0xFF0F172A);
+  static const Color backgroundColorLight = Color(0xFFF6F7FB);
+
+  // Screenshot-aligned admin palette
+  static const Color pageBackground = Color(0xFFF6F6F4);
+  static const Color cardBackground = Colors.white;
+  static const Color sidebarBackground = Color(0xFFFBFBFA);
+  static const Color topBarBackground = Color(0xFFFAFAF8);
+  static const Color lineSoft = Color(0xFFE6E8EC);
+  static const Color textPrimaryDark = Color(0xFF121826);
+  static const Color textSecondaryDark = Color(0xFF5B6475);
 
   static const Color surfaceColorDark = Color(0xFF1E293B);
   static const Color borderDark = Color(0xFF2D364A);
@@ -54,32 +63,32 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+      scaffoldBackgroundColor: pageBackground,
       primaryColor: primaryColor,
       colorScheme: const ColorScheme.light(
         primary: primaryColor,
         secondary: accentColor,
-        surface: Colors.white,
+        surface: cardBackground,
         onPrimary: Colors.white,
-        onSurface: Color(0xFF1E293B),
+        onSurface: textPrimaryDark,
         error: danger,
       ),
       textTheme: GoogleFonts.manropeTextTheme(ThemeData.light().textTheme),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.white,
+        backgroundColor: topBarBackground,
         elevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: Color(0xFF1E293B)),
+        iconTheme: IconThemeData(color: textPrimaryDark),
         titleTextStyle: TextStyle(
-          color: Color(0xFF1E293B),
+          color: textPrimaryDark,
           fontSize: 18,
           fontWeight: FontWeight.bold,
           fontFamily: 'Manrope',
         ),
       ),
-      dividerTheme: const DividerThemeData(color: Color(0xFFE2E8F0), thickness: 1),
+      dividerTheme: const DividerThemeData(color: lineSoft, thickness: 1),
       drawerTheme: const DrawerThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: sidebarBackground,
       ),
     );
   }

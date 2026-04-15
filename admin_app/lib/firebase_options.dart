@@ -47,30 +47,30 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I',
-    appId: '1:1072284227316:web:f7c08816b810cc00cd30a1',
-    messagingSenderId: '1072284227316',
-    projectId: 'mera-ubar',
-    authDomain: 'mera-ubar.firebaseapp.com',
-    storageBucket: 'mera-ubar.firebasestorage.app',
-    measurementId: 'G-1BETFQFRZV',
+    apiKey: 'AIzaSyC_dUhQHFh6CxNlqjoZGI7mft5gmQoG7f8',
+    appId: '1:266071218633:web:66cd84dffe28d85d5db018',
+    messagingSenderId: '266071218633',
+    projectId: 'transgloble-2d53d',
+    authDomain: 'transgloble-2d53d.firebaseapp.com',
+    storageBucket: 'transgloble-2d53d.firebasestorage.app',
+    measurementId: 'G-PKV59V7EJY',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I',
-    appId: '1:1072284227316:android:639dc4a607d6546bcd30a1',
-    messagingSenderId: '1072284227316',
-    projectId: 'mera-ubar',
-    storageBucket: 'mera-ubar.firebasestorage.app',
+    apiKey: 'AIzaSyB3suEAfzSRXM1swoe9bdjEEQhcXSeTy9g',
+    appId: '1:266071218633:android:0564afd2f4b4e7995db018',
+    messagingSenderId: '266071218633',
+    projectId: 'transgloble-2d53d',
+    storageBucket: 'transgloble-2d53d.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBO3oAKUCBH2irFoR5Bjfy63YolF-IC9rg',
-    appId: '1:1072284227316:ios:2e9f53e48fc7efeacd30a1',
-    messagingSenderId: '1072284227316',
-    projectId: 'mera-ubar',
-    storageBucket: 'mera-ubar.firebasestorage.app',
-    iosClientId: '1072284227316-m1u1uut158f01dbh0ldcb05hs3gllmn8.apps.googleusercontent.com',
+    apiKey: 'AIzaSyD1nRpCvQowpmKdTbfEPo0bMwSjSuvah1U',
+    appId: '1:266071218633:ios:d7c0fa6c7117b9e45db018',
+    messagingSenderId: '266071218633',
+    projectId: 'transgloble-2d53d',
+    storageBucket: 'transgloble-2d53d.firebasestorage.app',
     iosBundleId: 'com.example.transglobeAdmin',
   );
+
 }

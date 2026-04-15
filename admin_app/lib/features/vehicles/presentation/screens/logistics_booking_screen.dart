@@ -156,7 +156,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
               children: [
                 Text('Ordered on: $dateStr', 
                   style: const TextStyle(color: Colors.white60, fontSize: 11)),
-                if (booking.status != LogisticsBookingStatus.processing)
+                if (booking.status.canSearchDriver)
                   ElevatedButton.icon(
                     onPressed: () => _showActiveDriversModal(context, ref, booking.id),
                     icon: const Icon(Icons.person_search_outlined, size: 16),
@@ -462,9 +462,9 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       children: [
                         const Text('Shipment Details', 
                           style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                        if (booking.status == LogisticsBookingStatus.processing)
+                        if (booking.status.locksSupervisorEditing)
                           Tooltip(
-                            message: 'Editing is disabled while the order is being processed by the driver.',
+                            message: 'Editing is disabled while the order is in execution or completed.',
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
@@ -515,7 +515,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          if (booking.status != LogisticsBookingStatus.processing)
+                          if (!booking.status.locksSupervisorEditing)
                             TextButton.icon(
                               onPressed: () => _showBillingEditModal(context, ref, booking),
                               icon: const Icon(Icons.edit_note, size: 18, color: Colors.white),
@@ -568,9 +568,9 @@ class LogisticsBookingScreen extends ConsumerWidget {
                     _buildRoadmapBuilder(context, ref, booking, setModalState),
                     const SizedBox(height: 32),
                     Opacity(
-                      opacity: booking.status == LogisticsBookingStatus.processing ? 0.4 : 1.0,
+                      opacity: booking.status.locksSupervisorEditing ? 0.4 : 1.0,
                       child: AbsorbPointer(
-                        absorbing: booking.status == LogisticsBookingStatus.processing,
+                        absorbing: booking.status.locksSupervisorEditing,
                         child: _buildTransportFields(
                           booking, 
                           transportNameController, 
@@ -583,7 +583,7 @@ class LogisticsBookingScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    if (booking.status != LogisticsBookingStatus.processing)
+                    if (!booking.status.locksSupervisorEditing)
                       Column(
                         children: [
                           SizedBox(
@@ -971,25 +971,28 @@ class LogisticsBookingScreen extends ConsumerWidget {
   
     Color _getStatusColor(LogisticsBookingStatus status) {
       switch (status) {
-        case LogisticsBookingStatus.pending: return const Color(0xFFFBBF24);
-        case LogisticsBookingStatus.processing: return const Color(0xFF60A5FA);
-        case LogisticsBookingStatus.inTransit: return const Color(0xFF818CF8);
-        case LogisticsBookingStatus.completed: return const Color(0xFF34D399);
-        case LogisticsBookingStatus.cancelled: return const Color(0xFF94A3B8);
-        case LogisticsBookingStatus.delayed: return const Color(0xFFF43F5E);
+        case LogisticsBookingStatus.pending:
+          return const Color(0xFFFBBF24);
+        case LogisticsBookingStatus.pendingForDriver:
+          return const Color(0xFFFB923C);
+        case LogisticsBookingStatus.confirmed:
+          return const Color(0xFF38BDF8);
+        case LogisticsBookingStatus.processing:
+          return const Color(0xFF60A5FA);
+        case LogisticsBookingStatus.inTransit:
+          return const Color(0xFF818CF8);
+        case LogisticsBookingStatus.delivered:
+          return const Color(0xFF34D399);
+        case LogisticsBookingStatus.cancelled:
+          return const Color(0xFF94A3B8);
+        case LogisticsBookingStatus.delayed:
+          return const Color(0xFFF43F5E);
       }
     }
   
     String _getStatusLabel(LogisticsBookingStatus? status) {
       if (status == null) return "All Bookings";
-      switch (status) {
-        case LogisticsBookingStatus.pending: return "Pending";
-        case LogisticsBookingStatus.processing: return "Processing";
-        case LogisticsBookingStatus.inTransit: return "In-Transit";
-        case LogisticsBookingStatus.completed: return "Completed";
-        case LogisticsBookingStatus.cancelled: return "Cancelled";
-        case LogisticsBookingStatus.delayed: return "Delayed";
-      }
+      return status.label;
     }
   
     void _showActiveDriversModal(BuildContext context, WidgetRef ref, String bookingId, {String? segmentId, VoidCallback? onAssigned}) {

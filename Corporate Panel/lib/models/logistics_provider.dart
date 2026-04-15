@@ -27,9 +27,14 @@ class LogisticsProvider with ChangeNotifier {
   static String get baseUrl {
     const String prodUrl = 'https://api.transgloble.com';
     const String localUrl = 'http://localhost:8082';
+    const String vpsUrl = 'http://72.61.172.182:8085';
 
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
+      final port = Uri.base.port;
+      if (host == '72.61.172.182' && port == 8085) {
+        return vpsUrl;
+      }
       if (host == 'localhost' ||
           host == '127.0.0.1' ||
           host == '0.0.0.0' ||

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 
+import 'deploy_hosts.dart';
+
 final socketServiceProvider = Provider<SocketService>((ref) {
   return SocketService();
 });
@@ -10,6 +12,10 @@ final socketServiceProvider = Provider<SocketService>((ref) {
 String _resolveSocketBaseUrl() {
   const String prodUrl = 'https://api.transgloble.com';
   const String localUrl = 'http://localhost:8082';
+
+  if (isVpsDeployedWeb) {
+    return kVpsApiOrigin;
+  }
 
   if (kIsWeb) {
     final host = Uri.base.host.toLowerCase();

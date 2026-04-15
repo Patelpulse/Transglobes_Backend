@@ -1,10 +1,55 @@
+/// Mirrors backend `LogisticsBooking.status` (see `backend/models/LogisticsBooking.js`).
 enum LogisticsBookingStatus {
-  pending,
-  processing,
-  inTransit,
-  completed,
-  cancelled,
-  delayed
+  pending('pending', 'Pending'),
+  pendingForDriver('pending_for_driver', 'Awaiting driver'),
+  confirmed('confirmed', 'Confirmed'),
+  processing('processing', 'Processing'),
+  inTransit('in_transit', 'In transit'),
+  delivered('delivered', 'Delivered'),
+  cancelled('cancelled', 'Cancelled'),
+  delayed('delayed', 'Delayed');
+
+  const LogisticsBookingStatus(this.apiValue, this.label);
+
+  final String apiValue;
+  final String label;
+
+  static LogisticsBookingStatus fromApi(dynamic raw) {
+    if (raw == null) return LogisticsBookingStatus.pending;
+    final s = raw.toString().toLowerCase().trim().replaceAll('-', '_');
+    for (final v in LogisticsBookingStatus.values) {
+      if (v.apiValue == s) return v;
+    }
+    if (s == 'intransit') return LogisticsBookingStatus.inTransit;
+    if (s == 'completed') return LogisticsBookingStatus.delivered;
+    if (s == 'ongoing') return LogisticsBookingStatus.inTransit;
+    return LogisticsBookingStatus.pending;
+  }
+
+  /// Billing, roadmap builder, and dispatch locked once execution has started or finished.
+  bool get locksSupervisorEditing =>
+      this == LogisticsBookingStatus.processing ||
+      this == LogisticsBookingStatus.inTransit ||
+      this == LogisticsBookingStatus.delivered ||
+      this == LogisticsBookingStatus.cancelled;
+
+  bool get canSearchDriver =>
+      this == LogisticsBookingStatus.pending ||
+      this == LogisticsBookingStatus.pendingForDriver ||
+      this == LogisticsBookingStatus.confirmed;
+
+  /// Supervisor "ACTIVE" tab: orders past initial intake but not yet delivered/cancelled.
+  bool get isActivePipeline =>
+      this == LogisticsBookingStatus.pendingForDriver ||
+      this == LogisticsBookingStatus.confirmed ||
+      this == LogisticsBookingStatus.processing ||
+      this == LogisticsBookingStatus.inTransit;
+
+  /// Sidebar "Active / Processing" bucket (pre–in-transit work).
+  bool get isSidebarPreTransitActive =>
+      this == LogisticsBookingStatus.pendingForDriver ||
+      this == LogisticsBookingStatus.confirmed ||
+      this == LogisticsBookingStatus.processing;
 }
 
 class LogisticsSegment {
@@ -131,7 +176,10 @@ class LogisticsBooking {
       if (location == null) return null;
       if (location is String) return location;
       if (location is Map) {
-        return location['name'] ?? location['address'] ?? location['fullAddress'] ?? location['label'];
+        return location['name'] ??
+            location['address'] ??
+            location['fullAddress'] ??
+            location['label'];
       }
       return null;
     }
@@ -139,14 +187,25 @@ class LogisticsBooking {
     return LogisticsBooking(
       id: json['_id'] ?? '',
       userId: json['userId'] ?? '',
-      userName: json['userName'] ?? json['userId'] ?? 'Unknown User', 
+      userName: json['userName'] ?? json['userId'] ?? 'Unknown User',
       userPhone: json['userPhone'] ?? json['mobileNumber'] ?? '',
-      pickupName: getAddressName(json['pickup']) ?? getAddressName(json['pickupAddress']) ?? json['pickupLocation'] ?? '',
-      dropName: getAddressName(json['dropoff']) ?? getAddressName(json['receivedAddress']) ?? json['dropName'] ?? json['dropoffLocation'] ?? '',
+      pickupName: getAddressName(json['pickup']) ??
+          getAddressName(json['pickupAddress']) ??
+          json['pickupLocation'] ??
+          '',
+      dropName: getAddressName(json['dropoff']) ??
+          getAddressName(json['receivedAddress']) ??
+          json['dropName'] ??
+          json['dropoffLocation'] ??
+          '',
       modeOfTravel: json['modeOfTravel'] ?? json['vehicleType'] ?? 'Unknown',
-      price: (json['totalPrice'] as num?)?.toDouble() ?? (json['price'] as num?)?.toDouble() ?? (json['fare'] as num?)?.toDouble() ?? 0.0,
-      status: _parseStatus(json['status']),
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      price: (json['totalPrice'] as num?)?.toDouble() ??
+          (json['price'] as num?)?.toDouble() ??
+          (json['fare'] as num?)?.toDouble() ??
+          0.0,
+      status: LogisticsBookingStatus.fromApi(json['status']),
+      createdAt: DateTime.parse(
+          json['createdAt'] ?? DateTime.now().toIso8601String()),
       distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 0.0,
       vehiclePrice: (json['vehiclePrice'] as num?)?.toDouble() ?? 0.0,
       helperCost: (json['helperCost'] as num?)?.toDouble() ?? 0.0,
@@ -154,30 +213,19 @@ class LogisticsBooking {
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
       helperCount: json['helperCount'] ?? 0,
       items: json['items'] ?? [],
-      pickupAddressDetails: json['pickupAddress'] is Map ? json['pickupAddress'] : null,
-      receivedAddressDetails: json['receivedAddress'] is Map ? json['receivedAddress'] : null,
+      pickupAddressDetails:
+          json['pickupAddress'] is Map ? json['pickupAddress'] : null,
+      receivedAddressDetails:
+          json['receivedAddress'] is Map ? json['receivedAddress'] : null,
       railwayStation: json['railwayStation'],
       transportName: json['transportName'],
       transportNumber: json['transportNumber'],
       estimatedTime: json['estimatedTime']?.toString(),
       estimatedDate: json['estimatedDate']?.toString(),
-      segments: (json['segments'] as List?)?.map((s) => LogisticsSegment.fromJson(s)).toList() ?? [],
+      segments: (json['segments'] as List?)
+              ?.map((s) => LogisticsSegment.fromJson(s))
+              .toList() ??
+          [],
     );
-  }
-
-  static LogisticsBookingStatus _parseStatus(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'pending': return LogisticsBookingStatus.pending;
-      case 'confirmed': return LogisticsBookingStatus.processing;
-      case 'processing': return LogisticsBookingStatus.processing;
-      case 'in-transit': return LogisticsBookingStatus.inTransit;
-      case 'in_transit': return LogisticsBookingStatus.inTransit;
-      case 'ongoing': return LogisticsBookingStatus.inTransit;
-      case 'completed': return LogisticsBookingStatus.completed;
-      case 'delivered': return LogisticsBookingStatus.completed;
-      case 'cancelled': return LogisticsBookingStatus.cancelled;
-      case 'delayed': return LogisticsBookingStatus.delayed;
-      default: return LogisticsBookingStatus.pending;
-    }
   }
 }

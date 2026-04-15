@@ -481,12 +481,16 @@ exports.getPendingRides = async (req, res) => {
             .populate('userId', 'name')
             .select('mobileNumber locations distance fare paymentMode status userId rideMode vehicleType typeOfGood createdAt');
 
-        const response = rides.map((ride) => ({
+        const logisticsPending = await LogisticsBooking.find({
+            status: { $in: ['pending', 'pending_for_driver'] }
+        }).select('userName userPhone pickup dropoff distanceKm totalPrice vehicleType status userId createdAt');
+
+        const rideResponse = rides.map((ride) => ({
             id: ride._id,
             userName: ride.userId?.name || 'Unknown',
             phone: ride.mobileNumber,
-            pick: ride.locations[0]?.address || '',
-            drop: ride.locations[1]?.address || '',
+            pick: ride.locations?.[0]?.address || '',
+            drop: ride.locations?.[1]?.address || '',
             distance: ride.distance,
             fare: ride.fare,
             paymentMode: ride.paymentMode,
@@ -497,6 +501,27 @@ exports.getPendingRides = async (req, res) => {
             userId: ride.userId?._id || ride.userId,
             createdAt: ride.createdAt
         }));
+
+        const logisticsResponse = logisticsPending.map((booking) => ({
+            id: booking._id,
+            userName: booking.userName || 'Unknown',
+            phone: booking.userPhone || '',
+            pick: booking.pickup?.address || booking.pickup?.name || '',
+            drop: booking.dropoff?.address || booking.dropoff?.name || '',
+            distance: booking.distanceKm || 0,
+            fare: booking.totalPrice || 0,
+            paymentMode: 'N/A',
+            rideMode: booking.vehicleType || 'Logistics',
+            vehicleType: booking.vehicleType || 'Logistics',
+            typeOfGood: 'Logistics',
+            status: booking.status,
+            userId: booking.userId,
+            createdAt: booking.createdAt
+        }));
+
+        const response = [...rideResponse, ...logisticsResponse].sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
 
         res.json({ success: true, data: response });
     } catch (err) {

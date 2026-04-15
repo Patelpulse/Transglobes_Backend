@@ -2,12 +2,13 @@ importScripts('https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/9.1.1/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "AIzaSyBcc-cYJ-xfLYwo8Jyc6eZmgk918j0WL28",
+  apiKey: "AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I",
   authDomain: "mera-ubar.firebaseapp.com",
   projectId: "mera-ubar",
   storageBucket: "mera-ubar.firebasestorage.app",
   messagingSenderId: "1072284227316",
-  appId: "1:1072284227316:android:967e253fa09ff7e4cd30a1"
+  appId: "1:1072284227316:web:f7c08816b810cc00cd30a1",
+  measurementId: "G-1BETFQFRZV"
 });
 
 const messaging = firebase.messaging();

@@ -39,22 +39,42 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   bool _isValid() {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    if (email.isEmpty || password.isEmpty) return false;
+    if (!_isValidEmail(email) || password.length < 6) return false;
 
     if (!_isLogin) {
       final name = _nameController.text.trim();
       final aadhar = _aadharController.text.trim();
       final pan = _panController.text.trim();
-      if (name.isEmpty || aadhar.isEmpty || pan.isEmpty) return false;
+      if (name.isEmpty || !_isValidAadhar(aadhar) || !_isValidPan(pan)) {
+        return false;
+      }
     }
+    return true;
+  }
 
-    final isEmail = email.contains('@') && email.contains('.');
-    return isEmail && password.length >= 6;
+  bool _isValidEmail(String email) {
+    return email.contains('@') && email.contains('.');
+  }
+
+  bool _isValidAadhar(String value) {
+    return RegExp(r'^\d{12}$').hasMatch(value.trim());
+  }
+
+  bool _isValidPan(String value) {
+    return RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$')
+        .hasMatch(value.trim().toUpperCase());
   }
 
   // Handles both login and registration using Firebase Auth
   Future<void> _submit() async {
-    if (!_isValid()) return;
+    if (!_isValid()) {
+      setState(() {
+        _errorMessage = _isLogin
+            ? 'Please enter a valid email and password (at least 6 characters).'
+            : 'Please enter a valid name, email, 12-digit Aadhaar, 10-character PAN, and password.';
+      });
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -125,8 +145,22 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
             Navigator.pushReplacementNamed(context, AppRouter.onboarding);
           }
         } else {
+          final message = (response['message'] ?? '').toString();
+          final normalizedMessage = message.toLowerCase();
+          if (normalizedMessage.contains('already registered') ||
+              normalizedMessage.contains('already exists')) {
+            setState(() {
+              _isLogin = true;
+              _showEmailForm = true;
+              _errorMessage =
+                  'Email registered previously. Please enter your password to login.';
+              _isLoading = false;
+            });
+            return;
+          }
           setState(() {
-            _errorMessage = response['message'];
+            _errorMessage =
+                message.isNotEmpty ? message : 'Registration failed';
             _isLoading = false;
           });
         }

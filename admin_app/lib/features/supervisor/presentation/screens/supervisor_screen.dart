@@ -4,10 +4,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/network/deploy_hosts.dart';
 import '../../../../core/network/dio_provider.dart';
 import '../../../vehicles/domain/models/logistics_booking.dart';
 import '../../../vehicles/presentation/providers/logistics_booking_provider.dart';
 import '../../../drivers/presentation/providers/driver_provider.dart';
+
+Color _supervisorStatusColor(LogisticsBookingStatus status) {
+  switch (status) {
+    case LogisticsBookingStatus.pending:
+      return Colors.orange;
+    case LogisticsBookingStatus.pendingForDriver:
+      return Colors.deepOrangeAccent;
+    case LogisticsBookingStatus.confirmed:
+      return Colors.lightBlueAccent;
+    case LogisticsBookingStatus.processing:
+      return Colors.blue;
+    case LogisticsBookingStatus.inTransit:
+      return Colors.purple;
+    case LogisticsBookingStatus.delivered:
+      return Colors.green;
+    case LogisticsBookingStatus.cancelled:
+      return Colors.redAccent;
+    case LogisticsBookingStatus.delayed:
+      return Colors.pinkAccent;
+  }
+}
 
 // ─── Supervisor Dashboard Screen ─────────────────────────────────────────────
 class SupervisorScreen extends ConsumerStatefulWidget {
@@ -36,25 +58,31 @@ class _SupervisorScreenState extends ConsumerState<SupervisorScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColorDark,
+      backgroundColor: AppTheme.pageBackground,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.topBarBackground,
         elevation: 0,
-        title: const Text('Supervisor Panel',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Supervisor Panel',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 34,
+            color: AppTheme.textPrimaryDark,
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: () {
               ref.invalidate(logisticsBookingsProvider);
             },
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh, color: AppTheme.textPrimaryDark),
           ),
         ],
         bottom: TabBar(
           controller: _tabs,
           indicatorColor: AppTheme.primaryColor,
           labelColor: AppTheme.primaryColor,
-          unselectedLabelColor: Colors.white54,
+          unselectedLabelColor: AppTheme.textSecondaryDark,
           tabs: const [
             Tab(text: 'PENDING', icon: Icon(Icons.pending_actions, size: 16)),
             Tab(text: 'ACTIVE', icon: Icon(Icons.local_shipping, size: 16)),
@@ -66,7 +94,7 @@ class _SupervisorScreenState extends ConsumerState<SupervisorScreen>
         controller: _tabs,
         children: [
           _BookingsList(status: LogisticsBookingStatus.pending),
-          _BookingsList(status: LogisticsBookingStatus.processing),
+          const _ActivePipelineBookingsList(),
           const _SupervisorStats(),
         ],
       ),
@@ -90,10 +118,10 @@ class _BookingsList extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.inbox_outlined,
-                      color: Colors.white30, size: 64),
+                      color: AppTheme.textMutedLight, size: 64),
                   const SizedBox(height: 16),
-                  Text('No ${status.name} bookings',
-                      style: const TextStyle(color: Colors.white54)),
+                  Text('No ${status.label} bookings',
+                      style: const TextStyle(color: AppTheme.textSecondaryDark)),
                 ],
               ),
             )
@@ -108,10 +136,54 @@ class _BookingsList extends ConsumerWidget {
               ),
             ),
       loading: () =>
-          const Center(child: CircularProgressIndicator(color: Colors.white)),
+          const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
       error: (e, _) => Center(
         child: Text('Error: $e',
-            style: const TextStyle(color: Colors.white54)),
+            style: const TextStyle(color: AppTheme.textSecondaryDark)),
+      ),
+    );
+  }
+}
+
+// ─── Active pipeline (awaiting driver → in transit) ───────────────────────────
+class _ActivePipelineBookingsList extends ConsumerWidget {
+  const _ActivePipelineBookingsList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(logisticsBookingsActivePipelineProvider);
+
+    return async.when(
+      data: (bookings) => bookings.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox_outlined,
+                      color: AppTheme.textMutedLight, size: 64),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No active pipeline bookings',
+                    style: TextStyle(color: AppTheme.textSecondaryDark),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: () async =>
+                  ref.invalidate(logisticsBookingsProvider),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: bookings.length,
+                itemBuilder: (context, i) =>
+                    _SupervisorBookingCard(booking: bookings[i]),
+              ),
+            ),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
+      error: (e, _) => Center(
+        child: Text('Error: $e',
+            style: const TextStyle(color: AppTheme.textSecondaryDark)),
       ),
     );
   }
@@ -126,11 +198,7 @@ class _SupervisorBookingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateStr =
         DateFormat('dd MMM, hh:mm a').format(booking.createdAt);
-    final statusColor = booking.status == LogisticsBookingStatus.pending
-        ? Colors.orange
-        : booking.status == LogisticsBookingStatus.processing
-            ? Colors.blue
-            : Colors.green;
+    final statusColor = _supervisorStatusColor(booking.status);
 
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
@@ -142,9 +210,9 @@ class _SupervisorBookingCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceColorDark,
+          color: AppTheme.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.borderDark),
+          border: Border.all(color: AppTheme.lineSoft),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,7 +223,7 @@ class _SupervisorBookingCard extends StatelessWidget {
                   child: Text(
                     booking.userName.toUpperCase(),
                     style: const TextStyle(
-                        color: AppTheme.primaryColor,
+                        color: AppTheme.textPrimaryDark,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -167,7 +235,7 @@ class _SupervisorBookingCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    booking.status.name.toUpperCase(),
+                    booking.status.label.toUpperCase(),
                     style: TextStyle(
                         color: statusColor,
                         fontSize: 10,
@@ -245,7 +313,7 @@ class _SupervisorBookingCard extends StatelessWidget {
                 fontWeight: FontWeight.bold)),
         Expanded(
           child: Text(value,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: const TextStyle(color: AppTheme.textSecondaryDark, fontSize: 12),
               overflow: TextOverflow.ellipsis),
         ),
       ],
@@ -289,18 +357,27 @@ class _SupervisorStats extends ConsumerWidget {
       data: (all) {
         final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
         final data = {
-          'pending': all.where((b) => b.status == LogisticsBookingStatus.pending).length,
-          'confirmed': all.where((b) => b.status == LogisticsBookingStatus.processing).length,
-          'inTransit': all.where((b) => b.status == LogisticsBookingStatus.inTransit).length,
-          'delivered': all.where((b) => b.status == LogisticsBookingStatus.completed).length,
-          'cancelled': all.where((b) => b.status == LogisticsBookingStatus.cancelled).length,
-          'totalActive': all.where((b) => [
-            LogisticsBookingStatus.pending,
-            LogisticsBookingStatus.processing,
-            LogisticsBookingStatus.inTransit,
-          ].contains(b.status)).length,
+          'pending': all
+              .where((b) => b.status == LogisticsBookingStatus.pending)
+              .length,
+          'awaitingDriver': all
+              .where((b) => b.status == LogisticsBookingStatus.pendingForDriver)
+              .length,
+          'inTransit': all
+              .where((b) => b.status == LogisticsBookingStatus.inTransit)
+              .length,
+          'delivered': all
+              .where((b) => b.status == LogisticsBookingStatus.delivered)
+              .length,
+          'cancelled': all
+              .where((b) => b.status == LogisticsBookingStatus.cancelled)
+              .length,
+          'totalActive':
+              all.where((b) => b.status.isActivePipeline).length,
           'last30DaysRevenue': all
-              .where((b) => b.status == LogisticsBookingStatus.completed && b.createdAt.isAfter(thirtyDaysAgo))
+              .where((b) =>
+                  b.status == LogisticsBookingStatus.delivered &&
+                  b.createdAt.isAfter(thirtyDaysAgo))
               .fold<double>(0, (sum, b) => sum + b.price),
         };
         return SingleChildScrollView(
@@ -310,7 +387,7 @@ class _SupervisorStats extends ConsumerWidget {
             children: [
               const Text('Overview',
                   style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimaryDark,
                       fontSize: 20,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
@@ -325,9 +402,9 @@ class _SupervisorStats extends ConsumerWidget {
                   _statCard('Pending',
                       data['pending'].toString(), Colors.orange,
                       Icons.pending_actions),
-                  _statCard('Confirmed',
-                      data['confirmed'].toString(), Colors.blue,
-                      Icons.check_circle_outline),
+                  _statCard('Awaiting driver',
+                      data['awaitingDriver'].toString(), Colors.deepOrange,
+                      Icons.person_search),
                   _statCard('In Transit',
                       data['inTransit'].toString(), Colors.purple,
                       Icons.local_shipping),
@@ -337,7 +414,7 @@ class _SupervisorStats extends ConsumerWidget {
                   _statCard('Cancelled',
                       data['cancelled'].toString(), Colors.red,
                       Icons.cancel_outlined),
-                  _statCard('Active Orders',
+                  _statCard('Active pipeline',
                       data['totalActive'].toString(),
                       AppTheme.primaryColor, Icons.timelapse),
                 ],
@@ -346,9 +423,9 @@ class _SupervisorStats extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceColorDark,
+                  color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.borderDark),
+                  border: Border.all(color: AppTheme.lineSoft),
                 ),
                 child: Row(
                   children: [
@@ -360,11 +437,11 @@ class _SupervisorStats extends ConsumerWidget {
                       children: [
                         const Text('30-Day Revenue',
                             style: TextStyle(
-                                color: Colors.white54, fontSize: 12)),
+                                color: AppTheme.textSecondaryDark, fontSize: 12)),
                         Text(
                           '₹${NumberFormat('#,##,###').format(data['last30DaysRevenue'] ?? 0)}',
                           style: const TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimaryDark,
                               fontSize: 24,
                               fontWeight: FontWeight.bold),
                         ),
@@ -385,9 +462,9 @@ class _SupervisorStats extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColorDark,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,7 +479,7 @@ class _SupervisorStats extends ConsumerWidget {
                   fontWeight: FontWeight.w900)),
           Text(label,
               style: const TextStyle(
-                  color: Colors.white54, fontSize: 11)),
+                  color: AppTheme.textSecondaryDark, fontSize: 11)),
         ],
       ),
     );
@@ -424,6 +501,10 @@ class _SupervisorBookingDetailState
   static String get _fallbackApiBase {
     const String prodUrl = 'https://api.transgloble.com/api';
     const String localUrl = 'http://localhost:8082/api';
+
+    if (isVpsDeployedWeb) {
+      return '$kVpsApiOrigin/api';
+    }
 
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
@@ -853,7 +934,7 @@ class _SupervisorBookingDetailState
         data: {'status': 'confirmed', 'adminOverride': true},
       );
 
-      _updateLocalBooking(status: LogisticsBookingStatus.processing);
+      _updateLocalBooking(status: LogisticsBookingStatus.confirmed);
       ref.invalidate(logisticsBookingsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -962,13 +1043,17 @@ class _SupervisorBookingDetailState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColorDark,
+      backgroundColor: AppTheme.pageBackground,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.topBarBackground,
         elevation: 0,
         title: Text(
           'Manage: ${_booking.userName}',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: AppTheme.textPrimaryDark,
+          ),
         ),
         actions: [
           if (_booking.status == LogisticsBookingStatus.pending)
@@ -983,7 +1068,9 @@ class _SupervisorBookingDetailState
         ],
       ),
       body: _saving
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primaryColor),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -1001,7 +1088,7 @@ class _SupervisorBookingDetailState
                         _infoRow('Drop', _booking.dropName),
                         _infoRow('Mode', _booking.modeOfTravel),
                         _infoRow('Total Price', '₹${_booking.price.toStringAsFixed(0)}'),
-                        _infoRow('Status', _booking.status.name.toUpperCase()),
+                        _infoRow('Status', _booking.status.label.toUpperCase()),
                         if (_booking.items.isNotEmpty)
                           _infoRow('Items', '${_booking.items.length} item(s)'),
                       ],
@@ -1016,43 +1103,55 @@ class _SupervisorBookingDetailState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Transport Mode',
-                            style: TextStyle(
-                                color: Colors.white70, fontSize: 12)),
+                        const Text(
+                          'Transport Mode',
+                          style: TextStyle(
+                            color: AppTheme.textSecondaryDark,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: _vehicleType,
-                          dropdownColor: AppTheme.surfaceColorDark,
+                          dropdownColor: Colors.white,
                           decoration: _inputDecoration('Transport Mode'),
                           items: _modes
                               .map((m) => DropdownMenuItem(
                                     value: m,
-                                    child: Text(m,
-                                        style: const TextStyle(
-                                            color: Colors.white)),
+                                    child: Text(
+                                      m,
+                                      style: const TextStyle(
+                                        color: AppTheme.textPrimaryDark,
+                                      ),
+                                    ),
                                   ))
                               .toList(),
                           onChanged: (v) =>
                               setState(() => _vehicleType = v!),
                         ),
                         const SizedBox(height: 12),
-                        const Text('Number of Helpers',
-                            style: TextStyle(
-                                color: Colors.white70, fontSize: 12)),
+                        const Text(
+                          'Number of Helpers',
+                          style: TextStyle(
+                            color: AppTheme.textSecondaryDark,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
                             IconButton(
                               onPressed: () {
-                                if (_helperCount > 0)
+                                if (_helperCount > 0) {
                                   setState(() => _helperCount--);
+                                }
                               },
                               icon: const Icon(Icons.remove_circle_outline,
-                                  color: Colors.white70),
+                                  color: AppTheme.textSecondaryDark),
                             ),
                             Text('$_helperCount',
                                 style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppTheme.textPrimaryDark,
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold)),
                             IconButton(
@@ -1069,10 +1168,17 @@ class _SupervisorBookingDetailState
                           child: ElevatedButton(
                             onPressed: _saveGoodsDetails,
                             style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(8))),
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(48),
+                              textStyle: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
                             child: const Text('Save Goods Details'),
                           ),
                         ),
@@ -1091,6 +1197,13 @@ class _SupervisorBookingDetailState
                           color: AppTheme.primaryColor, size: 16),
                       label: const Text('Add Segment',
                           style: TextStyle(color: AppTheme.primaryColor)),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(120, 40),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                     child: Column(
                       children: [
@@ -1100,7 +1213,7 @@ class _SupervisorBookingDetailState
                             child: Text(
                                 'No segments defined. Add segments to create a multi-stop journey.',
                                 style: TextStyle(
-                                    color: Colors.white38,
+                                    color: AppTheme.textSecondaryDark,
                                     fontSize: 12),
                                 textAlign: TextAlign.center),
                           ),
@@ -1119,7 +1232,13 @@ class _SupervisorBookingDetailState
                                   size: 16),
                               label: const Text('Save Roadmap'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.purple,
+                                backgroundColor: const Color(0xFF7C3AED),
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size.fromHeight(48),
+                                textStyle: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
                                 shape: RoundedRectangleBorder(
                                     borderRadius:
                                         BorderRadius.circular(8)),
@@ -1161,7 +1280,7 @@ class _SupervisorBookingDetailState
                           child: Text(
                             'Total: ₹${_calcTotal().toStringAsFixed(0)}',
                             style: const TextStyle(
-                                color: Colors.white,
+                                color: AppTheme.textPrimaryDark,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16),
                           ),
@@ -1174,7 +1293,13 @@ class _SupervisorBookingDetailState
                             icon: const Icon(Icons.done, size: 16),
                             label: const Text('Apply Pricing'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.teal,
+                              backgroundColor: AppTheme.success,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(48),
+                              textStyle: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
@@ -1207,9 +1332,9 @@ class _SupervisorBookingDetailState
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: AppTheme.lineSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1220,7 +1345,7 @@ class _SupervisorBookingDetailState
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.2),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -1249,28 +1374,29 @@ class _SupervisorBookingDetailState
           const SizedBox(height: 10),
           TextField(
             controller: seg['fromCtrl'] as TextEditingController,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: AppTheme.textPrimaryDark),
             decoration:
                 _inputDecoration('From Location ($letter)'),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: seg['toCtrl'] as TextEditingController,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: AppTheme.textPrimaryDark),
             decoration:
                 _inputDecoration('To Location ($nextLetter)'),
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: seg['mode'] as String,
-            dropdownColor: AppTheme.surfaceColorDark,
+            dropdownColor: Colors.white,
             decoration: _inputDecoration('Mode'),
             items: _modes
                 .map((m) => DropdownMenuItem(
                       value: m,
-                      child: Text(m,
-                          style:
-                              const TextStyle(color: Colors.white)),
+                      child: Text(
+                        m,
+                        style: const TextStyle(color: AppTheme.textPrimaryDark),
+                      ),
                     ))
                 .toList(),
             onChanged: (v) =>
@@ -1281,7 +1407,7 @@ class _SupervisorBookingDetailState
             TextField(
               controller:
                   seg['transportNameCtrl'] as TextEditingController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.textPrimaryDark),
               decoration: _inputDecoration(
                   seg['mode'] == 'Train'
                       ? 'Train Name'
@@ -1291,7 +1417,7 @@ class _SupervisorBookingDetailState
             TextField(
               controller: seg['transportNumberCtrl']
                   as TextEditingController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.textPrimaryDark),
               decoration: _inputDecoration(
                   seg['mode'] == 'Train'
                       ? 'Train Number'
@@ -1305,7 +1431,7 @@ class _SupervisorBookingDetailState
                 child: TextField(
                   controller:
                       seg['dateCtrl'] as TextEditingController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.textPrimaryDark),
                   decoration:
                       _inputDecoration('Est. Date (YYYY-MM-DD)'),
                 ),
@@ -1315,7 +1441,7 @@ class _SupervisorBookingDetailState
                 child: TextField(
                   controller:
                       seg['timeCtrl'] as TextEditingController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.textPrimaryDark),
                   decoration:
                       _inputDecoration('Est. Time (HH:MM)'),
                 ),
@@ -1326,7 +1452,7 @@ class _SupervisorBookingDetailState
           TextField(
             controller:
                 seg['priceCtrl'] as TextEditingController,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: AppTheme.textPrimaryDark),
             keyboardType: TextInputType.number,
             decoration: _inputDecoration('Segment Price (₹)'),
           ),
@@ -1344,9 +1470,9 @@ class _SupervisorBookingDetailState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColorDark,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderDark),
+        border: Border.all(color: AppTheme.lineSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1357,7 +1483,7 @@ class _SupervisorBookingDetailState
               const SizedBox(width: 8),
               Text(title,
                   style: const TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimaryDark,
                       fontWeight: FontWeight.bold,
                       fontSize: 15)),
               if (action != null) ...[
@@ -1383,12 +1509,12 @@ class _SupervisorBookingDetailState
             width: 90,
             child: Text('$label:',
                 style: const TextStyle(
-                    color: Colors.white54, fontSize: 12)),
+                    color: AppTheme.textSecondaryDark, fontSize: 12)),
           ),
           Expanded(
             child: Text(value,
                 style: const TextStyle(
-                    color: Colors.white, fontSize: 12)),
+                    color: AppTheme.textPrimaryDark, fontSize: 12)),
           ),
         ],
       ),
@@ -1399,7 +1525,7 @@ class _SupervisorBookingDetailState
       String label, TextEditingController ctrl, IconData icon) {
     return TextField(
       controller: ctrl,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: AppTheme.textPrimaryDark),
       keyboardType: TextInputType.number,
       decoration: _inputDecoration(label, prefixIcon: icon),
       onChanged: (_) => setState(() {}),
@@ -1409,19 +1535,22 @@ class _SupervisorBookingDetailState
   InputDecoration _inputDecoration(String label, {IconData? prefixIcon}) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
+      labelStyle: const TextStyle(
+        color: AppTheme.textSecondaryDark,
+        fontSize: 12,
+      ),
       prefixIcon: prefixIcon != null
-          ? Icon(prefixIcon, color: Colors.white38, size: 18)
+          ? Icon(prefixIcon, color: AppTheme.textSecondaryDark, size: 18)
           : null,
       filled: true,
-      fillColor: Colors.white.withOpacity(0.05),
+      fillColor: const Color(0xFFF8FAFC),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.white24),
+        borderSide: const BorderSide(color: AppTheme.lineSoft),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.white24),
+        borderSide: const BorderSide(color: AppTheme.lineSoft),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),

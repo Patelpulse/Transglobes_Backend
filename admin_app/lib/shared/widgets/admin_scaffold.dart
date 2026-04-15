@@ -57,8 +57,26 @@ class AdminScaffold extends ConsumerWidget {
       case 2:
         context.go('/country-code');
         break;
+      case 3:
+        context.go('/page');
+        break;
+      case 4:
+        context.go('/faq');
+        break;
+      case 5:
+        context.go('/vehicle');
+        break;
+      case 6:
+        context.go('/coupon');
+        break;
       case 7:
         context.go('/drivers');
+        break;
+      case 8:
+        context.go('/payouts');
+        break;
+      case 9:
+        context.go('/payments');
         break;
       case 10:
         context.go('/users');
@@ -112,8 +130,13 @@ class AdminScaffold extends ConsumerWidget {
               if (isDesktop) _buildSidebar(context, ref, currentIndex, unreadCount),
               Expanded(
                 child: Container(
-                  color: const Color(0xFFF8F9FA), // Light gray background for content
-                  child: child,
+                  color: AppTheme.pageBackground,
+                  child: Column(
+                    children: [
+                      if (isDesktop) _buildTopBar(context, unreadCount),
+                      Expanded(child: child),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -201,14 +224,19 @@ class AdminScaffold extends ConsumerWidget {
     final bookingsAsync = ref.watch(logisticsBookingsProvider);
     final bookings = bookingsAsync.value ?? [];
 
-    int getCount(LogisticsBookingStatus status) => 
+    int getCount(LogisticsBookingStatus status) =>
         bookings.where((b) => b.status == status).length;
+
+    int getPreTransitActiveCount() =>
+        bookings.where((b) => b.status.isSidebarPreTransitActive).length;
 
     return Container(
       width: 260,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(right: BorderSide(color: Colors.grey.withOpacity(0.1), width: 1)),
+        color: AppTheme.sidebarBackground,
+        border: const Border(
+          right: BorderSide(color: AppTheme.lineSoft, width: 1),
+        ),
       ),
       child: Column(
         children: [
@@ -348,7 +376,7 @@ class AdminScaffold extends ConsumerWidget {
                     ),
                     _SidebarSubItem(
                       title: 'Active / Processing',
-                      count: getCount(LogisticsBookingStatus.processing),
+                      count: getPreTransitActiveCount(),
                       color: const Color(0xFF60A5FA),
                       onTap: () => context.go('/logistics'),
                     ),
@@ -379,6 +407,68 @@ class AdminScaffold extends ConsumerWidget {
                 ref.read(authStateProvider.notifier).logout();
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBar(BuildContext context, int unreadCount) {
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: const BoxDecoration(
+        color: AppTheme.topBarBackground,
+        border: Border(bottom: BorderSide(color: AppTheme.lineSoft)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 380,
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search ride ID, passenger, or driver',
+                hintStyle: const TextStyle(fontSize: 13),
+                prefixIcon: const Icon(Icons.search, size: 18),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppTheme.lineSoft),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppTheme.lineSoft),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: () {},
+            icon: Badge(
+              label: Text(unreadCount.toString()),
+              isLabelVisible: unreadCount > 0,
+              child: const Icon(Icons.notifications_none_outlined),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () => context.go('/settings'),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.person, size: 20),
           ),
         ],
       ),

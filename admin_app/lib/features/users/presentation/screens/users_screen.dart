@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/network_avatar.dart';
-import '../../../../shared/widgets/community_card.dart';
 import '../providers/user_provider.dart';
 import '../../domain/models/user_model.dart';
 
@@ -149,7 +148,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                       const SizedBox(height: 16),
                       const Text(
                         "Failed to load user data.",
-                        style: TextStyle(color: AppTheme.textPrimaryLight),
+                        style: TextStyle(color: AppTheme.textPrimaryDark),
                       ),
                       TextButton(
                         onPressed: () {
@@ -476,9 +475,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceColorDark.withOpacity(0.5),
+                  color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.borderDark),
+                  border: Border.all(color: AppTheme.lineSoft),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,7 +497,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
-                        color: AppTheme.textPrimaryLight,
+                        color: AppTheme.textPrimaryDark,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -542,9 +541,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColorDark.withOpacity(0.3),
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderDark),
+        border: Border.all(color: AppTheme.lineSoft),
       ),
       child: Column(
         children: [
@@ -558,7 +557,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppTheme.textPrimaryDark,
                   ),
                 ),
                 const Text(
@@ -640,7 +639,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimaryLight,
+                color: AppTheme.textPrimaryDark,
                 ),
               ),
               const SizedBox(height: 2),

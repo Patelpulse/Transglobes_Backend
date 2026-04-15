@@ -23,12 +23,18 @@ class PricingScreen extends ConsumerWidget {
     final configsAsync = ref.watch(pricingConfigsProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColorDark,
+      backgroundColor: AppTheme.pageBackground,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.topBarBackground,
         elevation: 0,
-        title: const Text('Pricing Management',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Pricing Management',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 34,
+            color: AppTheme.textPrimaryDark,
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: () => ref.invalidate(pricingConfigsProvider),
@@ -47,10 +53,10 @@ class PricingScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(Icons.price_change_outlined,
-                        color: Colors.white30, size: 64),
+                        color: AppTheme.textMutedLight, size: 64),
                     const SizedBox(height: 16),
                     const Text('No pricing configs yet',
-                        style: TextStyle(color: Colors.white54)),
+                        style: TextStyle(color: AppTheme.textSecondaryDark)),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
                       onPressed: () => _showCreateDialog(context, ref),
@@ -69,10 +75,10 @@ class PricingScreen extends ConsumerWidget {
                     _PricingConfigCard(config: configs[i]),
               ),
         loading: () =>
-            const Center(child: CircularProgressIndicator(color: Colors.white)),
+            const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
         error: (e, _) => Center(
           child: Text('Error: $e',
-              style: const TextStyle(color: Colors.white54)),
+              style: const TextStyle(color: AppTheme.textSecondaryDark)),
         ),
       ),
     );
@@ -101,12 +107,12 @@ class _PricingConfigCard extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColorDark,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isActive
-              ? AppTheme.primaryColor.withOpacity(0.5)
-              : AppTheme.borderDark,
+              ? AppTheme.primaryColor.withValues(alpha: 0.5)
+              : AppTheme.lineSoft,
           width: isActive ? 1.5 : 1,
         ),
       ),
@@ -115,24 +121,24 @@ class _PricingConfigCard extends ConsumerWidget {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
           backgroundColor: isActive
-              ? AppTheme.primaryColor.withOpacity(0.2)
-              : Colors.white12,
+              ? AppTheme.primaryColor.withValues(alpha: 0.16)
+              : const Color(0xFFEFF2F7),
           child: Icon(Icons.price_change_outlined,
-              color: isActive ? AppTheme.primaryColor : Colors.white38,
+              color: isActive ? AppTheme.primaryColor : AppTheme.textSecondaryDark,
               size: 20),
         ),
         title: Row(
           children: [
             Text(config['name'] ?? 'Config',
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+                    color: AppTheme.textPrimaryDark, fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
             if (isActive)
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.15),
+                  color: Colors.green.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text('ACTIVE',
@@ -145,21 +151,21 @@ class _PricingConfigCard extends ConsumerWidget {
         ),
         subtitle: Text(
           config['city'] ?? 'All Cities',
-          style: const TextStyle(color: Colors.white54, fontSize: 12),
+          style: const TextStyle(color: AppTheme.textSecondaryDark, fontSize: 12),
         ),
-        iconColor: Colors.white54,
-        collapsedIconColor: Colors.white54,
+        iconColor: AppTheme.textSecondaryDark,
+        collapsedIconColor: AppTheme.textSecondaryDark,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Divider(color: Colors.white12),
+                const Divider(color: AppTheme.lineSoft),
                 const SizedBox(height: 8),
                 const Text('Base Pricing',
                     style: TextStyle(
-                        color: Colors.white70,
+                        color: AppTheme.textSecondaryDark,
                         fontWeight: FontWeight.bold,
                         fontSize: 12)),
                 const SizedBox(height: 8),
@@ -183,7 +189,7 @@ class _PricingConfigCard extends ConsumerWidget {
                 const SizedBox(height: 12),
                 const Text('Surcharges',
                     style: TextStyle(
-                        color: Colors.white70,
+                        color: AppTheme.textSecondaryDark,
                         fontWeight: FontWeight.bold,
                         fontSize: 12)),
                 const SizedBox(height: 8),
@@ -202,7 +208,7 @@ class _PricingConfigCard extends ConsumerWidget {
                 const SizedBox(height: 12),
                 const Text('Logistics Pricing',
                     style: TextStyle(
-                        color: Colors.white70,
+                        color: AppTheme.textSecondaryDark,
                         fontWeight: FontWeight.bold,
                         fontSize: 12)),
                 const SizedBox(height: 8),
@@ -228,9 +234,9 @@ class _PricingConfigCard extends ConsumerWidget {
                             size: 14),
                         label: const Text('Edit'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white70,
+                          foregroundColor: AppTheme.textPrimaryDark,
                           side: const BorderSide(
-                              color: Colors.white24),
+                              color: AppTheme.lineSoft),
                         ),
                       ),
                     ),
@@ -263,17 +269,18 @@ class _PricingConfigCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
+        color: const Color(0xFFF3F5F8),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.lineSoft),
       ),
       child: Column(
         children: [
           Text(label,
               style:
-                  const TextStyle(color: Colors.white38, fontSize: 9)),
+                  const TextStyle(color: AppTheme.textSecondaryDark, fontSize: 9)),
           Text(value,
               style: const TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimaryDark,
                   fontWeight: FontWeight.bold,
                   fontSize: 13)),
         ],

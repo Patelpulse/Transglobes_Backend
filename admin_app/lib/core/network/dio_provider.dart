@@ -4,9 +4,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter/foundation.dart';
 
+import 'deploy_hosts.dart';
+
 String _resolveAdminApiBaseUrl() {
   const String prodUrl = 'https://api.transgloble.com/api/';
   const String localUrl = 'http://localhost:8082/api/';
+
+  if (isVpsDeployedWeb) {
+    return '$kVpsApiOrigin/api/';
+  }
 
   if (kIsWeb) {
     final host = Uri.base.host.toLowerCase();

@@ -30,12 +30,12 @@ class CommunityCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B), // Premium dark surface
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.borderDark),
+        border: Border.all(color: AppTheme.lineSoft),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -63,7 +63,7 @@ class CommunityCard extends StatelessWidget {
                     Text(
                       name,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimaryDark,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
@@ -73,7 +73,7 @@ class CommunityCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: const TextStyle(
-                        color: Color(0xFF94A3B8),
+                        color: AppTheme.textSecondaryDark,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),

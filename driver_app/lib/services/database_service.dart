@@ -6,22 +6,27 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import '../models/driver_model.dart';
 import '../core/config.dart';
+
 final databaseServiceProvider = Provider((ref) => DatabaseService());
 
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
 
-  Map<String, String> _getHeaders(String? token, {String? uid, bool isMultipart = false}) {
+  Map<String, String> _getHeaders(String? token,
+      {String? uid, bool isMultipart = false}) {
     final headers = <String, String>{};
     if (!isMultipart) {
       headers['Content-Type'] = 'application/json';
     }
-    
+
     // Auto-detect local for bypass
-    final bool isLocal = AppConfig.apiBaseUrl.toLowerCase().contains('localhost') || AppConfig.apiBaseUrl.toLowerCase().contains('127.0.0.1');
-    final String finalToken = isLocal ? 'dev-token-bypass' : (token ?? 'dev-token-bypass');
-    
+    final bool isLocal =
+        AppConfig.apiBaseUrl.toLowerCase().contains('localhost') ||
+            AppConfig.apiBaseUrl.toLowerCase().contains('127.0.0.1');
+    final String finalToken =
+        isLocal ? 'dev-token-bypass' : (token ?? 'dev-token-bypass');
+
     headers['Authorization'] = 'Bearer $finalToken';
     if (finalToken == 'dev-token-bypass' && uid != null) {
       headers['x-dev-uid'] = uid;
@@ -58,7 +63,7 @@ class DatabaseService {
   Future<void> saveDriverProfile(DriverModel driver, [String? token]) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
-      
+
       final response = await http.post(
         url,
         headers: _getHeaders(token, uid: driver.firebaseId),
@@ -93,7 +98,8 @@ class DatabaseService {
     required Map<String, dynamic> updateData,
   }) async {
     try {
-      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile/update');
+      final url =
+          Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile/update');
       final response = await http.put(
         url,
         headers: {
@@ -127,13 +133,13 @@ class DatabaseService {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/upload');
       var request = http.MultipartRequest('POST', url);
-      
+
       request.headers.addAll(_getHeaders(token, uid: uid, isMultipart: true));
 
       if (photoFile != null) {
         final bytes = await photoFile.readAsBytes();
         request.files.add(http.MultipartFile.fromBytes(
-          'photo', 
+          'photo',
           bytes,
           filename: photoFile.name,
         ));
@@ -141,7 +147,7 @@ class DatabaseService {
       if (aadharFile != null) {
         final bytes = await aadharFile.readAsBytes();
         request.files.add(http.MultipartFile.fromBytes(
-          'aadharCard', 
+          'aadharCard',
           bytes,
           filename: aadharFile.name,
         ));
@@ -149,7 +155,7 @@ class DatabaseService {
       if (licenseFile != null) {
         final bytes = await licenseFile.readAsBytes();
         request.files.add(http.MultipartFile.fromBytes(
-          'drivingLicense', 
+          'drivingLicense',
           bytes,
           filename: licenseFile.name,
         ));
@@ -157,25 +163,29 @@ class DatabaseService {
       if (signatureFile != null) {
         final bytes = await signatureFile.readAsBytes();
         request.files.add(http.MultipartFile.fromBytes(
-          'signature', 
+          'signature',
           bytes,
           filename: signatureFile.name,
         ));
       }
       if (panFile != null) {
         final bytes = await panFile.readAsBytes();
-        request.files.add(http.MultipartFile.fromBytes('panCard', bytes, filename: panFile.name));
+        request.files.add(http.MultipartFile.fromBytes('panCard', bytes,
+            filename: panFile.name));
       }
       if (rcBookFile != null) {
         final bytes = await rcBookFile.readAsBytes();
-        request.files.add(http.MultipartFile.fromBytes('rcBook', bytes, filename: rcBookFile.name));
+        request.files.add(http.MultipartFile.fromBytes('rcBook', bytes,
+            filename: rcBookFile.name));
       }
       if (insuranceFile != null) {
         final bytes = await insuranceFile.readAsBytes();
-        request.files.add(http.MultipartFile.fromBytes('insurance', bytes, filename: insuranceFile.name));
+        request.files.add(http.MultipartFile.fromBytes('insurance', bytes,
+            filename: insuranceFile.name));
       }
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 120));
+      final streamedResponse =
+          await request.send().timeout(const Duration(seconds: 120));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode != 200) {
@@ -191,10 +201,12 @@ class DatabaseService {
   Future<DriverModel?> getDriverProfile(String uid, String token) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile');
-      final response = await http.get(
-        url,
-        headers: _getHeaders(token, uid: uid),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            url,
+            headers: _getHeaders(token, uid: uid),
+          )
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return DriverModel.fromJson(data['driver']);
@@ -210,10 +222,12 @@ class DatabaseService {
   Future<bool> isOnboardingComplete(String uid, String token) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/status');
-      final response = await http.get(
-        url,
-        headers: _getHeaders(token, uid: uid),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            url,
+            headers: _getHeaders(token, uid: uid),
+          )
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         // If they are in the DB (isRegistered), we consider initial registration "complete"
@@ -230,11 +244,13 @@ class DatabaseService {
   Future<Map<String, dynamic>> sendOTP(String email) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/otp/send');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'email': email}),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) {
         final error = json.decode(response.body);
         throw Exception(error['message'] ?? 'Failed to send OTP');
@@ -249,11 +265,13 @@ class DatabaseService {
   Future<bool> verifyOTP(String email, String otp, String token) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/otp/verify');
-      final response = await http.post(
-        url,
-        headers: _getHeaders(token),
-        body: json.encode({'email': email, 'otp': otp}),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            url,
+            headers: _getHeaders(token),
+            body: json.encode({'email': email, 'otp': otp}),
+          )
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return true;
       } else {
@@ -289,9 +307,16 @@ class DatabaseService {
 
       final data = json.decode(response.body);
       if (response.statusCode == 201) {
-        return {'success': true, 'message': data['message'], 'driver': data['driver']};
+        return {
+          'success': true,
+          'message': data['message'],
+          'driver': data['driver']
+        };
       } else {
-        return {'success': false, 'message': data['message'] ?? 'Registration failed'};
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Registration failed'
+        };
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};
@@ -300,7 +325,9 @@ class DatabaseService {
 
   Future<bool> checkEmailAvailability(String email) async {
     try {
-      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/check-email?email=$email');
+      final url = Uri.parse(
+        '${AppConfig.apiBaseUrl}/api/driver/check-email',
+      ).replace(queryParameters: {'email': email.trim()});
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

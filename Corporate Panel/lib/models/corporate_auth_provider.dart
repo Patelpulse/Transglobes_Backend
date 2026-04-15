@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../services/session_storage.dart';
 
 class CorporateAccount {
@@ -41,9 +42,13 @@ class CorporateAuthProvider with ChangeNotifier {
   static String get _baseUrl {
     const String prodUrl = 'https://api.transgloble.com';
     const String localUrl = 'http://localhost:8082';
+    const String vpsUrl = 'http://72.61.172.182:8085';
 
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
+      if (host == '72.61.172.182') {
+        return vpsUrl;
+      }
       if (host == 'localhost' ||
           host == '127.0.0.1' ||
           host == '0.0.0.0' ||
@@ -59,6 +64,9 @@ class CorporateAuthProvider with ChangeNotifier {
   String? _token;
   bool _isLoading = false;
   String? _error;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: const <String>['email'],
+  );
 
   CorporateAuthProvider() {
     _restoreSession();
@@ -117,7 +125,9 @@ class CorporateAuthProvider with ChangeNotifier {
       }
     }
 
-    final missingGoogleSyncRoute = body.contains('Cannot POST /api/corporate/google-sync');
+    final missingGoogleSyncRoute = body.contains(
+      'Cannot POST /api/corporate/google-sync',
+    );
     return {
       'success': false,
       'message': missingGoogleSyncRoute
@@ -135,10 +145,7 @@ class CorporateAuthProvider with ChangeNotifier {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/corporate/login'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': email.trim(),
-          'password': password,
-        }),
+        body: json.encode({'email': email.trim(), 'password': password}),
       );
 
       final data = _parseResponse(response);
@@ -169,10 +176,35 @@ class CorporateAuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final userCredential = await FirebaseAuth.instance.signInWithPopup(GoogleAuthProvider());
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        _error = 'Google sign-in was cancelled.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      if (googleAuth.idToken == null && googleAuth.accessToken == null) {
+        _error = 'Failed to obtain Google authentication tokens.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
       final idToken = await userCredential.user?.getIdToken();
       if (idToken == null) {
         _error = 'Failed to get Google token.';
+        await FirebaseAuth.instance.signOut();
+        await _googleSignIn.signOut();
         _isLoading = false;
         notifyListeners();
         return false;
@@ -201,8 +233,12 @@ class CorporateAuthProvider with ChangeNotifier {
       }
 
       _error = data['message']?.toString() ?? 'Google sign-in failed.';
+      await FirebaseAuth.instance.signOut();
+      await _googleSignIn.signOut();
     } catch (e) {
       _error = 'Google sign-in error: ${e.toString()}';
+      await FirebaseAuth.instance.signOut();
+      await _googleSignIn.signOut();
     }
 
     _isLoading = false;
@@ -210,12 +246,13 @@ class CorporateAuthProvider with ChangeNotifier {
     return false;
   }
 
-  void logout() {
+  Future<void> logout() async {
     _account = null;
     _token = null;
     _error = null;
     clearCorporateSession();
-    FirebaseAuth.instance.signOut();
+    await _googleSignIn.signOut();
+    await FirebaseAuth.instance.signOut();
     notifyListeners();
   }
 }

@@ -4,12 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/id_generator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
 
 import 'database_service.dart';
 import '../core/config.dart';
@@ -30,17 +28,18 @@ final isOnboardingCompleteProvider = FutureProvider<bool>((ref) async {
   final user = authService.currentUser;
   print('[ONBOARD-DEBUG] Initializing status check for user: ${user?.uid}');
   if (user == null) {
-     print('[ONBOARD-DEBUG] No user found. Defaulting to false.');
-     return false;
+    print('[ONBOARD-DEBUG] No user found. Defaulting to false.');
+    return false;
   }
-  
+
   final token = await authService.getIdToken();
-  print('[ONBOARD-DEBUG] Token retrieved (is null: ${token == null}). Checking backend...');
-  final res = await dbService.isOnboardingComplete(user.uid, token ?? 'dev-token-bypass');
+  print(
+      '[ONBOARD-DEBUG] Token retrieved (is null: ${token == null}). Checking backend...');
+  final res = await dbService.isOnboardingComplete(
+      user.uid, token ?? 'dev-token-bypass');
   print('[ONBOARD-DEBUG] Backend status check completed: $res');
   return res;
 });
-
 
 class MockUser {
   final String uid;
@@ -54,7 +53,7 @@ class MockUser {
 class AuthService {
   FirebaseAuth? _auth;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: dotenv.env['GOOGLE_SIGN_IN_CLIENT_ID'],
+    scopes: const <String>['email'],
   );
 
   static final MockUser _mockUser = MockUser(
@@ -85,7 +84,7 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
       final userData = prefs.getString('user_data');
-      
+
       if (token != null && userData != null) {
         final data = json.decode(userData);
         _localUser = MockUser(
@@ -121,21 +120,21 @@ class AuthService {
     return auth.currentUser ?? _localUser;
   }
 
-  Stream<dynamic> get authStateChanges => _authStateController.stream.distinct((prev, next) {
-    // Basic comparison to prevent flickering
-    if (prev == null && next == null) return true;
-    if (prev != null && next != null) {
-      final prevId = (prev is User) ? prev.uid : (prev as MockUser).uid;
-      final nextId = (next is User) ? next.uid : (next as MockUser).uid;
-      return prevId == nextId;
-    }
-    return false;
-  });
+  Stream<dynamic> get authStateChanges =>
+      _authStateController.stream.distinct((prev, next) {
+        // Basic comparison to prevent flickering
+        if (prev == null && next == null) return true;
+        if (prev != null && next != null) {
+          final prevId = (prev is User) ? prev.uid : (prev as MockUser).uid;
+          final nextId = (next is User) ? next.uid : (next as MockUser).uid;
+          return prevId == nextId;
+        }
+        return false;
+      });
 
   Future<String?> getIdToken() async {
-    if (kDebugMode) return 'dev-token-bypass';
     if (kDemoMode) return 'demo-token-for-testing';
-    
+
     // 1. Check SharedPreferences first for local JWT (custom login)
     final prefs = await SharedPreferences.getInstance();
     final localToken = prefs.getString('auth_token');
@@ -149,8 +148,8 @@ class AuthService {
       try {
         return await user.getIdToken().timeout(const Duration(seconds: 5));
       } catch (e) {
-        print('[AUTH-BYPASS] Firebase Token timeout, using dev bypass: $e');
-        return 'dev-token-bypass';
+        debugPrint('[AUTH] Firebase token timeout, returning null: $e');
+        return null;
       }
     }
     return null;
@@ -166,8 +165,22 @@ class AuthService {
   /// Signs in with Google and returns the Firebase [UserCredential].
   /// Works regardless of [kDemoMode] since it always opens a real OAuth flow.
   Future<UserCredential> signInWithGoogle() async {
-    final GoogleAuthProvider googleProvider = GoogleAuthProvider();
-    final UserCredential cred = await FirebaseAuth.instance.signInWithPopup(googleProvider);
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) {
+      throw Exception('Google sign-in was cancelled.');
+    }
+
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+    if (googleAuth.idToken == null && googleAuth.accessToken == null) {
+      throw Exception('Failed to obtain Google authentication tokens.');
+    }
+
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    final UserCredential cred = await auth.signInWithCredential(credential);
     await _persistLoginState(true);
     return cred;
   }
@@ -183,7 +196,7 @@ class AuthService {
       if (result.accessToken == null) {
         throw Exception('Facebook access token is null.');
       }
-      
+
       // Create a Firebase credential
       final OAuthCredential credential = FacebookAuthProvider.credential(
         result.accessToken!.tokenString,
@@ -287,7 +300,7 @@ class AuthService {
     await prefs.remove('user_data');
     _localUser = null;
     _authStateController.add(null);
-    
+
     if (!kDemoMode) {
       await auth.signOut();
     }
@@ -314,19 +327,20 @@ class AuthService {
     required String panCard,
   }) async {
     try {
-      final response = await _signUpApi(name, email, password, aadharCard, panCard);
+      final response =
+          await _signUpApi(name, email, password, aadharCard, panCard);
       if (response['success']) {
         await _persistLoginState(true);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', response['token'] ?? '');
-        
+
         // Save user data and update state
         final userData = response['user'];
         await prefs.setString('user_data', json.encode(userData));
         _localUser = MockUser(
-           uid: userData['id'] ?? userData['_id'] ?? '',
-           email: userData['email'],
-           displayName: userData['name'],
+          uid: userData['id'] ?? userData['_id'] ?? '',
+          email: userData['email'],
+          displayName: userData['name'],
         );
         _authStateController.add(_localUser);
       }
@@ -336,21 +350,22 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> signInCustom(String email, String password) async {
+  Future<Map<String, dynamic>> signInCustom(
+      String email, String password) async {
     try {
       final response = await _signInApi(email, password);
       if (response['success']) {
         await _persistLoginState(true);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', response['token']);
-        
+
         // Save user data and update state
         final userData = response['user'];
         await prefs.setString('user_data', json.encode(userData));
         _localUser = MockUser(
-           uid: userData['id'] ?? userData['_id'] ?? '',
-           email: userData['email'],
-           displayName: userData['name'],
+          uid: userData['id'] ?? userData['_id'] ?? '',
+          email: userData['email'],
+          displayName: userData['name'],
         );
         _authStateController.add(_localUser);
       }
@@ -360,7 +375,8 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> _signUpApi(String name, String email, String password, String aadhar, String pan) async {
+  Future<Map<String, dynamic>> _signUpApi(String name, String email,
+      String password, String aadhar, String pan) async {
     final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/register');
     final response = await _post(url, {
       'name': name,

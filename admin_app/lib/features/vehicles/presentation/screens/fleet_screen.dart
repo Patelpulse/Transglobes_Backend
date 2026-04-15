@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../domain/models/vehicle.dart';
 import '../../presentation/providers/vehicle_provider.dart';
 import '../../../../shared/widgets/network_avatar.dart';
+import '../../../../core/theme/app_theme.dart';
 
 class FleetScreen extends ConsumerStatefulWidget {
   const FleetScreen({super.key});
@@ -29,7 +30,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
     final currentFilter = ref.watch(vehicleFilterProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF101622),
+      backgroundColor: AppTheme.pageBackground,
       body: SafeArea(
         child: Column(
           children: [
@@ -43,7 +44,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
                     return const Center(
                       child: Text(
                         "No vehicles found matching criteria.",
-                        style: TextStyle(color: Color(0xFF94A3B8)),
+                        style: TextStyle(color: AppTheme.textSecondaryDark),
                       ),
                     );
                   }
@@ -93,7 +94,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
                       const SizedBox(height: 16),
                       const Text(
                         "Failed to load fleet data.",
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: AppTheme.textPrimaryDark),
                       ),
                       TextButton(
                         onPressed: () => ref.invalidate(vehiclesProvider),
@@ -132,8 +133,9 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
                 height: 48,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppTheme.lineSoft),
                 ),
                 child: Row(
                   children: [
@@ -148,13 +150,13 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
                         controller: _searchController,
                         autofocus: true,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimaryDark,
                           fontSize: 14,
                         ),
                         decoration: const InputDecoration(
                           hintText: 'Search plate, vin, name...',
                           hintStyle: TextStyle(
-                            color: Color(0xFF64748B),
+                            color: AppTheme.textSecondaryDark,
                             fontSize: 14,
                           ),
                           border: InputBorder.none,
@@ -179,7 +181,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
                         },
                         child: const Icon(
                           Icons.close,
-                          color: Color(0xFF64748B),
+                          color: AppTheme.textSecondaryDark,
                           size: 16,
                         ),
                       ),
@@ -219,10 +221,11 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.lineSoft),
               ),
-              child: const Icon(Icons.menu, color: Colors.white, size: 20),
+              child: const Icon(Icons.menu, color: AppTheme.textPrimaryDark, size: 20),
             ),
           ),
           const Text(
@@ -230,7 +233,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppTheme.textPrimaryDark,
             ),
           ),
           GestureDetector(
@@ -242,10 +245,11 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.lineSoft),
               ),
-              child: const Icon(Icons.search, color: Colors.white, size: 20),
+              child: const Icon(Icons.search, color: AppTheme.textPrimaryDark, size: 20),
             ),
           ),
         ],
@@ -256,7 +260,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
   Widget _buildTabs(WidgetRef ref, VehicleFilter currentFilter) {
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF2D364A), width: 1)),
+        border: Border(bottom: BorderSide(color: AppTheme.lineSoft, width: 1)),
       ),
       child: Row(
         children: [
@@ -297,7 +301,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
               style: TextStyle(
                 color: isActive
                     ? const Color(0xFF135BEC)
-                    : const Color(0xFF64748B),
+                    : AppTheme.textSecondaryDark,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
                 letterSpacing: 0.5,
@@ -312,7 +316,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
   void _showStatusFilterSheet(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -326,7 +330,7 @@ class _FleetScreenState extends ConsumerState<FleetScreen> {
               const Text(
                 "Filter by Status",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimaryDark,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),

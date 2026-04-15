@@ -19,6 +19,7 @@ import '../../features/settings/presentation/screens/country_code_management_scr
 import '../../features/pricing/presentation/screens/pricing_screen.dart';
 import '../../features/supervisor/presentation/screens/supervisor_screen.dart';
 import '../../features/bookings/presentation/screens/bookings_queue_screen.dart';
+import '../../shared/screens/cms_content_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -96,6 +97,50 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/vehicles',
             builder: (context, state) =>
                 const Center(child: Text('Vehicles Management')),
+          ),
+          GoRoute(
+            path: '/page',
+            builder: (context, state) => const CmsContentScreen(
+              moduleType: 'page',
+              title: 'Page Management',
+              icon: Icons.article_outlined,
+            ),
+          ),
+          GoRoute(
+            path: '/faq',
+            builder: (context, state) => const CmsContentScreen(
+              moduleType: 'faq',
+              title: 'FAQ',
+              icon: Icons.help_outline_rounded,
+            ),
+          ),
+          GoRoute(
+            path: '/vehicle',
+            builder: (context, state) => const FleetScreen(),
+          ),
+          GoRoute(
+            path: '/coupon',
+            builder: (context, state) => const CmsContentScreen(
+              moduleType: 'coupon',
+              title: 'Coupon Management',
+              icon: Icons.discount_outlined,
+            ),
+          ),
+          GoRoute(
+            path: '/payouts',
+            builder: (context, state) => const CmsContentScreen(
+              moduleType: 'payout',
+              title: 'Payout List',
+              icon: Icons.account_balance_wallet_outlined,
+            ),
+          ),
+          GoRoute(
+            path: '/payments',
+            builder: (context, state) => const CmsContentScreen(
+              moduleType: 'payment_gateway',
+              title: 'Payment Gateway List',
+              icon: Icons.credit_card_outlined,
+            ),
           ),
           GoRoute(
             path: '/logistics',

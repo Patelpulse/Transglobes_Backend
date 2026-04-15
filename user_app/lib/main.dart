@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -16,10 +15,14 @@ void main() async {
 
   // Initialize Firebase safely (prevents duplicate-app error on hot restarts)
   if (!kDemoMode) {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      }
+    } on UnsupportedError catch (e) {
+      debugPrint('[FIREBASE] Skipping init on this platform: $e');
     }
   }
 
@@ -68,7 +71,7 @@ class AuthWrapper extends ConsumerWidget {
     }
 
     final authState = ref.watch(authStateProvider);
-    
+
     // Initialize notification service when user is logged in
     ref.listen(authStateProvider, (previous, next) {
       if (next.value != null) {

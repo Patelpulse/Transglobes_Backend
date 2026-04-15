@@ -74,6 +74,7 @@ router.get('/stats', requireSupervisorRole, adminController.getPlatformStats);
 // CMS & Notifications
 router.post('/cms', requireStrictAdmin, adminController.updateCMSContent);
 router.get('/cms', requireStrictAdmin, adminController.getCMSContent);
+router.delete('/cms/:id', requireStrictAdmin, adminController.deleteCMSContent);
 
 // Delay Logs
 router.post('/delays', requireSupervisorRole, adminController.logDelay);
