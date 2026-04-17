@@ -2,18 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../widgets/leaflet_map.dart';
-import 'ride_tracking_screen.dart';
-import 'location_search_screen.dart';
 import '../providers/logistics_provider.dart';
 import '../providers/logistics_vehicle_provider.dart';
-import '../services/ride_service.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import '../core/config.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
@@ -106,9 +102,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   final _pickupFocusNode = FocusNode();
   final _dropoffFocusNode = FocusNode();
   List<Map<String, dynamic>> _searchResults = [];
-  bool _isSearchingLocations = false;
   Timer? _debounce;
-  bool _isPickupFocused = false;
   bool _showSuggestions = false;
   bool _activeSearchingPickup = true;
 
@@ -122,7 +116,6 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   void _onFocusChanged() {
     if (!mounted) return;
     setState(() {
-      _isPickupFocused = _pickupFocusNode.hasFocus;
       if (_pickupFocusNode.hasFocus) {
         _activeSearchingPickup = true;
         _showSuggestions = true;
@@ -168,13 +161,10 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
       if (mounted) {
         setState(() {
           _searchResults = [];
-          _isSearchingLocations = false;
         });
       }
       return;
     }
-
-    if (mounted) setState(() => _isSearchingLocations = true);
 
     try {
       final apiKey = AppConfig.googleMapsApiKey;
@@ -193,16 +183,14 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                     'place_id': item['place_id'] as String,
                   })
               .toList();
-          _isSearchingLocations = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isSearchingLocations = false);
+      // Keep suggestion list unchanged on API failures.
     }
   }
 
   Future<void> _selectSuggestion(Map<String, dynamic> suggestion, bool isPickup) async {
-    if (mounted) setState(() => _isSearchingLocations = true);
     try {
       final apiKey = AppConfig.googleMapsApiKey;
       final apiService = ref.read(apiServiceProvider);
@@ -233,12 +221,11 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                 _dropoffFocusNode.unfocus();
               }
               _searchResults = [];
-              _isSearchingLocations = false;
             });
             _fetchRoute();
           }
     } catch (e) {
-      if (mounted) setState(() => _isSearchingLocations = false);
+      // Keep current selection state on API failures.
     }
   }
 
@@ -294,100 +281,6 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     } catch (e) {
       debugPrint('Error fetching route: $e');
     }
-  }
-
-  // ─── Image picker ────────────────────────────────────────
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, imageQuality: 75);
-    if (picked != null) {
-      final bytes = await picked.readAsBytes();
-      setState(() {
-        _currentImageBytes = bytes;
-        _currentImageName = picked.name;
-      });
-    }
-  }
-
-  void _showImageSourceDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: context.theme.scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Upload Item Image',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: context.colors.textPrimary,
-                )),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: _imageSourceButton(
-                    icon: Icons.photo_library_outlined,
-                    label: 'Gallery',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _pickImage(ImageSource.gallery);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _imageSourceButton(
-                    icon: Icons.camera_alt_outlined,
-                    label: 'Camera',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _pickImage(ImageSource.camera);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _imageSourceButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: context.theme.primaryColor.withAlpha(20),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: context.theme.primaryColor.withAlpha(60)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 36, color: context.theme.primaryColor),
-            const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(
-                  color: context.theme.primaryColor,
-                  fontWeight: FontWeight.w600,
-                )),
-          ],
-        ),
-      ),
-    );
   }
 
   String? _validateItemInputs() {
@@ -616,10 +509,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
        userName = (user is MockUser) ? user.displayName ?? 'User' : user?.displayName ?? 'User';
     }
     
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings');
-    final headers = await _authHeaders();
-
-    final body = json.encode({
+    final apiService = ref.read(apiServiceProvider);
+    final payload = {
       'userId': userId,
       'userName': userName,
       'userPhone': userPhone,
@@ -653,12 +544,14 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
       'appliedCoupon':  _appliedCoupon,
       'pickupAddress':  pickupAddress,
       'receivedAddress': receivedAddress,
-    });
+    };
+    final data = await apiService.postWithFallback(
+      '/api/logistics/book',
+      '/api/logistics-bookings',
+      payload,
+    );
 
-    final response = await http.post(uri, headers: headers, body: body);
-    final data = json.decode(response.body);
-
-    if (response.statusCode == 201 && data['success'] == true) {
+    if (data['success'] == true) {
       debugPrint('Logistics booking saved: ${data['bookingId']}');
       return data['bookingId'] as String? ?? '';
     } else {

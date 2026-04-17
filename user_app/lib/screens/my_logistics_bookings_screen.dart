@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../core/config.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import '../core/theme.dart';
 import '../providers/user_provider.dart';
-import 'ride_tracking_screen.dart';
 
 class MyLogisticsBookingsScreen extends ConsumerStatefulWidget {
   const MyLogisticsBookingsScreen({super.key});
@@ -50,25 +47,15 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
         return;
       }
 
-      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings/user/$userId');
-      final headers = await authService.buildAuthHeaders(includeContentType: false);
-      final response = await http.get(
-        url,
-        headers: headers,
+      final apiService = ref.read(apiServiceProvider);
+      final data = await apiService.getWithFallback(
+        '/api/logistics/history?userId=${Uri.encodeQueryComponent(userId)}',
+        '/api/logistics-bookings/user/$userId',
       );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          _bookings = data['data'] ?? [];
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _error = "Failed to load bookings: ${response.statusCode}";
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _bookings = data['data'] ?? [];
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _error = e.toString();

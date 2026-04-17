@@ -15,7 +15,7 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-  <base href="/">
+  <base href="/driver/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
@@ -55,10 +55,21 @@
   <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-messaging-compat.js"></script>
   <script>
-    // Register the service worker early for FCM
+    // Clear stale workers/caches first so old bundled API URLs cannot persist.
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register("/firebase-messaging-sw.js");
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          return Promise.all(regs.map(function (reg) {
+            return reg.unregister();
+          }));
+        }).then(function () {
+          // Register the latest FCM worker with cache-busting query.
+          return navigator.serviceWorker.register("/firebase-messaging-sw.js?v=20260415", {
+            updateViaCache: 'none'
+          });
+        }).catch(function (e) {
+          console.warn('Service worker refresh failed:', e);
+        });
       });
     }
   </script>

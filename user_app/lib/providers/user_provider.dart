@@ -23,7 +23,10 @@ class UserProfileNotifier extends AsyncNotifier<UserModel?> {
       if (phoneNumber.isNotEmpty) {
         final apiService = ref.read(apiServiceProvider);
         final encodedPhone = Uri.encodeComponent(phoneNumber);
-        final response = await apiService.get('/api/user/profile/$encodedPhone');
+        final response = await apiService.getWithFallback(
+          '/api/auth/profile?mobileNumber=$encodedPhone',
+          '/api/user/profile/$encodedPhone',
+        );
 
         if (response != null && response['user'] != null) {
           final userData = Map<String, dynamic>.from(response['user']);
@@ -37,7 +40,10 @@ class UserProfileNotifier extends AsyncNotifier<UserModel?> {
 
       if (userId != null) {
         final apiService = ref.read(apiServiceProvider);
-        final response = await apiService.get('/api/user/profile?uid=${Uri.encodeQueryComponent(userId)}');
+        final response = await apiService.getWithFallback(
+          '/api/auth/profile?uid=${Uri.encodeQueryComponent(userId)}',
+          '/api/user/profile?uid=${Uri.encodeQueryComponent(userId)}',
+        );
 
         if (response != null && response['user'] != null) {
           final userData = Map<String, dynamic>.from(response['user']);

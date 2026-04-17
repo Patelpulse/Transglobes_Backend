@@ -62,8 +62,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   }
 
   bool _isValidPan(String value) {
-    return RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$')
-        .hasMatch(value.trim().toUpperCase());
+    // Keep PAN validation practical for onboarding: accept any 10-char
+    // uppercase alphanumeric value to avoid blocking legitimate entries.
+    return RegExp(r'^[A-Z0-9]{10}$').hasMatch(value.trim().toUpperCase());
   }
 
   // Handles both login and registration using Firebase Auth

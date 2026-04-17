@@ -32,6 +32,18 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  Future<dynamic> getWithFallback(
+    String primaryEndpoint,
+    String fallbackEndpoint,
+  ) async {
+    try {
+      return await get(primaryEndpoint);
+    } on ApiException catch (e) {
+      if (e.statusCode != 404) rethrow;
+      return get(fallbackEndpoint);
+    }
+  }
+
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
     final response = await http.post(
@@ -40,6 +52,19 @@ class ApiService {
       body: jsonEncode(body),
     );
     return _handleResponse(response);
+  }
+
+  Future<dynamic> postWithFallback(
+    String primaryEndpoint,
+    String fallbackEndpoint,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      return await post(primaryEndpoint, body);
+    } on ApiException catch (e) {
+      if (e.statusCode != 404) rethrow;
+      return post(fallbackEndpoint, body);
+    }
   }
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
@@ -52,6 +77,19 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  Future<dynamic> putWithFallback(
+    String primaryEndpoint,
+    String fallbackEndpoint,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      return await put(primaryEndpoint, body);
+    } on ApiException catch (e) {
+      if (e.statusCode != 404) rethrow;
+      return put(fallbackEndpoint, body);
+    }
+  }
+
   Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
     final response = await http.patch(
@@ -60,6 +98,19 @@ class ApiService {
       body: jsonEncode(body),
     );
     return _handleResponse(response);
+  }
+
+  Future<dynamic> patchWithFallback(
+    String primaryEndpoint,
+    String fallbackEndpoint,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      return await patch(primaryEndpoint, body);
+    } on ApiException catch (e) {
+      if (e.statusCode != 404) rethrow;
+      return patch(fallbackEndpoint, body);
+    }
   }
 
   Future<dynamic> delete(String endpoint) async {

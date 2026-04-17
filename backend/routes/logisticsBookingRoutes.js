@@ -5,6 +5,12 @@ const {
     getUserBookings,
     getAllBookings,
     getBookingById,
+    getLogisticsHistory,
+    trackLogisticsBooking,
+    estimateLogistics,
+    cancelLogisticsBooking,
+    acceptRoadmap,
+    getGoodsTypes,
     updateStatus,
     assignDriver,
     updateRailwayStation,
@@ -70,6 +76,16 @@ router.patch('/booking/:id/reject', (req, res, next) => {
 
 // PATCH  /api/logistics-bookings/:id/railway-station → update railway station
 router.patch('/logistics-bookings/:id/railway-station', updateRailwayStation);
+
+// ─── PRD Compatibility Endpoints (/api/logistics/*) ─────────────────────────
+router.post('/logistics/estimate', estimateLogistics);
+router.post('/logistics/book', createBooking);
+router.get('/logistics/history', getLogisticsHistory);
+router.get('/logistics/goods-types', getGoodsTypes);
+router.get('/logistics/:id/track', trackLogisticsBooking);
+router.post('/logistics/:id/cancel', cancelLogisticsBooking);
+router.post('/logistics/:id/accept-roadmap', acceptRoadmap);
+router.get('/logistics/:id', getBookingById);
 
 // POST   /api/logistics-bookings          → create a new booking
 router.post('/logistics-bookings', createBooking);

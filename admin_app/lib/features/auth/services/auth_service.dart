@@ -41,6 +41,35 @@ class AuthService {
     ),
   );
 
+  String get _rootApiBase => _resolveAdminAuthBaseUrl().replaceFirst('/api/admin/', '/api/');
+
+  Future<Response<dynamic>> _postWithFallback({
+    required String primaryUrl,
+    required String fallbackPath,
+    dynamic data,
+    Options? options,
+  }) async {
+    try {
+      return await _dio.post(primaryUrl, data: data, options: options);
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 404) rethrow;
+      return _dio.post(fallbackPath, data: data, options: options);
+    }
+  }
+
+  Future<Response<dynamic>> _getWithFallback({
+    required String primaryUrl,
+    required String fallbackPath,
+    Options? options,
+  }) async {
+    try {
+      return await _dio.get(primaryUrl, options: options);
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 404) rethrow;
+      return _dio.get(fallbackPath, options: options);
+    }
+  }
+
   Future<Map<String, dynamic>> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -73,8 +102,9 @@ class AuthService {
       }
 
       // 3. Sync with backend
-      final response = await _dio.post(
-        'sync',
+      final response = await _postWithFallback(
+        primaryUrl: '${_rootApiBase}auth/admin/sync',
+        fallbackPath: 'sync',
         options: Options(headers: {'Authorization': 'Bearer $googleToken'}),
       );
 
@@ -100,8 +130,9 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await _dio.post(
-        'login',
+      final response = await _postWithFallback(
+        primaryUrl: '${_rootApiBase}auth/admin/login',
+        fallbackPath: 'login',
         data: {'email': email, 'password': password},
       );
 
@@ -135,8 +166,9 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final response = await _dio.post(
-        'register',
+      final response = await _postWithFallback(
+        primaryUrl: '${_rootApiBase}auth/admin/register',
+        fallbackPath: 'register',
         data: {'name': name, 'email': email, 'password': password},
       );
 
@@ -163,8 +195,9 @@ class AuthService {
     final token = prefs.getString('token');
     if (token != null) {
       try {
-        await _dio.post(
-          'logout',
+        await _postWithFallback(
+          primaryUrl: '${_rootApiBase}auth/admin/logout',
+          fallbackPath: 'logout',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
       } catch (e) {
@@ -179,8 +212,9 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await _dio.get(
-        'profile',
+      final response = await _getWithFallback(
+        primaryUrl: '${_rootApiBase}auth/profile',
+        fallbackPath: 'profile',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       if (response.statusCode == 200) {

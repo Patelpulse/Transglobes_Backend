@@ -9,6 +9,9 @@ const otpStore = {}; // Memory store: { email: { otp, expires } }
 const normalizeEmail = (value) =>
     typeof value === 'string' ? value.toLowerCase().trim() : '';
 
+const generateDriverUid = () =>
+    `drv_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
 const buildDriverLookupQuery = ({ uid, email, includeEmail = true }) => {
     const safeUid = typeof uid === 'string' ? uid.trim() : uid;
     const safeEmail = normalizeEmail(email);
@@ -571,16 +574,31 @@ const register = async (req, res) => {
             });
         }
 
-        const driver = new Driver({
+        const normalizedEmail = email.toLowerCase().trim();
+
+        const createDriver = (uid) => new Driver({
+            uid,
             name,
-            email: email.toLowerCase().trim(),
+            email: normalizedEmail,
             password,
             isEmailVerified: true, // Default to true as per request to skip verification
             aadharCardNumber: aadharCard,
             panCardNumber: panCard
         });
 
-        await driver.save();
+        // Rare but possible: UID collision from legacy/migrated data.
+        // Retry with a fresh UID so registration doesn't fail for end users.
+        let driver = createDriver(generateDriverUid());
+        try {
+            await driver.save();
+        } catch (saveError) {
+            const isUidDuplicate =
+                saveError?.code === 11000 && saveError?.keyPattern?.uid;
+            if (!isUidDuplicate) throw saveError;
+
+            driver = createDriver(generateDriverUid());
+            await driver.save();
+        }
 
         // Generate Token
         const token = jwt.sign(
@@ -747,6 +765,7 @@ module.exports = {
     syncDriverData,
     register,
     login,
+    checkEmailAvailability,
     getDriverProfile,
     uploadDocuments,
     getDriverStatus,

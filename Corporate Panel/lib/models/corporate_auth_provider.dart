@@ -113,6 +113,25 @@ class CorporateAuthProvider with ChangeNotifier {
     );
   }
 
+  Future<http.Response> _postWithFallback({
+    required String primaryPath,
+    required String fallbackPath,
+    required Map<String, String> headers,
+    Object? body,
+  }) async {
+    final primary = await http.post(
+      Uri.parse('$_baseUrl$primaryPath'),
+      headers: headers,
+      body: body,
+    );
+    if (primary.statusCode != 404) return primary;
+    return http.post(
+      Uri.parse('$_baseUrl$fallbackPath'),
+      headers: headers,
+      body: body,
+    );
+  }
+
   Map<String, dynamic> _parseResponse(http.Response response) {
     final body = response.body.trim();
     final contentType = response.headers['content-type'] ?? '';
@@ -142,8 +161,9 @@ class CorporateAuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/api/corporate/login'),
+      final response = await _postWithFallback(
+        primaryPath: '/api/auth/corporate/login',
+        fallbackPath: '/api/corporate/login',
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email.trim(), 'password': password}),
       );
@@ -210,8 +230,9 @@ class CorporateAuthProvider with ChangeNotifier {
         return false;
       }
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl/api/corporate/google-sync'),
+      final response = await _postWithFallback(
+        primaryPath: '/api/auth/corporate/google-sync',
+        fallbackPath: '/api/corporate/google-sync',
         headers: {
           'Authorization': 'Bearer $idToken',
           'Content-Type': 'application/json',

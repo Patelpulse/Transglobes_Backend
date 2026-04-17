@@ -17,6 +17,7 @@ set -euo pipefail
 VPS="${VPS:-root@72.61.172.182}"
 REMOTE_BACKEND="${REMOTE_BACKEND:-/var/www/transglobe/backend}"
 REMOTE_WEB_IP="${REMOTE_WEB_IP:-/var/www/transglobe-ip/web}"
+REMOTE_WEB_DOMAINS="${REMOTE_WEB_DOMAINS:-/var/www/transglobe-sites}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "==> Repo: $REPO_ROOT"
@@ -39,7 +40,7 @@ fvm flutter pub get
 fvm flutter build web --release --base-href /corporate/
 
 echo "==> Rsync backend + web to $VPS..."
-ssh "$VPS" "mkdir -p '$REMOTE_WEB_IP/admin' '$REMOTE_WEB_IP/user' '$REMOTE_WEB_IP/driver' '$REMOTE_WEB_IP/corporate'"
+ssh "$VPS" "mkdir -p '$REMOTE_WEB_IP/admin' '$REMOTE_WEB_IP/user' '$REMOTE_WEB_IP/driver' '$REMOTE_WEB_IP/corporate' '$REMOTE_WEB_DOMAINS/root' '$REMOTE_WEB_DOMAINS/admin' '$REMOTE_WEB_DOMAINS/driver' '$REMOTE_WEB_DOMAINS/corporate'"
 
 rsync -avz --delete \
   --exclude node_modules \
@@ -50,6 +51,12 @@ rsync -avz --delete "$REPO_ROOT/admin_app/build/web/" "$VPS:$REMOTE_WEB_IP/admin
 rsync -avz --delete "$REPO_ROOT/user_app/build/web/" "$VPS:$REMOTE_WEB_IP/user/"
 rsync -avz --delete "$REPO_ROOT/driver_app/build/web/" "$VPS:$REMOTE_WEB_IP/driver/"
 rsync -avz --delete "$REPO_ROOT/Corporate Panel/build/web/" "$VPS:$REMOTE_WEB_IP/corporate/"
+
+# Domain-based web roots (transgloble.com + subdomains)
+rsync -avz --delete "$REPO_ROOT/user_app/build/web/" "$VPS:$REMOTE_WEB_DOMAINS/root/"
+rsync -avz --delete "$REPO_ROOT/admin_app/build/web/" "$VPS:$REMOTE_WEB_DOMAINS/admin/"
+rsync -avz --delete "$REPO_ROOT/driver_app/build/web/" "$VPS:$REMOTE_WEB_DOMAINS/driver/"
+rsync -avz --delete "$REPO_ROOT/Corporate Panel/build/web/" "$VPS:$REMOTE_WEB_DOMAINS/corporate/"
 
 echo "==> Remote: npm install + pm2 restart transglobe-backend..."
 ssh "$VPS" bash -s <<REMOTE

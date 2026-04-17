@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -59,15 +58,28 @@ class LogisticsProvider with ChangeNotifier {
     return 'https://maps.googleapis.com/maps/api/directions/json';
   }
 
-  static String get _autocompleteBaseUrl {
-    if (kIsWeb)
-      return '$baseUrl/api/maps/autocomplete';
-    return 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
-  }
-
   List<LogisticsRequest> get requests => [..._requests];
   List<JourneySegment> get journeySegments => _journeySegments;
   bool get isLoading => _isLoading;
+
+  Future<http.Response> _postWithFallback({
+    required String primaryPath,
+    required String fallbackPath,
+    required Map<String, String> headers,
+    required Object body,
+  }) async {
+    final primary = await http.post(
+      Uri.parse('$baseUrl$primaryPath'),
+      headers: headers,
+      body: body,
+    );
+    if (primary.statusCode != 404) return primary;
+    return http.post(
+      Uri.parse('$baseUrl$fallbackPath'),
+      headers: headers,
+      body: body,
+    );
+  }
 
   void addRequest(LogisticsRequest request) {
     _requests.insert(0, request);
@@ -394,8 +406,9 @@ class LogisticsProvider with ChangeNotifier {
               : 'Multi-Modal')
           : 'Road';
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/logistics-bookings'),
+      final response = await _postWithFallback(
+        primaryPath: '/api/logistics/book',
+        fallbackPath: '/api/logistics-bookings',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -454,13 +467,23 @@ class LogisticsProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await http.get(
+      final corporateResponse = await http.get(
         Uri.parse('$baseUrl/api/corporate/bookings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
+
+      final response = corporateResponse.statusCode == 404
+          ? await http.get(
+              Uri.parse('$baseUrl/api/logistics/history?userId=corporate'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+            )
+          : corporateResponse;
 
       final data = json.decode(response.body) as Map<String, dynamic>;
       if (response.statusCode == 200 && data['success'] == true) {

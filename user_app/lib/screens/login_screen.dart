@@ -134,10 +134,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           final mobileNumber = '+91${_phoneController.text}';
           final uid = authService.currentUser?.uid;
 
-          final response = await apiService.post('/api/user/register-phone', {
+          final response = await apiService.postWithFallback(
+            '/api/auth/register-phone',
+            '/api/user/register-phone',
+            {
             'mobileNumber': mobileNumber,
             'uid': uid,
-          });
+            },
+          );
 
           final isNewUser = response['isNewUser'] == true;
           final existingName = response['user']?['name'] ?? '';

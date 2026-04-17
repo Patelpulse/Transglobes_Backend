@@ -1,3 +1,6 @@
+# Cursor / Claude local permissions (may contain tokens)
+.claude/
+
 # Miscellaneous
 *.class
 *.log

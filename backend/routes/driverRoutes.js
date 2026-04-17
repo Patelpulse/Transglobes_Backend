@@ -4,6 +4,7 @@ const {
     syncDriverData,
     register,
     login,
+    checkEmailAvailability,
     getDriverProfile,
     uploadDocuments,
     getDriverStatus,
@@ -24,10 +25,7 @@ router.post('/otp/send', sendOTP);
 router.post('/otp/verify', verifyToken, verifyOTP);
 
 // GET /api/driver/check-email - Check if email exists
-router.get('/check-email', (req, res, next) => {
-    const { checkEmailAvailability } = require('../controllers/driverController');
-    checkEmailAvailability(req, res, next);
-});
+router.get('/check-email', checkEmailAvailability);
 
 // POST /api/driver/sync - To sync driver basic data to DB
 router.post('/sync', syncDriverData);

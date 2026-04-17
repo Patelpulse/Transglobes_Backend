@@ -29,6 +29,9 @@ class RideService {
     return null;
   }
 
+  String _ridePath(String suffix) => '/api/rides$suffix';
+  String _legacyRidePath(String suffix) => '/api/ride$suffix';
+
   Future<RideModel> createRide({
     required List<double> pickupCoordinates,
     required List<double> dropoffCoordinates,
@@ -44,7 +47,7 @@ class RideService {
     String? typeOfGood,
   }) async {
     final mobileNumber = _extractMobileNumber();
-    final response = await _apiService.post('/api/ride/ride-request', {
+    final payload = {
       if (mobileNumber != null) 'mobileNumber': mobileNumber,
       'locations': {
         'pickup': {
@@ -69,7 +72,12 @@ class RideService {
       if (scheduledTime != null) 'scheduledTime': scheduledTime.toIso8601String(),
       if (vehicleType != null) 'vehicleType': vehicleType,
       if (typeOfGood != null) 'typeOfGood': typeOfGood,
-    });
+    };
+    final response = await _apiService.postWithFallback(
+      _ridePath('/book'),
+      _legacyRidePath('/ride-request'),
+      payload,
+    );
     return RideModel.fromJson(response['data'] ?? response);
   }
 
@@ -85,7 +93,7 @@ class RideService {
     List<Map<String, dynamic>>? logisticItems,
   }) async {
     final mobileNumber = _extractMobileNumber();
-    final response = await _apiService.post('/api/ride/ride-request', {
+    final payload = {
       if (mobileNumber != null) 'mobileNumber': mobileNumber,
       'locations': locations,
       'rideMode': rideMode,
@@ -96,12 +104,20 @@ class RideService {
       if (typeOfGood != null) 'typeOfGood': typeOfGood,
       if (helperCount != null) 'helperCount': helperCount,
       if (logisticItems != null) 'logisticItems': logisticItems,
-    });
+    };
+    final response = await _apiService.postWithFallback(
+      _ridePath('/book'),
+      _legacyRidePath('/ride-request'),
+      payload,
+    );
     return RideModel.fromJson(response['data'] ?? response);
   }
 
   Future<List<RideModel>> getMyRides() async {
-    final response = await _apiService.get('/api/ride/my-rides');
+    final response = await _apiService.getWithFallback(
+      _ridePath('/history'),
+      _legacyRidePath('/my-rides'),
+    );
     final data = response is Map<String, dynamic> ? (response['data'] ?? response['rides'] ?? response) : response;
     if (data is List) {
       return data.map((e) => RideModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
@@ -110,7 +126,10 @@ class RideService {
   }
 
   Future<RideModel?> getRideById(String rideId) async {
-    final response = await _apiService.get('/api/ride/rides/$rideId');
+    final response = await _apiService.getWithFallback(
+      _ridePath('/$rideId'),
+      _legacyRidePath('/rides/$rideId'),
+    );
     final data = response is Map<String, dynamic> ? (response['data'] ?? response) : response;
     return data != null ? RideModel.fromJson(Map<String, dynamic>.from(data as Map)) : null;
   }
@@ -120,10 +139,15 @@ class RideService {
     String status, {
     String? delayReason,
   }) async {
-    final response = await _apiService.put('/api/ride/rides/$rideId/status', {
+    final payload = {
       'status': status,
       if (delayReason != null) 'delayReason': delayReason,
-    });
+    };
+    final response = await _apiService.putWithFallback(
+      _ridePath('/$rideId/status'),
+      _legacyRidePath('/rides/$rideId/status'),
+      payload,
+    );
     final data = response['ride'] ?? response['data'] ?? response;
     return RideModel.fromJson(Map<String, dynamic>.from(data as Map));
   }
@@ -133,10 +157,14 @@ class RideService {
   }
 
   Future<Map<String, dynamic>> updateFare(String rideId, int extraFare) async {
-    final response = await _apiService.put('/api/ride/update-fare', {
+    final response = await _apiService.putWithFallback(
+      _ridePath('/fare'),
+      _legacyRidePath('/update-fare'),
+      {
       'rideId': rideId,
       'extraFare': extraFare,
-    });
+      },
+    );
     return response;
   }
 
@@ -146,11 +174,15 @@ class RideService {
     required int rating,
     required String comment,
   }) async {
-    await _apiService.post('/api/ride/review', {
+    await _apiService.postWithFallback(
+      _ridePath('/$bookingId/rate'),
+      _legacyRidePath('/review'),
+      {
       'bookingId': bookingId,
       'driverId': driverId,
       'rating': rating,
       'comment': comment,
-    });
+      },
+    );
   }
 }

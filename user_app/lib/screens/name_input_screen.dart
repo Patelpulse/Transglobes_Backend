@@ -67,10 +67,14 @@ class _NameInputScreenState extends ConsumerState<NameInputScreen>
       final apiService = ref.read(apiServiceProvider);
       final authService = ref.read(authServiceProvider);
 
-      await apiService.post('/api/user/save-name', {
+      await apiService.postWithFallback(
+        '/api/auth/profile',
+        '/api/user/save-name',
+        {
         'mobileNumber': widget.mobileNumber,
         'name': name,
-      });
+        },
+      );
 
       // Also update Firebase's displayName for local property access
       final user = authService.currentUser;

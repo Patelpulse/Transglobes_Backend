@@ -77,6 +77,18 @@ const validateItems = (items = []) => {
     return null;
 };
 
+const GOODS_TYPES = [
+    'Electronics',
+    'Furniture',
+    'Documents',
+    'Perishables',
+    'Machinery',
+    'Textiles',
+    'Chemicals',
+    'Fragile',
+    'Other',
+];
+
 // ─── POST /api/logistics-bookings  ──────────────────────
 // Create a new logistics booking with all details
 exports.createBooking = async (req, res) => {
@@ -756,4 +768,165 @@ exports.updateBilling = async (req, res) => {
         console.error('[BILLING-UPDATE] Error:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
+};
+
+// ─── PRD Compatibility APIs (/api/logistics/*) ──────────────────────────────
+
+exports.estimateLogistics = async (req, res) => {
+    try {
+        const {
+            distanceKm = 0,
+            weightKg = 0,
+            preferredMode = 'road',
+            deliveryUrgency = 'standard',
+            insuranceRequired = false,
+            declaredValue = 0,
+        } = req.body || {};
+
+        const normalizedDistance = Math.max(Number(distanceKm) || 0, 0);
+        const normalizedWeight = Math.max(Number(weightKg) || 0, 0);
+        const mode = String(preferredMode || 'road').toLowerCase();
+        const urgency = String(deliveryUrgency || 'standard').toLowerCase();
+
+        const modeMultiplier = {
+            road: 1,
+            train: 0.85,
+            air: 2.4,
+            sea: 1.6,
+            best_available: 1,
+        }[mode] ?? 1;
+
+        const urgencyMultiplier = {
+            standard: 1,
+            express: 1.25,
+            same_day: 1.55,
+        }[urgency] ?? 1;
+
+        const baseCharge = 120;
+        const distanceCharge = normalizedDistance * 14 * modeMultiplier;
+        const weightCharge = normalizedWeight * 4.5 * modeMultiplier;
+        const handlingCharge = normalizedWeight > 100 ? 250 : 80;
+        const insuranceCharge = insuranceRequired
+            ? Math.max(Number(declaredValue) || 0, 0) * 0.01
+            : 0;
+
+        const subtotal =
+            (baseCharge + distanceCharge + weightCharge + handlingCharge + insuranceCharge) *
+            urgencyMultiplier;
+        const taxes = subtotal * 0.18;
+        const estimatedPrice = Number((subtotal + taxes).toFixed(2));
+
+        const etaHours = Math.max((normalizedDistance / 35) * modeMultiplier, 2);
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                estimatedPrice,
+                estimatedTransitHours: Number(etaHours.toFixed(1)),
+                currency: 'INR',
+                breakdown: {
+                    baseCharge: Number(baseCharge.toFixed(2)),
+                    distanceCharge: Number(distanceCharge.toFixed(2)),
+                    weightCharge: Number(weightCharge.toFixed(2)),
+                    handlingCharge: Number(handlingCharge.toFixed(2)),
+                    insuranceCharge: Number(insuranceCharge.toFixed(2)),
+                    taxes: Number(taxes.toFixed(2)),
+                },
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getLogisticsHistory = async (req, res) => {
+    try {
+        const userId = req.query.userId || req.user?.uid || req.user?.id;
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+        const skip = (page - 1) * limit;
+
+        if (!userId) {
+            return res.status(400).json({ success: false, message: 'userId is required.' });
+        }
+
+        const [bookings, total] = await Promise.all([
+            LogisticsBooking.find({ userId }).sort({ createdAt: -1 }).skip(skip).limit(limit),
+            LogisticsBooking.countDocuments({ userId }),
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            data: bookings,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.trackLogisticsBooking = async (req, res) => {
+    try {
+        const booking = await LogisticsBooking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        const currentSegment =
+            booking.segments?.find((segment) => segment.status === 'processing') || null;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                bookingId: booking._id,
+                status: booking.status,
+                pickup: booking.pickup,
+                dropoff: booking.dropoff,
+                currentSegment,
+                segments: booking.segments || [],
+                updatedAt: booking.updatedAt,
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.cancelLogisticsBooking = async (req, res) => {
+    try {
+        req.body = { ...(req.body || {}), status: 'cancelled' };
+        return exports.updateStatus(req, res);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.acceptRoadmap = async (req, res) => {
+    try {
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            req.params.id,
+            { status: 'confirmed' },
+            { new: true },
+        );
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Roadmap accepted successfully.',
+            data: booking,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getGoodsTypes = async (_req, res) => {
+    return res.status(200).json({ success: true, data: GOODS_TYPES });
 };

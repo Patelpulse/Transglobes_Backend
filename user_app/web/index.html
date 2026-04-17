@@ -41,7 +41,17 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          return Promise.all(regs.map(function (reg) {
+            return reg.unregister();
+          }));
+        }).then(function () {
+          return navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260415', {
+            updateViaCache: 'none'
+          });
+        }).catch(function (e) {
+          console.warn('Service worker refresh failed:', e);
+        });
       });
     }
   </script>

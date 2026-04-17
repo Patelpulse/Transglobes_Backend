@@ -75,6 +75,9 @@ class DriverService {
     _locationRef = FirebaseDatabase.instance.ref("drivers");
   }
 
+  String _ridesPath(String suffix) => '/api/rides$suffix';
+  String _legacyRidePath(String suffix) => '/api/ride$suffix';
+
   // --- Location Streaming ---
   Future<void> setOnline(bool online) async {
     final driverId = _auth.currentUser?.uid;
@@ -133,29 +136,45 @@ class DriverService {
 
   // --- Ride Status Management ---
   Future<void> updateRideStatus(String rideId, String status) async {
-    await _api.put('/api/ride/rides/$rideId/status', {
+    await _api.putWithFallback(
+      _ridesPath('/$rideId/status'),
+      _legacyRidePath('/rides/$rideId/status'),
+      {
       'status': status,
       'driverId': _auth.currentUser?.uid,
-    });
+      },
+    );
   }
 
   Future<void> acceptRide(String rideId, {double? fare}) async {
     final driverId = _auth.currentUser?.uid;
-    await _api.put('/api/ride/rides/$rideId/assign', {
+    await _api.putWithFallback(
+      _ridesPath('/$rideId/assign'),
+      _legacyRidePath('/rides/$rideId/assign'),
+      {
       'driverId': driverId,
       if (fare != null) 'fare': fare,
-    });
+      },
+    );
   }
 
   Future<void> rejectRide(String rideId) async {
     final driverId = _auth.currentUser?.uid;
-    await _api.put('/api/ride/rides/$rideId/reject', {'driverId': driverId});
+    await _api.putWithFallback(
+      _ridesPath('/$rideId/reject'),
+      _legacyRidePath('/rides/$rideId/reject'),
+      {'driverId': driverId},
+    );
   }
 
   // --- New Logistics Booking APIs ---
   Future<void> acceptBooking(String id) async {
     try {
-      await _api.patch('/api/booking/$id/accept', {});
+      await _api.patchWithFallback(
+        '/api/logistics/$id/accept-roadmap',
+        '/api/booking/$id/accept',
+        {},
+      );
       debugPrint('>>> Logistics booking $id accepted successfully');
     } catch (e) {
       debugPrint('>>> Error accepting logistics booking: $e');
@@ -165,7 +184,11 @@ class DriverService {
 
   Future<void> rejectBooking(String id) async {
     try {
-      await _api.patch('/api/booking/$id/reject', {});
+      await _api.patchWithFallback(
+        '/api/logistics/$id/cancel',
+        '/api/booking/$id/reject',
+        {},
+      );
       debugPrint('>>> Logistics booking $id rejected successfully');
     } catch (e) {
       debugPrint('>>> Error rejecting logistics booking: $e');
@@ -174,11 +197,15 @@ class DriverService {
   }
 
   Future<void> completeRide(String rideId, double actualFare) async {
-    await _api.put('/api/ride/rides/$rideId/complete', {
+    await _api.putWithFallback(
+      _ridesPath('/$rideId/complete'),
+      _legacyRidePath('/rides/$rideId/complete'),
+      {
       'status': 'completed',
       'actualFare': actualFare,
       'driverId': _auth.currentUser?.uid,
-    });
+      },
+    );
   }
 
   // --- Statistics ---
@@ -193,7 +220,10 @@ class DriverService {
 
     // 1. Fetch regular ride bookings
     try {
-      final res = await _api.get('/api/ride/driver-bookings');
+      final res = await _api.getWithFallback(
+        _ridesPath('/driver-bookings'),
+        _legacyRidePath('/driver-bookings'),
+      );
       if (res != null) {
         final List bookings = res['bookings'] ?? [];
         results.addAll(bookings.map((e) => BookingModel.fromJson(e)));
@@ -216,9 +246,13 @@ class DriverService {
 
   Future<void> verifyOtp(String rideId, String otp) async {
     try {
-      await _api.put('/api/ride/rides/$rideId/verify-otp', {
+      await _api.putWithFallback(
+        _ridesPath('/$rideId/verify-otp'),
+        _legacyRidePath('/rides/$rideId/verify-otp'),
+        {
         'otp': otp,
-      });
+        },
+      );
     } catch (e) {
       debugPrint('Error verifying OTP: $e');
       rethrow;

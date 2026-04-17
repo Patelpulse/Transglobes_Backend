@@ -128,6 +128,7 @@ const logisticGoodRoutes = require("./routes/logisticGoodRoutes");
 const logisticsBookingRoutes = require("./routes/logisticsBookingRoutes");
 const corporateRoutes = require("./routes/corporateRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const authRoutes = require("./routes/authRoutes");
 const ratingController = require("./controllers/ratingController");
 const { verifyToken } = require("./middlewares/authMiddleware");
 const { updateBilling } = require("./controllers/logisticsBookingController");
@@ -153,15 +154,18 @@ app.put("/logistics-bookings/:id/billing", updateBilling); // Root level fallbac
 
 // Register Routes
 app.use("/api/user", userRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/driver", driverRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/ride", rideRoutes);
+app.use("/api/rides", rideRoutes);
 app.use("/api/maps", mapsRoutes);
 app.use("/api/typegood", typeGoodRoutes);
 app.use("/api/logistics-vehicles", logisticsVehicleRoutes);
 app.use("/api/logistic-goods", logisticGoodRoutes);
 app.use("/api/corporate", corporateRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/payments", paymentRoutes);
 app.post("/api/ratings", verifyToken, ratingController.submitRating);
 app.get("/api/ratings/booking/:bookingId", ratingController.getBookingRatings);
 app.get("/api/ratings/driver/:driverId", ratingController.getDriverRatings);
