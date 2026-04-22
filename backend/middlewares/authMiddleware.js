@@ -4,8 +4,10 @@ const jwt = require('jsonwebtoken');
 console.log("!!! AUTH MIDDLEWARE LOADED !!!");
 
 const isExplicitDevBypassEnabled = () =>
-    process.env.NODE_ENV !== 'production' &&
     process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
+
+const isUnverifiedFirebaseAllowed = () =>
+    process.env.ALLOW_UNVERIFIED_FIREBASE_TOKEN === 'true';
 
 // ─── Attach role from DB (User or Driver) ────────────────
 const attachRoleFromDB = async (uid) => {
@@ -71,7 +73,7 @@ const verifyToken = async (req, res, next) => {
     ];
     const isDevToken = devBypassTokens.includes(normalizedToken);
 
-    const allowDevBypass = process.env.NODE_ENV !== 'production' || isExplicitDevBypassEnabled();
+    const allowDevBypass = isExplicitDevBypassEnabled();
 
     if (allowDevBypass && isDevToken) {
         const devUid = req.headers['x-dev-uid'] || req.headers['x-dev-id'] || 'dev-user-uid';
@@ -109,22 +111,24 @@ const verifyToken = async (req, res, next) => {
         } catch (firebaseErr) {
             console.log('[AUTH] Firebase verify failed, trying permissive decode and local JWT...');
 
-            // 1a. Permissive decode for mismatched Firebase projects (e.g., web Google sign-in)
-            try {
-                const loose = jwt.decode(token);
-                if (loose && (loose.user_id || loose.sub)) {
-                    uid = loose.user_id || loose.sub;
-                    req.user = {
-                        uid,
-                        email: loose.email,
-                        name: loose.name,
-                        isGoogleAuth: true,
-                        firebaseProject: loose.aud || loose.iss
-                    };
-                    console.warn('[AUTH] Accepted unverified Firebase token (project mismatch) for uid:', uid);
+            // 1a. Optional permissive decode for mismatched Firebase projects.
+            if (isUnverifiedFirebaseAllowed()) {
+                try {
+                    const loose = jwt.decode(token);
+                    if (loose && (loose.user_id || loose.sub)) {
+                        uid = loose.user_id || loose.sub;
+                        req.user = {
+                            uid,
+                            email: loose.email,
+                            name: loose.name,
+                            isGoogleAuth: true,
+                            firebaseProject: loose.aud || loose.iss
+                        };
+                        console.warn('[AUTH] Accepted unverified Firebase token for uid:', uid);
+                    }
+                } catch (e) {
+                    // ignore
                 }
-            } catch (e) {
-                // ignore
             }
         }
 
@@ -140,15 +144,6 @@ const verifyToken = async (req, res, next) => {
                     ...localDecoded,
                 };
             } catch (jwtErr) {
-                if (allowDevBypass) {
-                    console.warn('[AUTH-DEV] Explicit development auth bypass enabled.');
-                    req.user = {
-                        uid: req.headers['x-dev-uid'] || req.headers['x-dev-id'] || 'dev-user-uid',
-                        email: 'dev@example.com',
-                        role: 'driver',
-                    };
-                    return next();
-                }
                 return res.status(401).json({ message: 'Unauthorized', error: 'Invalid token' });
             }
         }

@@ -17,6 +17,18 @@ const corporateSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true,
+        index: true
+    },
+    mobileNumber: {
+        type: String,
+        unique: true,
+        sparse: true,
+        index: true
+    },
     contactPhone: {
         type: String,
         required: true

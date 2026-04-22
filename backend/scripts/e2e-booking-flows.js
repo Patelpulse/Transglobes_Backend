@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+require('dotenv').config();
+
 /**
  * Booking flow verifier for TRSNGLOBE.
  *
@@ -9,7 +11,7 @@
  * 3) Logistics booking + lifecycle transitions
  *
  * Usage:
- *   BASE_URL=http://localhost:8080 node scripts/e2e-booking-flows.js
+ *   BASE_URL=http://localhost:8082 node scripts/e2e-booking-flows.js
  * Optional:
  *   E2E_TOKEN=dev-token-bypass
  *   E2E_UID=e2e-user-uid
@@ -18,7 +20,7 @@
 
 const assert = require('node:assert/strict');
 
-const baseUrl = (process.env.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+const baseUrl = (process.env.BASE_URL || 'http://localhost:8082').replace(/\/$/, '');
 const apiBase = (process.env.API_BASE || `${baseUrl}/api`).replace(/\/$/, '');
 const token = process.env.E2E_TOKEN || process.env.AUTH_TOKEN || 'dev-token-bypass';
 const e2eUid = process.env.E2E_UID || 'e2e-user-uid';

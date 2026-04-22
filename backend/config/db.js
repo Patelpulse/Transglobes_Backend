@@ -5,9 +5,11 @@ let connectionPromise = null;
 
 const connectDB = async () => {
     try {
-        if (!process.env.MONGODB_URI) {
-            console.error('CRITICAL ERROR: MONGODB_URI environment variable is missing!');
-            throw new Error('MONGODB_URI environment variable is missing');
+        const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+
+        if (!mongoUri) {
+            console.error('CRITICAL ERROR: MONGODB_URI or MONGO_URI environment variable is missing!');
+            throw new Error('MONGODB_URI or MONGO_URI environment variable is missing');
         }
 
         if (cachedConnection && mongoose.connection.readyState === 1) {
@@ -16,7 +18,7 @@ const connectDB = async () => {
 
         if (!connectionPromise) {
             mongoose.set('bufferCommands', false);
-            connectionPromise = mongoose.connect(process.env.MONGODB_URI, {
+            connectionPromise = mongoose.connect(mongoUri, {
                 serverSelectionTimeoutMS: 15000,
                 socketTimeoutMS: 15000,
             });

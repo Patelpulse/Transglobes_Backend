@@ -4,6 +4,7 @@ const {
     syncDriverData,
     register,
     login,
+    googleAuth,
     checkEmailAvailability,
     getDriverProfile,
     uploadDocuments,
@@ -29,8 +30,10 @@ router.get('/check-email', checkEmailAvailability);
 
 // POST /api/driver/sync - To sync driver basic data to DB
 router.post('/sync', syncDriverData);
+router.post('/signup', register);
 router.post('/register', register);
 router.post('/login', login);
+router.post('/google-auth', googleAuth);
 
 // GET /api/driver/status - Check driver onboarding status
 router.get('/status', verifyToken, getDriverStatus);

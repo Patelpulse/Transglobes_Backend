@@ -1,3 +1,4 @@
+require('dotenv').config();
 const admin = require('firebase-admin');
 
 // Ensure that newlines in the private key are handled properly

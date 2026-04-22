@@ -1,0 +1,815 @@
+{
+  "info": {
+    "_postman_id": "6b5e5792-0bf1-4e19-9d4a-faa578e24b82",
+    "name": "Transglobes User Auth",
+    "description": "User authentication flow: send OTP, verify OTP, save name, fetch/update profile, and auth utility endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "36186453"
+  },
+  "item": [
+    {
+      "name": "1. Send OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mobileNumber\": \"8744880906\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/send-otp",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "send-otp"
+          ]
+        },
+        "description": "Initiates OTP flow on client side (backend validates input and flow)."
+      },
+      "response": [
+        {
+          "name": "1. Send OTP",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"8744880906\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/send-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "send-otp"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            },
+            {
+              "key": "Access-Control-Allow-Methods",
+              "value": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+            },
+            {
+              "key": "Access-Control-Allow-Headers",
+              "value": "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Dev-Uid, X-Dev-Id, x-dev-uid, x-dev-id, X-Admin-Fallback-Auth, x-admin-fallback-auth"
+            },
+            {
+              "key": "Access-Control-Allow-Credentials",
+              "value": "true"
+            },
+            {
+              "key": "Access-Control-Max-Age",
+              "value": "86400"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "Permissions-Policy",
+              "value": "geolocation=(), microphone=(), camera=()"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Content-Length",
+              "value": "112"
+            },
+            {
+              "key": "ETag",
+              "value": "W/\"70-Yg8Ts7QJ+4v+QioetSJucQonC3U\""
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 20 Apr 2026 15:14:09 GMT"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "Keep-Alive",
+              "value": "timeout=5"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"OTP flow initiated. Verify OTP on client and call verify-otp endpoint.\",\n    \"mobileNumber\": \"8744880906\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "2. Verify OTP And Register User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "let jsonData = {};",
+              "try { jsonData = pm.response.json(); } catch (e) {}",
+              "if (jsonData.user && jsonData.user.mobileNumber) {",
+              "  pm.collectionVariables.set('mobileNumber', jsonData.user.mobileNumber);",
+              "}",
+              "if (jsonData.user && jsonData.user.uid) {",
+              "  pm.collectionVariables.set('uid', jsonData.user.uid);",
+              "}",
+              "if (jsonData.user && jsonData.user.id) {",
+              "  pm.collectionVariables.set('userId', jsonData.user.id);",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mobileNumber\": \"8744880906\",\n  \"uid\": \"8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/verify-otp",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "verify-otp"
+          ]
+        },
+        "description": "Creates or updates user after OTP verification."
+      },
+      "response": [
+        {
+          "name": "2. Verify OTP And Register User",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"8744880906\",\n  \"uid\": \"8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-otp"
+              ]
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            },
+            {
+              "key": "Access-Control-Allow-Methods",
+              "value": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+            },
+            {
+              "key": "Access-Control-Allow-Headers",
+              "value": "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Dev-Uid, X-Dev-Id, x-dev-uid, x-dev-id, X-Admin-Fallback-Auth, x-admin-fallback-auth"
+            },
+            {
+              "key": "Access-Control-Allow-Credentials",
+              "value": "true"
+            },
+            {
+              "key": "Access-Control-Max-Age",
+              "value": "86400"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "Permissions-Policy",
+              "value": "geolocation=(), microphone=(), camera=()"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Content-Length",
+              "value": "204"
+            },
+            {
+              "key": "ETag",
+              "value": "W/\"cc-aenwXKBJo5RNBxyaHwmBeJc83sE\""
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 20 Apr 2026 15:15:25 GMT"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "Keep-Alive",
+              "value": "timeout=5"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"Phone number verified and registered successfully\",\n    \"user\": {\n        \"id\": \"69e6430d953e57ea8e7adb16\",\n        \"uid\": \"8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136\",\n        \"name\": \"\",\n        \"mobileNumber\": \"8744880906\"\n    },\n    \"isNewUser\": true\n}"
+        }
+      ]
+    },
+    {
+      "name": "3. Register Phone (Compatibility Route)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mobileNumber\": \"8744880906\",\n  \"uid\": \"8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register-phone",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "register-phone"
+          ]
+        },
+        "description": "Compatibility endpoint for direct phone registration after OTP verification."
+      },
+      "response": [
+        {
+          "name": "3. Register Phone (Compatibility Route)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"8744880906\",\n  \"uid\": \"8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register-phone",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register-phone"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            },
+            {
+              "key": "Access-Control-Allow-Methods",
+              "value": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+            },
+            {
+              "key": "Access-Control-Allow-Headers",
+              "value": "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Dev-Uid, X-Dev-Id, x-dev-uid, x-dev-id, X-Admin-Fallback-Auth, x-admin-fallback-auth"
+            },
+            {
+              "key": "Access-Control-Allow-Credentials",
+              "value": "true"
+            },
+            {
+              "key": "Access-Control-Max-Age",
+              "value": "86400"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "Permissions-Policy",
+              "value": "geolocation=(), microphone=(), camera=()"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Content-Length",
+              "value": "175"
+            },
+            {
+              "key": "ETag",
+              "value": "W/\"af-Jfz8NvPOazawSIbD3RT+dFnTN7g\""
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 20 Apr 2026 15:16:20 GMT"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "Keep-Alive",
+              "value": "timeout=5"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"User already exists\",\n    \"user\": {\n        \"id\": \"69e6430d953e57ea8e7adb16\",\n        \"uid\": \"8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136\",\n        \"name\": \"\",\n        \"mobileNumber\": \"8744880906\"\n    },\n    \"isNewUser\": false\n}"
+        }
+      ]
+    },
+    {
+      "name": "4. Save Name",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mobileNumber\": \"8744880906\",\n  \"name\": \"Hari\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/user/save-name",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "user",
+            "save-name"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "4. Save Name",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"8744880906\",\n  \"name\": \"Hari\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/save-name",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user",
+                "save-name"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            },
+            {
+              "key": "Access-Control-Allow-Methods",
+              "value": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+            },
+            {
+              "key": "Access-Control-Allow-Headers",
+              "value": "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Dev-Uid, X-Dev-Id, x-dev-uid, x-dev-id, X-Admin-Fallback-Auth, x-admin-fallback-auth"
+            },
+            {
+              "key": "Access-Control-Allow-Credentials",
+              "value": "true"
+            },
+            {
+              "key": "Access-Control-Max-Age",
+              "value": "86400"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "Permissions-Policy",
+              "value": "geolocation=(), microphone=(), camera=()"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Content-Length",
+              "value": "120"
+            },
+            {
+              "key": "ETag",
+              "value": "W/\"78-5Rd3qJWJfOdjCUEVBPWIAkudZMA\""
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 20 Apr 2026 15:16:57 GMT"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "Keep-Alive",
+              "value": "timeout=5"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"Name saved successfully\",\n    \"user\": {\n        \"id\": \"69e6430d953e57ea8e7adb16\",\n        \"name\": \"Hari\",\n        \"mobileNumber\": \"8744880906\"\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "5. Get Profile By Mobile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/user/profile/8744880906",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "user",
+            "profile",
+            "8744880906"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "5. Get Profile By Mobile",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/profile/8744880906",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user",
+                "profile",
+                "8744880906"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            },
+            {
+              "key": "Access-Control-Allow-Methods",
+              "value": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+            },
+            {
+              "key": "Access-Control-Allow-Headers",
+              "value": "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Dev-Uid, X-Dev-Id, x-dev-uid, x-dev-id, X-Admin-Fallback-Auth, x-admin-fallback-auth"
+            },
+            {
+              "key": "Access-Control-Allow-Credentials",
+              "value": "true"
+            },
+            {
+              "key": "Access-Control-Max-Age",
+              "value": "86400"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "Permissions-Policy",
+              "value": "geolocation=(), microphone=(), camera=()"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Content-Length",
+              "value": "351"
+            },
+            {
+              "key": "ETag",
+              "value": "W/\"15f-hW8fK6ZPhTsh3KNnPyuXxWqhgko\""
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 20 Apr 2026 15:17:17 GMT"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "Keep-Alive",
+              "value": "timeout=5"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"user\": {\n        \"_id\": \"69e6430d953e57ea8e7adb16\",\n        \"uid\": \"8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136\",\n        \"name\": \"Hari\",\n        \"mobileNumber\": \"8744880906\",\n        \"imageUrl\": \"https://i.pravatar.cc/150?u=user\",\n        \"isFraudulent\": false,\n        \"fcmToken\": \"\",\n        \"role\": \"user\",\n        \"lastActive\": \"2026-04-20T15:16:57.201Z\",\n        \"createdAt\": \"2026-04-20T15:15:25.328Z\",\n        \"updatedAt\": \"2026-04-20T15:16:57.202Z\",\n        \"__v\": 0\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "6. Get Auth Profile (Protected)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "X-Dev-Uid",
+            "value": "{{uid}}",
+            "description": "Used when token = dev-token-bypass. Tells the server which user to load."
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/profile?uid={{uid}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "profile"
+          ],
+          "query": [
+            {
+              "key": "uid",
+              "value": "{{uid}}"
+            }
+          ]
+        },
+        "description": "Protected endpoint — two ways to authenticate:\n\n• LOCAL DEV: token variable is already set to 'dev-token-bypass'. Make sure ALLOW_DEV_AUTH_BYPASS=true in your .env. The X-Dev-Uid header carries the uid so the server can find the right user.\n\n• PRODUCTION: Replace the token variable with a real Firebase ID token obtained from the mobile/web client via firebase.auth().currentUser.getIdToken()."
+      },
+      "response": []
+    },
+    {
+      "name": "7. Update Auth Profile (Protected)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "X-Dev-Uid",
+            "value": "{{uid}}",
+            "description": "Used when token = dev-token-bypass. Tells the server which user to update."
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"uid\": \"{{uid}}\",\n  \"name\": \"{{updatedName}}\",\n  \"email\": \"{{email}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/profile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "8. Refresh Token (Compatibility)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh"
+          ]
+        },
+        "description": "Compatibility endpoint. Current flow does not require backend refresh."
+      },
+      "response": []
+    },
+    {
+      "name": "9. Logout (Compatibility)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/logout",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "logout"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "10. Update FCM Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"fcmToken\": \"{{fcmToken}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/user/fcm-token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "user",
+            "fcm-token"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "mobileNumber",
+      "value": "919876543210"
+    },
+    {
+      "key": "uid",
+      "value": "8f3c2a71-b6d4-4e9a-9c1f-5d72e8ab4136"
+    },
+    {
+      "key": "name",
+      "value": "Test User"
+    },
+    {
+      "key": "updatedName",
+      "value": "Updated User"
+    },
+    {
+      "key": "email",
+      "value": "test.user@example.com"
+    },
+    {
+      "key": "token",
+      "value": "dev-token-bypass",
+      "description": "LOCAL DEV: keep as 'dev-token-bypass' with ALLOW_DEV_AUTH_BYPASS=true in .env. PRODUCTION: replace with a real Firebase ID token."
+    },
+    {
+      "key": "userId",
+      "value": "69e6430d953e57ea8e7adb16"
+    },
+    {
+      "key": "fcmToken",
+      "value": "sample-fcm-token"
+    }
+  ]
+}

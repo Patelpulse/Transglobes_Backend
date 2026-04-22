@@ -1,0 +1,875 @@
+{
+	"info": {
+		"_postman_id": "transglobe-auth-collection-2026",
+		"name": "Transglobe Authentication - Complete Collection",
+		"description": "Complete authentication API collection for Transglobe Backend supporting User, Driver, and Corporate roles with Email/Password, Mobile/Password, and Google OAuth methods",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000/api",
+			"type": "string"
+		},
+		{
+			"key": "production_url",
+			"value": "https://your-production-domain.com/api",
+			"type": "string"
+		},
+		{
+			"key": "user_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "driver_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "corporate_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "User Authentication",
+			"item": [
+				{
+					"name": "User - Email Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('user_token', jsonData.token);",
+									"    pm.environment.set('user_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123\",\n  \"mobileNumber\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/user/signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "user", "signup"]
+						},
+						"description": "Register a new user with email and password"
+					},
+					"response": []
+				},
+				{
+					"name": "User - Email Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('user_token', jsonData.token);",
+									"    pm.environment.set('user_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/user/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "user", "login"]
+						},
+						"description": "Login user with email and password"
+					},
+					"response": []
+				},
+				{
+					"name": "User - Mobile Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('user_token', jsonData.token);",
+									"    pm.environment.set('user_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Jane Smith\",\n  \"mobileNumber\": \"+9876543210\",\n  \"password\": \"MobilePass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/user/mobile-signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "user", "mobile-signup"]
+						},
+						"description": "Register a new user with mobile number and password"
+					},
+					"response": []
+				},
+				{
+					"name": "User - Mobile Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('user_token', jsonData.token);",
+									"    pm.environment.set('user_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobileNumber\": \"+9876543210\",\n  \"password\": \"MobilePass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/user/mobile-login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "user", "mobile-login"]
+						},
+						"description": "Login user with mobile number and password"
+					},
+					"response": []
+				},
+				{
+					"name": "User - Google OAuth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('user_token', jsonData.token);",
+									"    pm.environment.set('user_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{google_id_token}}",
+								"description": "Firebase Google ID Token"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobileNumber\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/user/google-auth",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "user", "google-auth"]
+						},
+						"description": "Authenticate user with Google OAuth. Pass Firebase ID token in Authorization header"
+					},
+					"response": []
+				},
+				{
+					"name": "User - Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/profile",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "profile"]
+						},
+						"description": "Get authenticated user profile"
+					},
+					"response": []
+				},
+				{
+					"name": "User - Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Name\",\n  \"mobileNumber\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/profile",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "profile"]
+						},
+						"description": "Update user profile information"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Driver Authentication",
+			"item": [
+				{
+					"name": "Driver - Email Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('driver_token', jsonData.token);",
+									"    pm.environment.set('driver_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Driver Mike\",\n  \"email\": \"driver.mike@example.com\",\n  \"password\": \"DriverPass123\",\n  \"aadharCard\": \"123456789012\",\n  \"panCard\": \"ABCDE1234F\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/driver/signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "driver", "signup"]
+						},
+						"description": "Register a new driver with email and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Driver - Email Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('driver_token', jsonData.token);",
+									"    pm.environment.set('driver_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"driver.mike@example.com\",\n  \"password\": \"DriverPass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/driver/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "driver", "login"]
+						},
+						"description": "Login driver with email and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Driver - Mobile Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('driver_token', jsonData.token);",
+									"    pm.environment.set('driver_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Driver Sarah\",\n  \"mobileNumber\": \"+9123456789\",\n  \"password\": \"DriverMobile123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/driver/mobile-signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "driver", "mobile-signup"]
+						},
+						"description": "Register a new driver with mobile number and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Driver - Mobile Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('driver_token', jsonData.token);",
+									"    pm.environment.set('driver_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobileNumber\": \"+9123456789\",\n  \"password\": \"DriverMobile123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/driver/mobile-login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "driver", "mobile-login"]
+						},
+						"description": "Login driver with mobile number and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Driver - Google OAuth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('driver_token', jsonData.token);",
+									"    pm.environment.set('driver_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{google_id_token}}",
+								"description": "Firebase Google ID Token"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/driver/google-auth",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "driver", "google-auth"]
+						},
+						"description": "Authenticate driver with Google OAuth. Pass Firebase ID token in Authorization header"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Corporate Authentication",
+			"item": [
+				{
+					"name": "Corporate - Email Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('corporate_token', jsonData.token);",
+									"    pm.environment.set('corporate_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Acme Corporation\",\n  \"gstin\": \"22AAAAA0000A1Z5\",\n  \"email\": \"contact@acmecorp.com\",\n  \"contactPhone\": \"+1234567890\",\n  \"address\": \"123 Business St, City, Country\",\n  \"password\": \"CorporatePass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/corporate/signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "corporate", "signup"]
+						},
+						"description": "Register a new corporate account with email and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Corporate - Email Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('corporate_token', jsonData.token);",
+									"    pm.environment.set('corporate_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"contact@acmecorp.com\",\n  \"password\": \"CorporatePass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/corporate/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "corporate", "login"]
+						},
+						"description": "Login corporate account with email and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Corporate - Mobile Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('corporate_token', jsonData.token);",
+									"    pm.environment.set('corporate_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"TechCorp Ltd\",\n  \"gstin\": \"27BBBBB1111B2Z6\",\n  \"mobileNumber\": \"+9988776655\",\n  \"contactPhone\": \"+9988776655\",\n  \"address\": \"456 Tech Park, City, Country\",\n  \"password\": \"TechCorp123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/corporate/mobile-signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "corporate", "mobile-signup"]
+						},
+						"description": "Register a new corporate account with mobile number and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Corporate - Mobile Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('corporate_token', jsonData.token);",
+									"    pm.environment.set('corporate_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobileNumber\": \"+9988776655\",\n  \"password\": \"TechCorp123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/corporate/mobile-login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "corporate", "mobile-login"]
+						},
+						"description": "Login corporate account with mobile number and password"
+					},
+					"response": []
+				},
+				{
+					"name": "Corporate - Google OAuth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('corporate_token', jsonData.token);",
+									"    pm.environment.set('corporate_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{google_id_token}}",
+								"description": "Firebase Google ID Token"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Google Corp\",\n  \"gstin\": \"29CCCCC2222C3Z7\",\n  \"contactPhone\": \"+1122334455\",\n  \"address\": \"789 Google St, City, Country\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/corporate/google-auth",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "corporate", "google-auth"]
+						},
+						"description": "Authenticate corporate account with Google OAuth. Pass Firebase ID token in Authorization header. Required fields for first-time signup in body."
+					},
+					"response": []
+				},
+				{
+					"name": "Corporate - Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{corporate_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/corporate/profile",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "corporate", "profile"]
+						},
+						"description": "Get authenticated corporate profile"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin Authentication",
+			"item": [
+				{
+					"name": "Admin - Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('admin_token', jsonData.token);",
+									"    pm.environment.set('admin_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Admin User\",\n  \"email\": \"admin@transglobe.com\",\n  \"password\": \"AdminPass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/admin/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "admin", "register"]
+						},
+						"description": "Register a new admin account"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('admin_token', jsonData.token);",
+									"    pm.environment.set('admin_token', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@transglobe.com\",\n  \"password\": \"AdminPass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/admin/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "admin", "login"]
+						},
+						"description": "Login admin account"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/admin/profile",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "admin", "profile"]
+						},
+						"description": "Get authenticated admin profile"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/admin/logout",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "admin", "logout"]
+						},
+						"description": "Logout admin and clear session"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Common Endpoints",
+			"item": [
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh"]
+						},
+						"description": "Refresh authentication token (currently returns success message as refresh not required)"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout"]
+						},
+						"description": "Logout user (generic endpoint)"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{user_token}}",
+				"type": "string"
+			}
+		]
+	}
+}

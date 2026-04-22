@@ -3,6 +3,7 @@ const imagekit = require('../config/imagekit');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const History = require('../models/History');
+const admin = require('../config/firebase');
 
 const otpStore = {}; // Memory store: { email: { otp, expires } }
 
@@ -11,6 +12,20 @@ const normalizeEmail = (value) =>
 
 const generateDriverUid = () =>
     `drv_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+const generateSecurePassword = () =>
+    `google_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+const createDriverToken = (driver) => jwt.sign(
+    {
+        id: driver._id.toString(),
+        uid: driver.uid || driver._id.toString(),
+        email: driver.email,
+        role: driver.role || 'driver',
+    },
+    process.env.JWT_SECRET || 'your_secret_key',
+    { expiresIn: '7d' }
+);
 
 const buildDriverLookupQuery = ({ uid, email, includeEmail = true }) => {
     const safeUid = typeof uid === 'string' ? uid.trim() : uid;
@@ -645,21 +660,16 @@ const login = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials.' });
         }
 
+        if (!driver.password) {
+            return res.status(400).json({ message: 'This account uses Google sign-in. Please continue with Google.' });
+        }
+
         const isMatch = await driver.comparePassword(password);
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid credentials.' });
         }
 
-        // Generate Token
-        const token = jwt.sign(
-            {
-                id: driver._id.toString(),
-                uid: driver.uid || driver._id.toString(),
-                email: driver.email,
-            },
-            process.env.JWT_SECRET || 'your_secret_key',
-            { expiresIn: '7d' }
-        );
+        const token = createDriverToken(driver);
 
         res.status(200).json({
             message: 'Login successful.',
@@ -674,6 +684,190 @@ const login = async (req, res) => {
     } catch (error) {
         console.error('Driver Login error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+const googleAuth = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: 'No Google token provided.' });
+        }
+
+        const idToken = authHeader.split(' ')[1];
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        const email = normalizeEmail(decoded.email);
+
+        if (!email) {
+            return res.status(400).json({ message: 'Email not found in Google account.' });
+        }
+
+        let driver = await Driver.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+        let isNewDriver = false;
+
+        if (!driver) {
+            isNewDriver = true;
+            driver = await Driver.create({
+                uid: decoded.uid || generateDriverUid(),
+                googleId: decoded.uid,
+                name: decoded.name || email.split('@')[0],
+                email,
+                password: generateSecurePassword(),
+                isEmailVerified: true,
+                status: 'pending',
+            });
+        } else {
+            if (!driver.uid) driver.uid = decoded.uid || generateDriverUid();
+            if (!driver.googleId) driver.googleId = decoded.uid;
+            if (!driver.name && decoded.name) driver.name = decoded.name;
+            driver.isEmailVerified = true;
+            await driver.save();
+        }
+
+        const token = createDriverToken(driver);
+
+        return res.status(200).json({
+            success: true,
+            message: isNewDriver ? 'Driver Google signup successful' : 'Driver Google login successful',
+            isNewDriver,
+            token,
+            driver: {
+                id: driver._id,
+                uid: driver.uid || driver._id.toString(),
+                name: driver.name,
+                email: driver.email,
+                status: driver.status,
+            }
+        });
+    } catch (error) {
+        console.error('Driver Google auth error:', error);
+        return res.status(401).json({ message: 'Invalid or expired Google token.' });
+    }
+};
+
+// Mobile Number + Password Signup for Driver
+const mobileSignup = async (req, res) => {
+    try {
+        const { name, mobileNumber, password } = req.body;
+
+        if (!name || !mobileNumber || !password) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'name, mobileNumber and password are required' 
+            });
+        }
+
+        // Normalize mobile number
+        const safeMobile = String(mobileNumber).trim();
+        
+        // Check if mobile number already exists
+        const existing = await Driver.findOne({ mobileNumber: safeMobile });
+        if (existing) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Mobile number already registered' 
+            });
+        }
+
+        // Create driver with mobile number
+        const driver = await Driver.create({
+            uid: generateDriverUid(),
+            name: name.trim(),
+            email: `${safeMobile}@transglobe.temp`, // Temporary email for drivers without email
+            mobileNumber: safeMobile,
+            password,
+            status: 'pending',
+            role: 'driver',
+        });
+
+        const token = createDriverToken(driver);
+        return res.status(201).json({
+            success: true,
+            message: 'Driver registered successfully with mobile number',
+            token,
+            driver: {
+                id: driver._id,
+                uid: driver.uid || driver._id.toString(),
+                name: driver.name,
+                mobileNumber: driver.mobileNumber,
+                status: driver.status,
+            },
+        });
+    } catch (error) {
+        console.error('Driver mobile signup error:', error);
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern || {})[0] || 'field';
+            return res.status(400).json({ 
+                success: false, 
+                message: `${field} already exists` 
+            });
+        }
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Server error', 
+            error: error.message 
+        });
+    }
+};
+
+// Mobile Number + Password Login for Driver
+const mobileLogin = async (req, res) => {
+    try {
+        const { mobileNumber, password } = req.body;
+
+        if (!mobileNumber || !password) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'mobileNumber and password are required' 
+            });
+        }
+
+        const safeMobile = String(mobileNumber).trim();
+        const driver = await Driver.findOne({ mobileNumber: safeMobile });
+        
+        if (!driver) {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Invalid credentials' 
+            });
+        }
+
+        if (!driver.password) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'This account uses Google sign-in or has no password set. Please use appropriate login method.' 
+            });
+        }
+
+        const isMatch = await driver.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Invalid credentials' 
+            });
+        }
+
+        const token = createDriverToken(driver);
+        return res.status(200).json({
+            success: true,
+            message: 'Login successful',
+            token,
+            driver: {
+                id: driver._id,
+                uid: driver.uid || driver._id.toString(),
+                name: driver.name,
+                mobileNumber: driver.mobileNumber,
+                email: driver.email,
+                status: driver.status,
+            },
+        });
+    } catch (error) {
+        console.error('Driver mobile login error:', error);
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Server error', 
+            error: error.message 
+        });
     }
 };
 
@@ -765,6 +959,9 @@ module.exports = {
     syncDriverData,
     register,
     login,
+    googleAuth,
+    mobileSignup,
+    mobileLogin,
     checkEmailAvailability,
     getDriverProfile,
     uploadDocuments,
