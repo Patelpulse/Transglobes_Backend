@@ -79,8 +79,8 @@ exports.calculateFare = async (req, res) => {
             helperCount = 0,
             isFragile = false,
             isBulky = false,
-            city = 'All',
-            bookingType = 'logistics', // 'logistics' or 'ride'
+            city,
+            bookingType, // 'logistics' or 'ride'
         } = req.body;
 
         // Use the centralized pricing calculator utility

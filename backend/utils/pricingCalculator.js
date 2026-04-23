@@ -25,8 +25,8 @@ async function calculateDynamicFare(params) {
         helperCount = 0,
         isFragile = false,
         isBulky = false,
-        city = 'All',
-        bookingType = 'logistics',
+        city,
+        bookingType,
     } = params;
 
     // Find active config (city-specific or default)
