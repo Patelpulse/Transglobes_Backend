@@ -24,21 +24,14 @@ class LogisticsProvider with ChangeNotifier {
 
   static const String googleApiKey = 'AIzaSyC7SGsD3I7EOEKDh8VXchJGSYz6dnLqM4I';
   static String get baseUrl {
-    const String prodUrl = 'https://api.transgloble.com';
-    const String localUrl = 'http://localhost:8082';
-    const String vpsUrl = 'http://72.61.172.182:8085';
+    const String prodUrl = 'http://72.61.172.182:2020';
+    const String vpsUrl = 'http://72.61.172.182:2020';
 
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
       final port = Uri.base.port;
-      if (host == '72.61.172.182' && port == 8085) {
+      if (host == '72.61.172.182' && port == 2020) {
         return vpsUrl;
-      }
-      if (host == 'localhost' ||
-          host == '127.0.0.1' ||
-          host == '0.0.0.0' ||
-          host == '::1') {
-        return localUrl;
       }
     }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'core/theme.dart';
 import 'services/auth_service.dart';
@@ -37,9 +38,32 @@ class TransglobalApp extends ConsumerStatefulWidget {
 }
 
 class _TransglobalAppState extends ConsumerState<TransglobalApp> {
+  static const String _onboardingCompletedKey = 'user_onboarding_completed';
   bool _showOnboarding = true;
+  bool _isBootstrapping = true;
 
-  void _completeOnboarding() {
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapApp();
+  }
+
+  Future<void> _bootstrapApp() async {
+    final prefs = await SharedPreferences.getInstance();
+    final completed = prefs.getBool(_onboardingCompletedKey) ?? false;
+
+    if (!mounted) return;
+    setState(() {
+      _showOnboarding = !completed;
+      _isBootstrapping = false;
+    });
+  }
+
+  Future<void> _completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_onboardingCompletedKey, true);
+
+    if (!mounted) return;
     setState(() => _showOnboarding = false);
   }
 
@@ -53,9 +77,11 @@ class _TransglobalAppState extends ConsumerState<TransglobalApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-      home: _showOnboarding
-          ? OnboardingScreen(onComplete: _completeOnboarding)
-          : const AuthWrapper(),
+      home: _isBootstrapping
+          ? const SplashScreen()
+          : (_showOnboarding
+              ? OnboardingScreen(onComplete: _completeOnboarding)
+              : const AuthWrapper()),
     );
   }
 }

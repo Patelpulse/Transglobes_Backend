@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_polyline_algorithm/google_polyline_algorithm.dart' as poly;
 import '../core/config.dart';
+import '../core/network_logger.dart';
 
 class LocationService {
   static Future<Map<String, dynamic>> getRouteData(
@@ -20,7 +21,14 @@ class LocationService {
       final url = Uri.parse(
         '$baseUrl/api/maps/directions?origin=$startLat,$startLng&destination=$endLat,$endLng&key=$apiKey',
       );
+      NetworkLogger.logRequest(method: 'GET', url: url);
       final response = await http.get(url);
+      NetworkLogger.logResponse(
+        method: 'GET',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

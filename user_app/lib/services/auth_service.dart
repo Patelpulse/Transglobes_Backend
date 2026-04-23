@@ -1,8 +1,12 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:http/http.dart' as http;
+import '../core/config.dart';
+import '../core/api_endpoints.dart';
+import 'network_logger.dart';
 
 // Demo mode flag - set to false when you have real Firebase configured
 const bool kDemoMode = false;
@@ -36,108 +40,34 @@ class MockUser {
 }
 
 class AuthService {
-  static const String _webSessionUidKey = 'web_auth_uid';
-  static const String _webSessionPhoneKey = 'web_auth_phone';
-  static const String _webSessionNameKey = 'web_auth_name';
-  static const String _webSessionEmailKey = 'web_auth_email';
-
-  // Only initialize FirebaseAuth when NOT in demo mode
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  static const String _sessionTokenKey = 'user_auth_token';
+  static const String _sessionUserKey = 'user_auth_user';
   static final MockUser _mockUser = MockUser();
-  static final StreamController<dynamic> _webAuthController =
+  final StreamController<dynamic> _authStateController =
       StreamController<dynamic>.broadcast();
-  static MockUser? _webSessionUser;
-  static bool _webSessionLoaded = false;
-  static Future<void>? _webSessionLoadFuture;
-  static String? _pendingWebPhoneNumber;
+  MockUser? _sessionUser;
+  String? _sessionToken;
 
   AuthService() {
-    if (kIsWeb && !kDemoMode) {
-      _ensureWebSessionLoaded();
-    }
+    _restoreSession();
   }
 
-  /// Awaits web session restoration before resolving. No-op on native.
-  Future<void> waitForSession() {
-    if (kIsWeb && !kDemoMode) {
-      return _ensureWebSessionLoaded();
-    }
-    return Future.value();
+  Future<void> waitForSession() async {
+    await _restoreSession();
   }
 
-  FirebaseAuth get auth {
-    // Disable app verification (reCAPTCHA) on web for development
-    if (kIsWeb) {
-      _auth.setSettings(appVerificationDisabledForTesting: true);
-    }
-    return _auth;
-  }
+  dynamic get currentUser => kDemoMode ? _mockUser : _sessionUser;
 
-  dynamic get currentUser {
-    if (kDemoMode) return _mockUser;
-    if (kIsWeb && _webSessionUser != null) return _webSessionUser;
-    return auth.currentUser;
-  }
-
-  Stream<dynamic> get authStateChanges {
-    if (kDemoMode) {
-      return Stream.value(_mockUser);
-    }
-
-    if (kIsWeb) {
-      _ensureWebSessionLoaded();
-      return Stream.multi((controller) {
-        final emitCurrentState = () {
-          controller.add(_webSessionUser ?? auth.currentUser);
-        };
-
-        if (_webSessionLoaded) {
-          emitCurrentState();
-        } else {
-          _ensureWebSessionLoaded().then((_) => emitCurrentState());
-        }
-
-        final sessionSub = _webAuthController.stream.listen(controller.add);
-        final firebaseSub = auth.authStateChanges().listen((user) {
-          if (_webSessionUser == null) {
-            controller.add(user);
-          }
-        });
-
-        controller.onCancel = () async {
-          await sessionSub.cancel();
-          await firebaseSub.cancel();
-        };
-      });
-    }
-
-    return auth.authStateChanges();
-  }
+  Stream<dynamic> get authStateChanges => _authStateController.stream;
 
   Future<String?> getIdToken() async {
     if (kDemoMode) {
       return 'demo-token-for-testing';
     }
 
-    if (kIsWeb) {
-      await _ensureWebSessionLoaded();
+    if (_sessionToken != null && _sessionToken!.isNotEmpty) {
+      return _sessionToken;
     }
-
-    final user = currentUser;
-
-    if (user is User) {
-      try {
-        return await user.getIdToken();
-      } catch (e) {
-        debugPrint('[AUTH] Failed to fetch Firebase token: $e');
-        return kDebugMode ? 'dev-token-bypass' : null;
-      }
-    }
-
-    if (user is MockUser) {
-      return 'dev-token-bypass';
-    }
-
     return kDebugMode ? 'dev-token-bypass' : null;
   }
 
@@ -163,189 +93,189 @@ class AuthService {
     return headers;
   }
 
-  Future<void> _ensureWebSessionLoaded() {
-    if (_webSessionLoaded) {
-      return Future.value();
-    }
-
-    _webSessionLoadFuture ??= _loadWebSession();
-    return _webSessionLoadFuture!;
-  }
-
-  Future<void> _loadWebSession() async {
+  Future<void> _restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
-    final uid = prefs.getString(_webSessionUidKey);
-    final phoneNumber = prefs.getString(_webSessionPhoneKey);
-
-    if (uid != null && phoneNumber != null) {
-      _webSessionUser = MockUser(
-        uid: uid,
-        displayName: prefs.getString(_webSessionNameKey),
-        email: prefs.getString(_webSessionEmailKey),
-        phoneNumber: phoneNumber,
+    _sessionToken = prefs.getString(_sessionTokenKey);
+    final rawUser = prefs.getString(_sessionUserKey);
+    if (rawUser != null) {
+      final decoded = json.decode(rawUser) as Map<String, dynamic>;
+      _sessionUser = MockUser(
+        uid: decoded['uid']?.toString(),
+        displayName: decoded['name']?.toString(),
+        email: decoded['email']?.toString(),
+        phoneNumber: decoded['mobileNumber']?.toString(),
       );
     }
-
-    _webSessionLoaded = true;
-    _webAuthController.add(_webSessionUser ?? auth.currentUser);
+    _authStateController.add(_sessionUser);
   }
 
-  Future<void> _persistWebSession(MockUser user) async {
+  Future<void> _saveSession(Map<String, dynamic> user, String? token) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_webSessionUidKey, user.uid ?? '');
-    await prefs.setString(_webSessionPhoneKey, user.phoneNumber ?? '');
-
-    if ((user.displayName ?? '').isNotEmpty) {
-      await prefs.setString(_webSessionNameKey, user.displayName!);
-    } else {
-      await prefs.remove(_webSessionNameKey);
-    }
-
-    if ((user.email ?? '').isNotEmpty) {
-      await prefs.setString(_webSessionEmailKey, user.email!);
-    } else {
-      await prefs.remove(_webSessionEmailKey);
-    }
+    _sessionToken = token ?? '';
+    _sessionUser = MockUser(
+      uid: user['uid']?.toString() ?? user['id']?.toString() ?? '',
+      displayName: user['name']?.toString(),
+      email: user['email']?.toString(),
+      phoneNumber: user['mobileNumber']?.toString(),
+    );
+    await prefs.setString(_sessionTokenKey, _sessionToken!);
+    await prefs.setString(_sessionUserKey, json.encode(user));
+    _authStateController.add(_sessionUser);
   }
 
-  Future<void> syncWebSessionUser({
-    String? displayName,
-    String? email,
-    String? phoneNumber,
+  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
+    final headers = await buildAuthHeaders();
+    final url = Uri.parse('${AppConfig.apiBaseUrl}$path');
+    NetworkLogger.logRequest(
+      method: 'POST',
+      url: url,
+      headers: headers,
+      body: body,
+    );
+    final response = await http.post(
+      url,
+      headers: headers,
+      body: json.encode(body),
+    );
+    NetworkLogger.logResponse(method: 'POST', url: url, response: response);
+    final data = response.body.isNotEmpty
+        ? json.decode(response.body) as Map<String, dynamic>
+        : <String, dynamic>{};
+    return {
+      'success': response.statusCode == 200 || response.statusCode == 201,
+      'statusCode': response.statusCode,
+      'message': data['message']?.toString() ?? 'Request failed',
+      'token': data['token']?.toString(),
+      'user': data['user'],
+      'raw': data,
+    };
+  }
+
+  Future<Map<String, dynamic>> signup({
+    required String name,
+    required String email,
+    required String password,
+    required String mobileNumber,
   }) async {
-    if (!kIsWeb) return;
-
-    await _ensureWebSessionLoaded();
-    final activeUser = _webSessionUser;
-    if (activeUser == null) return;
-
-    if (displayName != null) activeUser.displayName = displayName;
-    if (email != null) activeUser.email = email;
-    if (phoneNumber != null) activeUser.phoneNumber = phoneNumber;
-
-    await _persistWebSession(activeUser);
-    _webAuthController.add(activeUser);
+    final res = await _post(AuthEndpoints.userSignup, {
+      'name': name,
+      'email': email,
+      'password': password,
+      'mobileNumber': mobileNumber,
+    });
+    if (res['success'] == true && res['user'] is Map<String, dynamic>) {
+      await _saveSession(res['user'] as Map<String, dynamic>, res['token'] as String?);
+    }
+    return res;
   }
 
-  Future<void> _clearWebSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_webSessionUidKey);
-    await prefs.remove(_webSessionPhoneKey);
-    await prefs.remove(_webSessionNameKey);
-    await prefs.remove(_webSessionEmailKey);
-    _webSessionUser = null;
-    _webAuthController.add(null);
-  }
-
-  Future<void> _signInWebBypassUser(String phoneNumber) async {
-    await _ensureWebSessionLoaded();
-
-    final normalizedDigits = phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
-    final sessionUser = MockUser(
-      uid: 'web-user-$normalizedDigits',
-      phoneNumber: phoneNumber,
-      displayName: _webSessionUser?.displayName,
-      email: _webSessionUser?.email,
-    );
-
-    _webSessionUser = sessionUser;
-    await _persistWebSession(sessionUser);
-    _webAuthController.add(sessionUser);
-  }
-
-  // Phone OTP Authentication
-  Future<void> verifyPhoneNumber({
-    required String phoneNumber,
-    required Function(String verificationId, int? resendToken) onCodeSent,
-    required Function(FirebaseAuthException e) onVerificationFailed,
-    required Function(PhoneAuthCredential credential) onVerificationCompleted,
-    required Function(String verificationId) onCodeAutoRetrievalTimeout,
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
   }) async {
-    if (kDemoMode) {
-      // In demo mode, simulate OTP sent after 1 second
-      await Future.delayed(const Duration(seconds: 1));
-      onCodeSent('demo-verification-id', null);
-      return;
+    final res = await _post(AuthEndpoints.userLogin, {
+      'email': email,
+      'password': password,
+    });
+    if (res['success'] == true && res['user'] is Map<String, dynamic>) {
+      await _saveSession(res['user'] as Map<String, dynamic>, res['token'] as String?);
     }
+    return res;
+  }
 
-    // On web, Firebase phone auth requires reCAPTCHA + authorized domain.
-    // Use a simulated web flow — OTP is accepted client-side, backend validates phone.
-    if (kIsWeb) {
-      _pendingWebPhoneNumber = phoneNumber;
-      await Future.delayed(const Duration(milliseconds: 500));
-      onCodeSent('web-bypass-${phoneNumber.replaceAll('+', '')}', null);
-      return;
+  Future<Map<String, dynamic>> mobileSignup({
+    required String name,
+    required String mobileNumber,
+    required String password,
+  }) async {
+    final res = await _post(AuthEndpoints.userMobileSignup, {
+      'name': name,
+      'mobileNumber': mobileNumber,
+      'password': password,
+    });
+    if (res['success'] == true && res['user'] is Map<String, dynamic>) {
+      await _saveSession(res['user'] as Map<String, dynamic>, res['token'] as String?);
     }
-
-    await auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: onVerificationCompleted,
-      verificationFailed: onVerificationFailed,
-      codeSent: onCodeSent,
-      codeAutoRetrievalTimeout: onCodeAutoRetrievalTimeout,
-    );
+    return res;
   }
 
-  Future<UserCredential?> signInWithPhoneCredential(
-    String verificationId,
-    String smsCode,
-  ) async {
-    if (kDemoMode || kIsWeb) {
-      // On web, accept any 6-digit OTP — backend validates the phone registration
-      if (smsCode.length == 6) {
-        if (kIsWeb) {
-          final digitsFromVerificationId = verificationId.replaceFirst('web-bypass-', '');
-          final normalizedPhone = _pendingWebPhoneNumber ??
-              (digitsFromVerificationId.isNotEmpty ? '+$digitsFromVerificationId' : null);
-
-          if (normalizedPhone == null || normalizedPhone.isEmpty) {
-            throw Exception('Phone number missing for web sign-in');
-          }
-
-          await _signInWebBypassUser(normalizedPhone);
-        }
-        return null;
-      }
-      throw Exception('Invalid OTP');
+  Future<Map<String, dynamic>> mobileLogin({
+    required String mobileNumber,
+    required String password,
+  }) async {
+    final res = await _post(AuthEndpoints.userMobileLogin, {
+      'mobileNumber': mobileNumber,
+      'password': password,
+    });
+    if (res['success'] == true && res['user'] is Map<String, dynamic>) {
+      await _saveSession(res['user'] as Map<String, dynamic>, res['token'] as String?);
     }
-
-    final credential = PhoneAuthProvider.credential(
-      verificationId: verificationId,
-      smsCode: smsCode,
-    );
-    return await auth.signInWithCredential(credential);
+    return res;
   }
 
-  // Sign in with any credential (used for auto-verification)
-  Future<UserCredential> signInWithCredential(AuthCredential credential) async {
-    return await auth.signInWithCredential(credential);
+  Future<Map<String, dynamic>> fetchProfile() async {
+    final headers = await buildAuthHeaders(includeContentType: false);
+    final url = Uri.parse('${AppConfig.apiBaseUrl}${AuthEndpoints.profile}');
+    NetworkLogger.logRequest(method: 'GET', url: url, headers: headers);
+    final response = await http.get(
+      url,
+      headers: headers,
+    );
+    NetworkLogger.logResponse(method: 'GET', url: url, response: response);
+    final data = response.body.isNotEmpty
+        ? json.decode(response.body) as Map<String, dynamic>
+        : <String, dynamic>{};
+    return {
+      'success': response.statusCode == 200,
+      'statusCode': response.statusCode,
+      'message': data['message']?.toString() ?? '',
+      'user': data['user'],
+    };
   }
 
-  // Email/Password Authentication
-  Future<UserCredential> signInWithEmail(String email, String password) async {
-    return await auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
+  Future<Map<String, dynamic>> updateProfile({
+    required String name,
+    required String mobileNumber,
+  }) async {
+    final headers = await buildAuthHeaders();
+    final url = Uri.parse('${AppConfig.apiBaseUrl}${AuthEndpoints.profile}');
+    final body = {'name': name, 'mobileNumber': mobileNumber};
+    NetworkLogger.logRequest(
+      method: 'PUT',
+      url: url,
+      headers: headers,
+      body: body,
     );
-  }
-
-  Future<UserCredential> signUpWithEmail(String email, String password) async {
-    return await auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
+    final response = await http.put(
+      url,
+      headers: headers,
+      body: json.encode(body),
     );
+    NetworkLogger.logResponse(method: 'PUT', url: url, response: response);
+    final data = response.body.isNotEmpty
+        ? json.decode(response.body) as Map<String, dynamic>
+        : <String, dynamic>{};
+    if (response.statusCode == 200 && data['user'] is Map<String, dynamic>) {
+      await _saveSession(data['user'] as Map<String, dynamic>, _sessionToken);
+    }
+    return {
+      'success': response.statusCode == 200,
+      'message': data['message']?.toString() ?? 'Update failed',
+      'user': data['user'],
+    };
   }
 
   Future<void> signOut() async {
-    if (kIsWeb) {
-      await _clearWebSession();
-    }
-    if (!kDemoMode) {
-      await auth.signOut();
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionTokenKey);
+    await prefs.remove(_sessionUserKey);
+    _sessionToken = null;
+    _sessionUser = null;
+    _authStateController.add(null);
   }
 
   Future<void> resetPassword(String email) async {
-    await auth.sendPasswordResetEmail(email: email);
+    // Not wired to backend reset API yet.
+    throw UnimplementedError('Password reset API not configured');
   }
 }

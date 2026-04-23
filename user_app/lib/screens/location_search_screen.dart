@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import '../services/location_service.dart';
 import '../core/config.dart';
 import '../services/api_service.dart';
+import '../core/api_endpoints.dart';
 
 class LocationSearchScreen extends ConsumerStatefulWidget {
   final String title;
@@ -176,7 +177,7 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
       final apiKey = AppConfig.googleMapsApiKey;
       final apiService = ref.read(apiServiceProvider);
       final response = await apiService.get(
-        '/api/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in',
+        MapsEndpoints.autocomplete(input: query, apiKey: apiKey),
       );
 
       if (mounted) {
@@ -212,7 +213,10 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
         final apiKey = AppConfig.googleMapsApiKey;
         final apiService = ref.read(apiServiceProvider);
         final response = await apiService.get(
-          '/api/maps/details?place_id=${location['place_id']}&key=$apiKey&fields=geometry',
+          MapsEndpoints.details(
+            placeId: location['place_id'],
+            apiKey: apiKey,
+          ),
         );
         final loc = (response as Map<String, dynamic>)['result']['geometry']['location'];
         target = LatLng(loc['lat'], loc['lng']);

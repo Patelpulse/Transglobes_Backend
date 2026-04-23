@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../core/theme.dart';
 import '../providers/user_provider.dart';
+import '../core/api_endpoints.dart';
 
 class MyLogisticsBookingsScreen extends ConsumerStatefulWidget {
   const MyLogisticsBookingsScreen({super.key});
@@ -49,8 +50,8 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
 
       final apiService = ref.read(apiServiceProvider);
       final data = await apiService.getWithFallback(
-        '/api/logistics/history?userId=${Uri.encodeQueryComponent(userId)}',
-        '/api/logistics-bookings/user/$userId',
+        LogisticsEndpoints.history(userId),
+        LogisticsEndpoints.userBookingsLegacy(userId),
       );
       setState(() {
         _bookings = data['data'] ?? [];

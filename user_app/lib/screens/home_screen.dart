@@ -19,6 +19,8 @@ import 'my_logistics_bookings_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../core/config.dart';
+import '../core/api_endpoints.dart';
+import '../services/network_logger.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -132,7 +134,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: transPurple.withOpacity(0.2),
-                    child: const Icon(Icons.person, color: Colors.white, size: 30),
+                    child:
+                        const Icon(Icons.person, color: Colors.white, size: 30),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -209,7 +212,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const LogisticsBookingScreen(),
+                  builder: (context) =>
+                      const LogisticsBookingScreen(bookingType: 'logistics'),
                 ),
               );
             },
@@ -241,8 +245,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Navigator.pop(context);
                   setState(() => _currentIndex = 1);
                 }),
-                _drawerMenuItem(Icons.account_balance_wallet_outlined,
-                    "Wallet", () {
+                _drawerMenuItem(Icons.account_balance_wallet_outlined, "Wallet",
+                    () {
                   Navigator.pop(context);
                   setState(() => _currentIndex = 2);
                 }),
@@ -351,13 +355,17 @@ class _HomeTabState extends ConsumerState<HomeTab> {
       if (userId == null) return;
 
       if (mounted) setState(() => _isLoadingBookings = true);
-      
-      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/logistics-bookings/user/$userId');
+
+      final url = Uri.parse(
+        '${AppConfig.apiBaseUrl}${LogisticsEndpoints.userBookingsLegacy(userId)}',
+      );
       final headers = await auth.buildAuthHeaders(includeContentType: false);
+      NetworkLogger.logRequest(method: 'GET', url: url, headers: headers);
       final response = await http.get(
         url,
         headers: headers,
       );
+      NetworkLogger.logResponse(method: 'GET', url: url, response: response);
 
       if (response.statusCode == 200 && mounted) {
         final data = json.decode(response.body);
@@ -388,8 +396,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     );
 
     if (result != null && result is Map && mounted) {
-      final pickup =
-          result['pickup'] ??
+      final pickup = result['pickup'] ??
           {
             'name': 'Current Location',
             'address': 'Using GPS',
@@ -666,8 +673,9 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                const LogisticsBookingScreen(),
+                            builder: (context) => const LogisticsBookingScreen(
+                              bookingType: 'logistics',
+                            ),
                           ),
                         );
                       },
@@ -741,7 +749,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
               // 6. Recent Logistics History
               if (_recentBookings.isNotEmpty) ...[
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -756,7 +765,11 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                       TextButton(
                         onPressed: () {
                           // In a real app, this might switch the tab or nav to a screen
-                          Navigator.push(context, MaterialPageRoute(builder: (ctx) => const MyLogisticsBookingsScreen()));
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (ctx) =>
+                                      const MyLogisticsBookingsScreen()));
                         },
                         child: const Text("See All"),
                       ),
@@ -857,8 +870,12 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     final status = (booking['status'] ?? 'pending').toString();
     final vehicle = booking['vehicleType'] ?? 'Logistics';
     final items = booking['items'] as List? ?? [];
-    final pickup = booking['pickupAddress']?['label'] ?? booking['pickup']?['name'] ?? 'Pickup';
-    final drop = booking['receivedAddress']?['label'] ?? booking['dropoff']?['name'] ?? 'Delivery';
+    final pickup = booking['pickupAddress']?['label'] ??
+        booking['pickup']?['name'] ??
+        'Pickup';
+    final drop = booking['receivedAddress']?['label'] ??
+        booking['dropoff']?['name'] ??
+        'Delivery';
     final date = DateTime.parse(booking['createdAt']).toLocal();
 
     return Container(
@@ -879,9 +896,13 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4)],
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.03), blurRadius: 4)
+                  ],
                 ),
-                child: Icon(_getVehicleIcon(vehicle), color: Colors.black87, size: 22),
+                child: Icon(_getVehicleIcon(vehicle),
+                    color: Colors.black87, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -893,41 +914,58 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                       spacing: 8,
                       runSpacing: 4,
                       children: [
-                        Text(vehicle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text(vehicle,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14)),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: _getHistoryStatusColor(status).withOpacity(0.1),
+                            color:
+                                _getHistoryStatusColor(status).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(status.toUpperCase(), 
-                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 9, fontWeight: FontWeight.bold)),
+                          child: Text(status.toUpperCase(),
+                              style: TextStyle(
+                                  color: _getHistoryStatusColor(status),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold)),
                         ),
-                        if (booking['otp'] != null && (status == 'confirmed' || status == 'processing'))
+                        if (booking['otp'] != null &&
+                            (status == 'confirmed' || status == 'processing'))
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: transPurple.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: Text('OTP: ${booking['otp']}', 
-                              style: const TextStyle(color: transPurple, fontSize: 10, fontWeight: FontWeight.bold)),
+                            child: Text('OTP: ${booking['otp']}',
+                                style: const TextStyle(
+                                    color: transPurple,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
                           ),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text('$pickup → $drop', 
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                    Text('$pickup → $drop',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            TextStyle(color: Colors.grey[600], fontSize: 11)),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('₹${(double.tryParse(booking['totalPrice'].toString()) ?? 0.0).toStringAsFixed(2)}', 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text('${date.day}/${date.month}', style: TextStyle(color: Colors.grey[500], fontSize: 10)),
+                  Text(
+                      '₹${(double.tryParse(booking['totalPrice'].toString()) ?? 0.0).toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('${date.day}/${date.month}',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 10)),
                 ],
               ),
             ],
@@ -939,11 +977,16 @@ class _HomeTabState extends ConsumerState<HomeTab> {
 
   Color _getHistoryStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'delivered': return Colors.green;
-      case 'cancelled': return Colors.red;
-      case 'in_transit': return Colors.orange;
-      case 'confirmed': return Colors.blue;
-      default: return Colors.blue;
+      case 'delivered':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      case 'in_transit':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      default:
+        return Colors.blue;
     }
   }
 
@@ -954,8 +997,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     final items = booking['items'] as List? ?? [];
     final pAddr = booking['pickupAddress'];
     final rAddr = booking['receivedAddress'];
-    final pLoc  = booking['pickup'];
-    final dLoc  = booking['dropoff'];
+    final pLoc = booking['pickup'];
+    final dLoc = booking['dropoff'];
     final date = DateTime.parse(booking['createdAt']).toLocal();
 
     showModalBottomSheet(
@@ -974,7 +1017,9 @@ class _HomeTabState extends ConsumerState<HomeTab> {
             Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -989,23 +1034,33 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(vehicle, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                            Text('Booked on ${date.day}/${date.month}/${date.year}', 
-                              style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                            Text(vehicle,
+                                style: const TextStyle(
+                                    fontSize: 24, fontWeight: FontWeight.bold)),
+                            Text(
+                                'Booked on ${date.day}/${date.month}/${date.year}',
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 13)),
                           ],
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: _getHistoryStatusColor(status).withOpacity(0.1),
+                            color:
+                                _getHistoryStatusColor(status).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(status.toUpperCase(), 
-                            style: TextStyle(color: _getHistoryStatusColor(status), fontSize: 12, fontWeight: FontWeight.bold)),
+                          child: Text(status.toUpperCase(),
+                              style: TextStyle(
+                                  color: _getHistoryStatusColor(status),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
-                    if (booking['otp'] != null && (status == 'confirmed' || status == 'processing')) ...[
+                    if (booking['otp'] != null &&
+                        (status == 'confirmed' || status == 'processing')) ...[
                       const SizedBox(height: 24),
                       Container(
                         width: double.infinity,
@@ -1013,57 +1068,80 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         decoration: BoxDecoration(
                           color: transPurple.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: transPurple.withOpacity(0.2)),
+                          border:
+                              Border.all(color: transPurple.withOpacity(0.2)),
                         ),
                         child: Column(
                           children: [
-                            const Text('GIVE THIS OTP TO DRIVER TO START', 
-                              style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                            const Text('GIVE THIS OTP TO DRIVER TO START',
+                                style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2)),
                             const SizedBox(height: 12),
-                            Text(booking['otp'].toString(), 
-                              style: const TextStyle(color: transPurple, fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 10)),
+                            Text(booking['otp'].toString(),
+                                style: const TextStyle(
+                                    color: transPurple,
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 10)),
                           ],
                         ),
                       ),
                     ],
                     const SizedBox(height: 24),
-
-                    const Text("Addresses", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    const Text("Addresses",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
                     const SizedBox(height: 12),
-                    _locationDetailItem("Pickup", pAddr?['fullAddress'] ?? pLoc?['address'] ?? ''),
+                    _locationDetailItem("Pickup",
+                        pAddr?['fullAddress'] ?? pLoc?['address'] ?? ''),
                     const SizedBox(height: 12),
-                    _locationDetailItem("Delivery", rAddr?['fullAddress'] ?? dLoc?['address'] ?? ''),
-                    
+                    _locationDetailItem("Delivery",
+                        rAddr?['fullAddress'] ?? dLoc?['address'] ?? ''),
                     const SizedBox(height: 24),
-                    Text("Items (${items.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    Text("Items (${items.length})",
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
                     const SizedBox(height: 12),
                     ...items.map((it) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.inventory_2_outlined, size: 18, color: Colors.grey),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(it['itemName'] ?? 'Item', style: const TextStyle(fontWeight: FontWeight.w500))),
-                          if (it['length'] != null)
-                            Text('${it['length']}x${it['height']}x${it['width']} ${it['unit'] ?? 'cm'}', 
-                              style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                        ],
-                      ),
-                    )),
-
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF7F8FA),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.inventory_2_outlined,
+                                  size: 18, color: Colors.grey),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                  child: Text(it['itemName'] ?? 'Item',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500))),
+                              if (it['length'] != null)
+                                Text(
+                                    '${it['length']}x${it['height']}x${it['width']} ${it['unit'] ?? 'cm'}',
+                                    style: const TextStyle(
+                                        fontSize: 10, color: Colors.grey)),
+                            ],
+                          ),
+                        )),
                     const SizedBox(height: 24),
-                    const Text("Amount Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    const Text("Amount Details",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
                     const SizedBox(height: 12),
                     _amountRow("Vehicle Fare", booking['vehiclePrice'] ?? 0),
                     if ((booking['helperCost'] ?? 0) > 0)
                       _amountRow("Helper Charges", booking['helperCost']),
                     if ((booking['discountAmount'] ?? 0) > 0)
-                      _amountRow("Discount", -(booking['discountAmount'] ?? 0), isDiscount: true),
+                      _amountRow("Discount", -(booking['discountAmount'] ?? 0),
+                          isDiscount: true),
                     const Divider(height: 24),
-                    _amountRow("Total Paid", booking['totalPrice'] ?? 0, isTotal: true),
-                    
+                    _amountRow("Total Paid", booking['totalPrice'] ?? 0,
+                        isTotal: true),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -1079,24 +1157,33 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+        Text(title,
+            style: const TextStyle(
+                fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
         Text(addr, style: const TextStyle(fontSize: 13, height: 1.4)),
       ],
     );
   }
 
-  Widget _amountRow(String label, dynamic amount, {bool isDiscount = false, bool isTotal = false}) {
+  Widget _amountRow(String label, dynamic amount,
+      {bool isDiscount = false, bool isTotal = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: isTotal ? 16 : 13, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
-          Text('₹${(double.tryParse(amount.toString()) ?? 0.0).toStringAsFixed(2)}', style: TextStyle(
-            fontSize: isTotal ? 18 : 13, 
-            fontWeight: FontWeight.bold,
-            color: isDiscount ? Colors.green : (isTotal ? Colors.black : Colors.black87)
-          )),
+          Text(label,
+              style: TextStyle(
+                  fontSize: isTotal ? 16 : 13,
+                  fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
+          Text(
+              '₹${(double.tryParse(amount.toString()) ?? 0.0).toStringAsFixed(2)}',
+              style: TextStyle(
+                  fontSize: isTotal ? 18 : 13,
+                  fontWeight: FontWeight.bold,
+                  color: isDiscount
+                      ? Colors.green
+                      : (isTotal ? Colors.black : Colors.black87))),
         ],
       ),
     );
@@ -1439,9 +1526,8 @@ class _ActivityTabState extends State<ActivityTab>
                 Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: isUpcoming
-                    ? Colors.red
-                    : context.theme.primaryColor,
+                backgroundColor:
+                    isUpcoming ? Colors.red : context.theme.primaryColor,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 56),
                 shape: RoundedRectangleBorder(
@@ -1724,8 +1810,7 @@ class AccountTab extends ConsumerWidget {
                         ),
                         Container(
                           height: 6,
-                          width:
-                              MediaQuery.of(context).size.width *
+                          width: MediaQuery.of(context).size.width *
                               0.6, // 85% roughly
                           decoration: BoxDecoration(
                             color: Colors.white,

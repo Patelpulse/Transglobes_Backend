@@ -13,6 +13,7 @@ import '../services/auth_service.dart';
 import '../services/socket_service.dart';
 import '../providers/user_provider.dart';
 import 'searching_ride_screen.dart';
+import '../core/api_endpoints.dart';
 
 class RideBookingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -237,7 +238,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
       await authService.waitForSession();
       final mobileNumber = authService.currentUser?.phoneNumber?.toString();
       
-      final response = await apiService.post('/api/ride/ride-request', {
+      final response = await apiService.post(RideEndpoints.createRideRequestLegacy, {
         if (mobileNumber != null && mobileNumber.trim().isNotEmpty)
           'mobileNumber': mobileNumber.trim(),
         'locations': {

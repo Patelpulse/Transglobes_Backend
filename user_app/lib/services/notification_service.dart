@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'auth_service.dart';
 import '../core/config.dart';
+import '../core/api_endpoints.dart';
 import '../providers/user_provider.dart';
+import 'network_logger.dart';
 
 final notificationServiceProvider = Provider((ref) => NotificationService(ref));
 
@@ -63,14 +65,23 @@ class NotificationService {
     try {
       final authService = _ref.read(authServiceProvider);
       final headers = await authService.buildAuthHeaders();
-      final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/api/user/fcm-token'),
+      final url = Uri.parse('${AppConfig.apiBaseUrl}${AuthEndpoints.userFcmToken}');
+      final body = {
+        'userId': profile.id,
+        'fcmToken': token,
+      };
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
         headers: headers,
-        body: jsonEncode({
-          'userId': profile.id,
-          'fcmToken': token,
-        }),
+        body: body,
       );
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+      NetworkLogger.logResponse(method: 'POST', url: url, response: response);
 
       if (response.statusCode == 200) {
         print('FCM Token (User) updated on backend');

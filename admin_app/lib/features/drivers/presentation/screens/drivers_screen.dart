@@ -5,7 +5,6 @@ import '../../domain/models/driver_model.dart';
 import '../providers/driver_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/network_avatar.dart';
-import '../../../../shared/widgets/community_card.dart';
 import '../../../support/presentation/screens/chat_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -36,6 +35,9 @@ class DriversScreen extends ConsumerWidget {
             margin: const EdgeInsets.only(right: 16),
             width: 300,
             child: TextField(
+              onChanged: (value) {
+                ref.read(driverSearchProvider.notifier).updateQuery(value);
+              },
               decoration: InputDecoration(
                 hintText: 'Search drivers...',
                 prefixIcon: const Icon(Icons.search, size: 20),
@@ -71,12 +73,26 @@ class DriversScreen extends ConsumerWidget {
                       )
                     : RefreshIndicator(
                         onRefresh: () => ref.read(driversProvider.notifier).getDrivers(),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          itemCount: filteredDrivers.length,
-                          itemBuilder: (context, index) {
-                            return _DriverCard(driver: filteredDrivers[index]);
-                          },
+                        child: CustomScrollView(
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.all(16),
+                              sliver: SliverGrid(
+                                gridDelegate:
+                                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  maxCrossAxisExtent: 320,
+                                  mainAxisSpacing: 10,
+                                  crossAxisSpacing: 10,
+                                  childAspectRatio: 1.6,
+                                ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) =>
+                                      _DriverCard(driver: filteredDrivers[index]),
+                                  childCount: filteredDrivers.length,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -228,84 +244,42 @@ class _DriverCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return CommunityCard(
-      imageUrl: driver.imageUrl,
-      name: driver.name,
-      subtitle: driver.vehicleInfo ?? driver.email,
-      avatarBorderColor: _statusColor(driver.status),
-      trailingAction: PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert, color: AppTheme.textSecondaryLight),
-        color: AppTheme.surfaceColorDark,
-        onSelected: (value) async {
-          if (value == 'warn') {
-            _showWarnDialog(context, ref);
-          } else if (value == 'suspend') {
-            final scaffoldMessenger = ScaffoldMessenger.of(context);
-            final success = await ref.read(driversProvider.notifier).updateDriverStatus(driver.id, DriverStatus.suspended);
-            if (success) {
-              scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Driver suspended successfully')));
-            } else {
-              scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Failed to suspend driver'), backgroundColor: AppTheme.danger));
-            }
-          } else if (value == 'activate') {
-            final scaffoldMessenger = ScaffoldMessenger.of(context);
-            final success = await ref.read(driversProvider.notifier).updateDriverStatus(driver.id, DriverStatus.active);
-            if (success) {
-              scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Driver activated successfully')));
-            } else {
-               scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Failed to activate driver'), backgroundColor: AppTheme.danger));
-            }
-          }
-        },
-        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-          const PopupMenuItem<String>(
-            value: 'warn',
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: AppTheme.warning, size: 20),
-                SizedBox(width: 8),
-                Text('Warn Driver', style: TextStyle(color: Colors.white)),
-              ],
-            ),
-          ),
-          if (driver.status != DriverStatus.suspended)
-            const PopupMenuItem<String>(
-              value: 'suspend',
-              child: Row(
-                children: [
-                  Icon(Icons.block, color: AppTheme.danger, size: 20),
-                  SizedBox(width: 8),
-                  Text('Suspend Driver', style: TextStyle(color: Colors.white)),
-                ],
-              ),
-            ),
-          if (driver.status == DriverStatus.suspended)
-            const PopupMenuItem<String>(
-              value: 'activate',
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle_outline, color: AppTheme.success, size: 20),
-                  SizedBox(width: 8),
-                  Text('Activate Driver', style: TextStyle(color: Colors.white)),
-                ],
-              ),
-            ),
-        ],
-      ),
-      onChat: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatScreen(
-              receiverId: driver.id,
-              receiverName: driver.name,
-              receiverImage: driver.imageUrl,
-            ),
-          ),
-        );
-      },
-      onView: () {
-        // Show details - could be a modal or navigation
+    final statusColor = _statusColor(driver.status);
+    final statusLabel = driver.status.name.toUpperCase();
+    final cardGradient = driver.status == DriverStatus.active
+        ? const [Color(0xFFECFDF5), Color(0xFFD1FAE5)]
+        : driver.status == DriverStatus.suspended
+            ? const [Color(0xFFFEF2F2), Color(0xFFFEE2E2)]
+            : const [Color(0xFFFFFBEB), Color(0xFFFEF3C7)];
+
+    String displayIfAvailable(String? value) {
+      if (value == null) return 'N/A';
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? 'N/A' : trimmed;
+    }
+
+    final primaryInfoLine =
+        'Mobile: ${displayIfAvailable(driver.mobileNumber)}  •  PAN: ${displayIfAvailable(driver.panCardNumber)}';
+    final secondaryInfoLine =
+        'Aadhaar: ${displayIfAvailable(driver.aadharCardNumber)}  •  DL: ${displayIfAvailable(driver.licenseNumber)}';
+
+    final vehicleLine = [
+      displayIfAvailable(driver.vehicleModel),
+      displayIfAvailable(driver.vehicleNumberPlate),
+      displayIfAvailable(driver.vehicleYear),
+    ].where((item) => item != 'N/A').join(' • ');
+
+    final docsSummary = [
+      if ((driver.insurance ?? '').trim().isNotEmpty) 'Insurance',
+      if ((driver.rcBook ?? '').trim().isNotEmpty) 'RC',
+      if ((driver.panCardImage ?? '').trim().isNotEmpty) 'PAN Img',
+      if ((driver.aadharCardPhoto ?? '').trim().isNotEmpty) 'Aadhaar Img',
+      if ((driver.drivingLicensePhoto ?? '').trim().isNotEmpty) 'DL Img',
+    ];
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
@@ -313,39 +287,258 @@ class _DriverCard extends ConsumerWidget {
           builder: (context) => _DriverDetailsModal(driver: driver),
         );
       },
-      onDelete: () {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppTheme.surfaceColorDark,
-            title: const Text('Delete Driver', style: TextStyle(color: Colors.white)),
-            content: Text('Are you sure you want to delete ${driver.name}?', style: const TextStyle(color: Colors.white70)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  Navigator.pop(context);
-                  final success = await ref.read(driversProvider.notifier).deleteDriver(driver.id);
-                  if (success) {
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(content: Text('${driver.name} deleted successfully')),
-                    );
-                  } else {
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('Failed to delete driver'), backgroundColor: AppTheme.danger),
-                    );
-                  }
-                },
-                child: const Text('Delete', style: TextStyle(color: AppTheme.danger)),
-              ),
-            ],
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: cardGradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        );
-      },
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x140F172A),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                NetworkAvatarBox(
+                  imageUrl: driver.imageUrl,
+                  name: driver.name,
+                  size: 30,
+                  shape: BoxShape.circle,
+                  borderColor: statusColor,
+                  borderWidth: 2,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    driver.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimaryDark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  iconSize: 18,
+                  icon: const Icon(Icons.more_vert, color: AppTheme.textSecondaryLight),
+                  onSelected: (value) async {
+                    if (value == 'warn') {
+                      _showWarnDialog(context, ref);
+                    } else if (value == 'suspend') {
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
+                      final success = await ref
+                          .read(driversProvider.notifier)
+                          .updateDriverStatus(driver.id, DriverStatus.suspended);
+                      scaffoldMessenger.showSnackBar(
+                        SnackBar(
+                          content: Text(success
+                              ? 'Driver suspended successfully'
+                              : 'Failed to suspend driver'),
+                          backgroundColor:
+                              success ? null : AppTheme.danger,
+                        ),
+                      );
+                    } else if (value == 'activate') {
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
+                      final success = await ref
+                          .read(driversProvider.notifier)
+                          .updateDriverStatus(driver.id, DriverStatus.active);
+                      scaffoldMessenger.showSnackBar(
+                        SnackBar(
+                          content: Text(success
+                              ? 'Driver activated successfully'
+                              : 'Failed to activate driver'),
+                          backgroundColor:
+                              success ? null : AppTheme.danger,
+                        ),
+                      );
+                    } else if (value == 'chat') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatScreen(
+                            receiverId: driver.id,
+                            receiverName: driver.name,
+                            receiverImage: driver.imageUrl,
+                          ),
+                        ),
+                      );
+                    } else if (value == 'delete') {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          backgroundColor: AppTheme.surfaceColorDark,
+                          title: const Text('Delete Driver',
+                              style: TextStyle(color: Colors.white)),
+                          content: Text(
+                            'Are you sure you want to delete ${driver.name}?',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final scaffoldMessenger =
+                                    ScaffoldMessenger.of(context);
+                                Navigator.pop(context);
+                                final success = await ref
+                                    .read(driversProvider.notifier)
+                                    .deleteDriver(driver.id);
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(success
+                                        ? '${driver.name} deleted successfully'
+                                        : 'Failed to delete driver'),
+                                    backgroundColor:
+                                        success ? null : AppTheme.danger,
+                                  ),
+                                );
+                              },
+                              child: const Text('Delete',
+                                  style: TextStyle(color: AppTheme.danger)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  },
+                  itemBuilder: (BuildContext context) =>
+                      <PopupMenuEntry<String>>[
+                    const PopupMenuItem<String>(
+                      value: 'warn',
+                      child: Text('Warn Driver'),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'chat',
+                      child: Text('Open Chat'),
+                    ),
+                    if (driver.status != DriverStatus.suspended)
+                      const PopupMenuItem<String>(
+                        value: 'suspend',
+                        child: Text('Suspend Driver'),
+                      ),
+                    if (driver.status == DriverStatus.suspended)
+                      const PopupMenuItem<String>(
+                        value: 'activate',
+                        child: Text('Activate Driver'),
+                      ),
+                    const PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Text('Delete Driver'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              driver.email.isEmpty ? 'No email' : driver.email,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textMutedLight,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                _chip(statusLabel, statusColor),
+                const SizedBox(width: 6),
+                _chip(
+                  driver.dob != null
+                      ? DateFormat('dd MMM yyyy').format(driver.dob!)
+                      : 'DOB N/A',
+                  const Color(0xFF6366F1),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              primaryInfoLine,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondaryDark,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              secondaryInfoLine,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondaryDark,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              vehicleLine.isEmpty ? 'Vehicle: N/A' : 'Vehicle: $vehicleLine',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondaryDark,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              docsSummary.isEmpty
+                  ? 'Docs: Not uploaded'
+                  : 'Docs: ${docsSummary.join(", ")}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textMutedLight,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 }

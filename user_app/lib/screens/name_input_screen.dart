@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
+import '../core/api_endpoints.dart';
 
 class NameInputScreen extends ConsumerStatefulWidget {
   final String mobileNumber;
@@ -67,25 +68,19 @@ class _NameInputScreenState extends ConsumerState<NameInputScreen>
       final apiService = ref.read(apiServiceProvider);
       final authService = ref.read(authServiceProvider);
 
-      await apiService.postWithFallback(
-        '/api/auth/profile',
-        '/api/user/save-name',
+      await apiService.put(
+        AuthEndpoints.profile,
         {
-        'mobileNumber': widget.mobileNumber,
-        'name': name,
+          'mobileNumber': widget.mobileNumber,
+          'name': name,
         },
       );
 
       // Also update Firebase's displayName for local property access
-      final user = authService.currentUser;
-      if (user != null) {
-        if (user is MockUser) {
-           user.displayName = name;
-           await authService.syncWebSessionUser(displayName: name);
-        } else {
-           await user.updateDisplayName(name);
-        }
-      }
+      await authService.updateProfile(
+        name: name,
+        mobileNumber: widget.mobileNumber,
+      );
 
       if (mounted) {
         // Refresh the user profile provider so header updates

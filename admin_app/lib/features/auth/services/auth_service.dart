@@ -1,27 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/network/deploy_hosts.dart';
 
 String _resolveAdminAuthBaseUrl() {
-  const String prodUrl = 'https://api.transgloble.com/api/admin/';
-  const String localUrl = 'http://localhost:8082/api/admin/';
-
+  const String prodUrl = 'http://72.61.172.182:2020/api/admin/';
   if (isVpsDeployedWeb) {
     return '$kVpsApiOrigin/api/admin/';
-  }
-
-  if (kIsWeb) {
-    final host = Uri.base.host.toLowerCase();
-    if (host == 'localhost' ||
-        host == '127.0.0.1' ||
-        host == '0.0.0.0' ||
-        host == '::1') {
-      return localUrl;
-    }
   }
 
   return prodUrl;

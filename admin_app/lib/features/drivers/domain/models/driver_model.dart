@@ -64,12 +64,21 @@ class Driver extends Equatable {
     } else {
       vInfo = map['vehicleInfo'] ?? "No vehicle info";
     }
+    final rawName = (map['name'] ?? '').toString().trim();
+    final email = (map['email'] ?? '').toString().trim();
+    final mobile =
+        (map['mobileNumber'] ?? map['phoneNumber'] ?? map['phone'])?.toString().trim();
+    final fallbackName = email.isNotEmpty
+        ? email.split('@').first
+        : (mobile != null && mobile.length >= 4
+            ? 'Driver ${mobile.substring(mobile.length - 4)}'
+            : 'Unknown Driver');
 
     return Driver(
       id: map['_id']?.toString() ?? map['uid']?.toString() ?? '',
-      name: map['name'] ?? '',
-      email: map['email'] ?? '',
-      mobileNumber: (map['mobileNumber'] ?? map['phoneNumber'] ?? map['phone'])?.toString(),
+      name: rawName.isNotEmpty ? rawName : fallbackName,
+      email: email,
+      mobileNumber: mobile,
       status: _parseStatus(map['status']),
       licenseNumber: map['drivingLicenseNumber'] ?? map['licenseNumber'],
       vehicleInfo: vInfo,

@@ -120,7 +120,9 @@ class ServicesScreen extends StatelessWidget {
                       () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const LogisticsBookingScreen(),
+                          builder: (context) => const LogisticsBookingScreen(
+                            bookingType: 'logistics',
+                          ),
                         ),
                       ),
                     ),

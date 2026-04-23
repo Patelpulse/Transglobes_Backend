@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/admin_user_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -61,7 +60,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
               onChanged: (value) {
-                // Implement search logic if needed
+                ref.read(userSearchProvider.notifier).updateQuery(value);
               },
             ),
           ),
@@ -85,50 +84,70 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                       ref.invalidate(systemLogsProvider);
                       ref.invalidate(platformOverviewProvider);
                     },
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      children: [
-                        if (filteredUsers.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 32),
-                            child: Center(
-                              child: Text(
-                                "No users found matching criteria.",
-                                style: TextStyle(
-                                  color: AppTheme.textMutedLight,
+                    child: filteredUsers.isEmpty
+                        ? ListView(
+                            children: const [
+                              SizedBox(height: 120),
+                              Center(
+                                child: Text(
+                                  "No users found matching criteria.",
+                                  style: TextStyle(
+                                    color: AppTheme.textMutedLight,
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           )
-                        else
-                          ...filteredUsers.map(
-                            (user) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildUserCard(user),
-                            ),
+                        : CustomScrollView(
+                            slivers: [
+                              SliverPadding(
+                                padding: const EdgeInsets.all(16),
+                                sliver: SliverGrid(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithMaxCrossAxisExtent(
+                                    maxCrossAxisExtent: 300,
+                                    mainAxisSpacing: 10,
+                                    crossAxisSpacing: 10,
+                                    childAspectRatio: 1.75,
+                                  ),
+                                  delegate: SliverChildBuilderDelegate(
+                                    (_, index) =>
+                                        _buildUserGridCard(filteredUsers[index]),
+                                    childCount: filteredUsers.length,
+                                  ),
+                                ),
+                              ),
+                              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                              const SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    "PLATFORM OVERVIEW",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textMutedLight,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: _buildPlatformOverviewGrid(),
+                                ),
+                              ),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 16),
+                                  child: _buildSystemLogs(),
+                                ),
+                              ),
+                              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                            ],
                           ),
-                        const SizedBox(height: 24),
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            "PLATFORM OVERVIEW",
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textMutedLight,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
-                        _buildPlatformOverviewGrid(),
-                        const SizedBox(height: 16),
-                        _buildSystemLogs(),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
                   );
                 },
                 loading: () => const Center(
@@ -217,10 +236,145 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     );
   }
 
-  Widget _buildUserCard(AppUser user) {
-    return AdminUserCard(
-      user: user,
-      onViewProfile: () => _showUserDetails(context, user),
+  Widget _buildUserGridCard(AppUser user) {
+    final statusColor =
+        user.status == UserStatus.active ? AppTheme.success : const Color(0xFF94A3B8);
+    final typeColor = user.type == UserType.business
+        ? const Color(0xFF8B5CF6)
+        : const Color(0xFF3B82F6);
+    final statusLabel = user.status.name.toUpperCase();
+    final typeLabel = user.type == UserType.business ? 'BUSINESS' : 'PERSONAL';
+    final contactText =
+        user.email.isNotEmpty ? user.email : (user.mobileNumber ?? 'No contact');
+    final mobileText =
+        (user.mobileNumber ?? '').trim().isEmpty ? 'N/A' : user.mobileNumber!;
+    final walletText =
+        NumberFormat.currency(symbol: '₹', decimalDigits: 0).format(user.walletBalance);
+    final cardGradient = user.status == UserStatus.active
+        ? const [Color(0xFFECFDF5), Color(0xFFD1FAE5)]
+        : user.type == UserType.business
+            ? const [Color(0xFFF5F3FF), Color(0xFFEDE9FE)]
+            : const [Color(0xFFEFF6FF), Color(0xFFDBEAFE)];
+
+    return InkWell(
+      onTap: () => _showUserDetails(context, user),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: cardGradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x140F172A),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                NetworkAvatarBox(
+                  imageUrl: user.imageUrl,
+                  name: user.name,
+                  size: 32,
+                  shape: BoxShape.circle,
+                  borderColor: typeColor,
+                  borderWidth: 2,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    user.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimaryDark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              contactText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textMutedLight,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                _chip(typeLabel, typeColor),
+                const SizedBox(width: 6),
+                _chip(statusLabel, statusColor),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Mobile: $mobileText',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondaryDark,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Wallet: $walletText  •  Last: ${user.lastActive ?? "N/A"}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondaryDark,
+                fontSize: 9.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 

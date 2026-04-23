@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/ride_model.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
+import '../core/api_endpoints.dart';
 
 final rideServiceProvider = Provider<RideService>((ref) {
   final apiService = ref.watch(apiServiceProvider);
@@ -29,8 +30,8 @@ class RideService {
     return null;
   }
 
-  String _ridePath(String suffix) => '/api/rides$suffix';
-  String _legacyRidePath(String suffix) => '/api/ride$suffix';
+  String _ridePath(String suffix) => RideEndpoints.rides(suffix);
+  String _legacyRidePath(String suffix) => RideEndpoints.rideLegacy(suffix);
 
   Future<RideModel> createRide({
     required List<double> pickupCoordinates,

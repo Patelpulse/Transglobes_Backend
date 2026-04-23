@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config.dart';
 import 'auth_service.dart';
+import 'network_logger.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   final authService = ref.watch(authServiceProvider);
@@ -21,10 +22,13 @@ class ApiService {
 
   Future<dynamic> get(String endpoint) async {
     final headers = await _getHeaders();
+    final url = Uri.parse('$baseUrl$endpoint');
+    NetworkLogger.logRequest(method: 'GET', url: url, headers: headers);
     final response = await http.get(
-      Uri.parse('$baseUrl$endpoint'),
+      url,
       headers: headers,
     );
+    NetworkLogger.logResponse(method: 'GET', url: url, response: response);
     return _handleResponse(response);
   }
 
@@ -42,11 +46,19 @@ class ApiService {
 
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
+    final url = Uri.parse('$baseUrl$endpoint');
+    NetworkLogger.logRequest(
+      method: 'POST',
+      url: url,
+      headers: headers,
+      body: body,
+    );
     final response = await http.post(
-      Uri.parse('$baseUrl$endpoint'),
+      url,
       headers: headers,
       body: jsonEncode(body),
     );
+    NetworkLogger.logResponse(method: 'POST', url: url, response: response);
     return _handleResponse(response);
   }
 
@@ -65,11 +77,19 @@ class ApiService {
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
+    final url = Uri.parse('$baseUrl$endpoint');
+    NetworkLogger.logRequest(
+      method: 'PUT',
+      url: url,
+      headers: headers,
+      body: body,
+    );
     final response = await http.put(
-      Uri.parse('$baseUrl$endpoint'),
+      url,
       headers: headers,
       body: jsonEncode(body),
     );
+    NetworkLogger.logResponse(method: 'PUT', url: url, response: response);
     return _handleResponse(response);
   }
 
@@ -88,10 +108,13 @@ class ApiService {
 
   Future<dynamic> delete(String endpoint) async {
     final headers = await _getHeaders();
+    final url = Uri.parse('$baseUrl$endpoint');
+    NetworkLogger.logRequest(method: 'DELETE', url: url, headers: headers);
     final response = await http.delete(
-      Uri.parse('$baseUrl$endpoint'),
+      url,
       headers: headers,
     );
+    NetworkLogger.logResponse(method: 'DELETE', url: url, response: response);
     return _handleResponse(response);
   }
 

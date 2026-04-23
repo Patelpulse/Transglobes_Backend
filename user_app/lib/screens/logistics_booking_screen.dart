@@ -10,14 +10,15 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
+import 'dart:math' as math;
 import '../core/config.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import 'dart:async';
-import 'address_book_screen.dart';
-import '../models/address_model.dart';
 import 'my_logistics_bookings_screen.dart';
 import '../providers/user_provider.dart';
+import '../core/api_endpoints.dart';
+import '../services/network_logger.dart';
 
 // ─── Helper cost per person ─────────────────────────────
 const double _helperCostPerPerson = 800.0; // ₹800 per helper
@@ -48,16 +49,31 @@ class _ItemEntry {
 }
 
 class LogisticsBookingScreen extends ConsumerStatefulWidget {
-  const LogisticsBookingScreen({super.key});
+  final String bookingType;
+
+  const LogisticsBookingScreen({
+    super.key,
+    this.bookingType = 'logistics',
+  });
 
   @override
-  ConsumerState<LogisticsBookingScreen> createState() => _LogisticsBookingScreenState();
+  ConsumerState<LogisticsBookingScreen> createState() =>
+      _LogisticsBookingScreenState();
 }
 
-class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen> {
+class _LogisticsBookingScreenState
+    extends ConsumerState<LogisticsBookingScreen> {
+  String get _resolvedBookingType {
+    final raw = widget.bookingType.trim();
+    if (raw.isEmpty) return 'logistics';
+    return raw.toLowerCase();
+  }
+
   // Vehicle
   String? _selectedVehicle;
   LogisticsVehicle? _selectedVehicleData;
+  String _selectedMode = 'Road';
+  final List<String> _transportModes = const ['Road', 'Train', 'Air'];
 
   // Goods type
   String? _selectedGoodType;
@@ -84,14 +100,15 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   Map<String, dynamic>? _dropoff;
   List<LatLng> _routePoints = [];
   double _distance = 0.0;
+  bool _isFareLoading = false;
+  String? _fareError;
+  double? _apiFare;
 
   // Coupon
   String? _appliedCoupon;
   double _discountAmount = 0.0;
 
   // Selected addresses from address book
-  AddressEntry? _selectedPickupAddress;
-  AddressEntry? _selectedDeliveryAddress;
 
   // Booking loader
   bool _isSavingGood = false;
@@ -103,6 +120,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   final _dropoffFocusNode = FocusNode();
   List<Map<String, dynamic>> _searchResults = [];
   Timer? _debounce;
+  Timer? _fareDebounce;
   bool _showSuggestions = false;
   bool _activeSearchingPickup = true;
 
@@ -111,6 +129,18 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     super.initState();
     _pickupFocusNode.addListener(_onFocusChanged);
     _dropoffFocusNode.addListener(_onFocusChanged);
+    _itemNameController.addListener(_scheduleFareRecalculation);
+    _lengthController.addListener(_scheduleFareRecalculation);
+    _heightController.addListener(_scheduleFareRecalculation);
+    _widthController.addListener(_scheduleFareRecalculation);
+  }
+
+  void _scheduleFareRecalculation() {
+    _fareDebounce?.cancel();
+    _fareDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      unawaited(_calculateFareFromApi());
+    });
   }
 
   void _onFocusChanged() {
@@ -125,7 +155,9 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
       } else {
         // Delay hiding suggestions to allow tap events to fire
         Future.delayed(const Duration(milliseconds: 250), () {
-          if (mounted && !_pickupFocusNode.hasFocus && !_dropoffFocusNode.hasFocus) {
+          if (mounted &&
+              !_pickupFocusNode.hasFocus &&
+              !_dropoffFocusNode.hasFocus) {
             setState(() => _showSuggestions = false);
           }
         });
@@ -136,6 +168,11 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   @override
   void dispose() {
     _debounce?.cancel();
+    _fareDebounce?.cancel();
+    _itemNameController.removeListener(_scheduleFareRecalculation);
+    _lengthController.removeListener(_scheduleFareRecalculation);
+    _heightController.removeListener(_scheduleFareRecalculation);
+    _widthController.removeListener(_scheduleFareRecalculation);
     _pickupSearchController.dispose();
     _dropoffSearchController.dispose();
     _pickupFocusNode.removeListener(_onFocusChanged);
@@ -170,15 +207,17 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
       final apiKey = AppConfig.googleMapsApiKey;
       final apiService = ref.read(apiServiceProvider);
       final response = await apiService.get(
-        '/api/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in',
+        MapsEndpoints.autocomplete(input: query, apiKey: apiKey),
       );
 
       if (mounted) {
-        final List predictions = (response as Map<String, dynamic>)['predictions'] ?? [];
+        final List predictions =
+            (response as Map<String, dynamic>)['predictions'] ?? [];
         setState(() {
           _searchResults = predictions
               .map((item) => {
-                    'name': item['structured_formatting']['main_text'] as String,
+                    'name':
+                        item['structured_formatting']['main_text'] as String,
                     'address': item['description'] as String,
                     'place_id': item['place_id'] as String,
                   })
@@ -190,14 +229,19 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     }
   }
 
-  Future<void> _selectSuggestion(Map<String, dynamic> suggestion, bool isPickup) async {
+  Future<void> _selectSuggestion(
+      Map<String, dynamic> suggestion, bool isPickup) async {
     try {
       final apiKey = AppConfig.googleMapsApiKey;
       final apiService = ref.read(apiServiceProvider);
       final response = await apiService.get(
-        '/api/maps/details?place_id=${suggestion['place_id']}&key=$apiKey&fields=geometry',
+        MapsEndpoints.details(
+          placeId: suggestion['place_id'],
+          apiKey: apiKey,
+        ),
       );
-      final loc = (response as Map<String, dynamic>)['result']['geometry']['location'];
+      final loc =
+          (response as Map<String, dynamic>)['result']['geometry']['location'];
       final lat = loc['lat'] as double;
       final lng = loc['lng'] as double;
 
@@ -208,22 +252,25 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
         'lng': lng,
       };
 
-          if (mounted) {
-            setState(() {
-              _showSuggestions = false;
-              if (isPickup) {
-                _pickup = result;
-                _pickupSearchController.text = "${suggestion['name']}, ${suggestion['address']}";
-                _pickupFocusNode.unfocus();
-              } else {
-                _dropoff = result;
-                _dropoffSearchController.text = "${suggestion['name']}, ${suggestion['address']}";
-                _dropoffFocusNode.unfocus();
-              }
-              _searchResults = [];
-            });
-            _fetchRoute();
+      if (mounted) {
+        setState(() {
+          _showSuggestions = false;
+          if (isPickup) {
+            _pickup = result;
+            _pickupSearchController.text =
+                "${suggestion['name']}, ${suggestion['address']}";
+            _pickupFocusNode.unfocus();
+          } else {
+            _dropoff = result;
+            _dropoffSearchController.text =
+                "${suggestion['name']}, ${suggestion['address']}";
+            _dropoffFocusNode.unfocus();
           }
+          _searchResults = [];
+        });
+        unawaited(_calculateFareFromApi());
+        _fetchRoute();
+      }
     } catch (e) {
       // Keep current selection state on API failures.
     }
@@ -244,9 +291,134 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
   double get _helperCost => _helperCount * _helperCostPerPerson;
 
-  double get _totalPrice =>
-      (_vehiclePrice + _helperCost - _discountAmount).clamp(0.0, double.infinity);
+  double get _calculatedWeightKg {
+    final draftLength = double.tryParse(_lengthController.text.trim()) ?? 0;
+    final draftHeight = double.tryParse(_heightController.text.trim()) ?? 0;
+    final draftWidth = double.tryParse(_widthController.text.trim()) ?? 0;
+    final draftVolume = draftLength > 0 && draftHeight > 0 && draftWidth > 0
+        ? (draftLength * draftHeight * draftWidth)
+        : 0.0;
 
+    if (_addedItems.isEmpty && draftVolume <= 0) return 50.0;
+    final totalVolume = _addedItems.fold<double>(
+      0.0,
+      (sum, item) => sum + (item.length * item.height * item.width),
+    );
+    final approxWeight = (totalVolume + draftVolume) / 5000.0;
+    return approxWeight <= 0 ? 50.0 : approxWeight;
+  }
+
+  Future<void> _calculateFareFromApi() async {
+    if (_pickup == null || _dropoff == null) {
+      if (mounted) {
+        setState(() {
+          _apiFare = null;
+          _fareError = null;
+        });
+      }
+      return;
+    }
+
+    try {
+      final requestDistanceKm = _distance > 0
+          ? _distance
+          : _estimateDistanceKmFromSelectedLocations();
+      if (requestDistanceKm <= 0) {
+        if (mounted) {
+          setState(() {
+            _isFareLoading = false;
+            _fareError = 'Distance unavailable for fare calculation.';
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isFareLoading = true;
+          _fareError = null;
+        });
+      }
+      final apiService = ref.read(apiServiceProvider);
+      final response = await apiService.post(
+        LogisticsEndpoints.calculateFare,
+        {
+          'distanceKm': requestDistanceKm,
+          'mode': _selectedMode,
+          'weightKg': _calculatedWeightKg,
+          'helperCount': _helperCount,
+          'bookingType': _resolvedBookingType,
+        },
+      );
+      final fare = _extractFareFromResponse(response);
+      if (mounted) {
+        setState(() {
+          _apiFare = fare;
+          _isFareLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isFareLoading = false;
+          _fareError = 'Live fare unavailable. Showing estimated price.';
+        });
+      }
+    }
+  }
+
+  double _estimateDistanceKmFromSelectedLocations() {
+    if (_pickup == null || _dropoff == null) return 0;
+    final lat1 = _parseDouble(_pickup!['lat']);
+    final lon1 = _parseDouble(_pickup!['lng']);
+    final lat2 = _parseDouble(_dropoff!['lat']);
+    final lon2 = _parseDouble(_dropoff!['lng']);
+    if (lat1 == 0 || lon1 == 0 || lat2 == 0 || lon2 == 0) return 0;
+
+    const earthRadiusKm = 6371.0;
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRadians(lat1)) *
+            math.cos(_toRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  double _toRadians(double degree) => degree * (math.pi / 180.0);
+
+  double? _extractFareFromResponse(dynamic response) {
+    if (response is! Map<String, dynamic>) return null;
+    final data = response['data'];
+    final values = <dynamic>[
+      response['fare'],
+      response['price'],
+      response['totalPrice'],
+      response['totalFare'],
+      response['estimatedFare'],
+      if (data is Map<String, dynamic>) data['fare'],
+      if (data is Map<String, dynamic>) data['price'],
+      if (data is Map<String, dynamic>) data['totalPrice'],
+      if (data is Map<String, dynamic>) data['totalFare'],
+      if (data is Map<String, dynamic>) data['estimatedFare'],
+      if (data is Map<String, dynamic>) data['subtotal'],
+    ];
+
+    for (final value in values) {
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
+
+  double get _totalPrice =>
+      ((_apiFare ?? (_vehiclePrice + _helperCost)) - _discountAmount)
+          .clamp(0.0, double.infinity);
 
   // ─── Route & distance ───────────────────────────────────
   Future<void> _fetchRoute() async {
@@ -260,7 +432,10 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     final url =
         'https://router.project-osrm.org/route/v1/driving/$pLng,$pLat;$dLng,$dLat?overview=full&geometries=geojson';
     try {
-      final response = await http.get(Uri.parse(url));
+      final uri = Uri.parse(url);
+      NetworkLogger.logRequest(method: 'GET', url: uri);
+      final response = await http.get(uri);
+      NetworkLogger.logResponse(method: 'GET', url: uri, response: response);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final routes = data['routes'] as List;
@@ -272,9 +447,11 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
             setState(() {
               _distance = distance;
               _routePoints = geometry
-                  .map((coord) => LatLng(coord[1].toDouble(), coord[0].toDouble()))
+                  .map((coord) =>
+                      LatLng(coord[1].toDouble(), coord[0].toDouble()))
                   .toList();
             });
+            unawaited(_calculateFareFromApi());
           }
         }
       }
@@ -316,55 +493,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
     if (_addedItems.isEmpty) {
       return 'Please add at least one item with complete details';
     }
-    // Require pickup address from address book
-    if (_selectedPickupAddress == null) {
-      return 'Please select a Pickup Address from your address book (tap "Pickup Address" below)';
-    }
-    if (_selectedPickupAddress!.type != 'pickup') {
-      return 'The selected pickup address is not of type "Pickup". Please choose a valid pickup address';
-    }
-    // Require delivery address from address book
-    if (_selectedDeliveryAddress == null) {
-      return 'Please select a Delivery Address from your address book (tap "Delivery Address" below)';
-    }
-    if (_selectedDeliveryAddress!.type != 'received') {
-      return 'The selected delivery address is not of type "Received". Please choose a valid delivery address';
-    }
     return null;
-  }
-
-  Map<String, dynamic>? _buildValidatedPickupAddressPayload() {
-    if (_selectedPickupAddress == null || _pickup == null) return null;
-
-    return {
-      'type': 'pickup',
-      'label': _selectedPickupAddress!.label,
-      'fullAddress': _pickup!['address'],
-      'houseNumber': _selectedPickupAddress!.houseNumber,
-      'floorNumber': _selectedPickupAddress!.floorNumber,
-      'landmark': _selectedPickupAddress!.landmark,
-      'city': _selectedPickupAddress!.city,
-      'pincode': _selectedPickupAddress!.pincode,
-      'phone': _selectedPickupAddress!.phone,
-      'email': _selectedPickupAddress!.email,
-    };
-  }
-
-  Map<String, dynamic>? _buildValidatedReceivedAddressPayload() {
-    if (_selectedDeliveryAddress == null || _dropoff == null) return null;
-
-    return {
-      'type': 'received',
-      'label': _selectedDeliveryAddress!.label,
-      'fullAddress': _dropoff!['address'],
-      'houseNumber': _selectedDeliveryAddress!.houseNumber,
-      'floorNumber': _selectedDeliveryAddress!.floorNumber,
-      'landmark': _selectedDeliveryAddress!.landmark,
-      'city': _selectedDeliveryAddress!.city,
-      'pincode': _selectedDeliveryAddress!.pincode,
-      'phone': _selectedDeliveryAddress!.phone,
-      'email': _selectedDeliveryAddress!.email,
-    };
   }
 
   // ─── Add item to list ────────────────────────────────────
@@ -421,6 +550,7 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
         _currentImageBytes = null;
         _currentImageName = null;
       });
+      unawaited(_calculateFareFromApi());
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -439,19 +569,30 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   }
 
   // ─── Upload image to ImageKit via backend ────────────────
-  Future<String?> _uploadImageToImageKit(Uint8List bytes, String fileName) async {
+  Future<String?> _uploadImageToImageKit(
+      Uint8List bytes, String fileName) async {
     final authService = ref.read(authServiceProvider);
     await authService.waitForSession();
     final userId = authService.currentUser?.uid as String? ?? 'guest';
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistic-goods/upload-image');
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}${LogisticsEndpoints.goodsUploadImage}',
+    );
     final request = http.MultipartRequest('POST', uri);
     request.headers.addAll(await _authHeaders(includeContentType: false));
     request.fields['userId'] = userId;
-    request.files.add(http.MultipartFile.fromBytes('image', bytes, filename: fileName));
+    request.files
+        .add(http.MultipartFile.fromBytes('image', bytes, filename: fileName));
+    NetworkLogger.logRequest(
+      method: 'POST',
+      url: uri,
+      headers: request.headers,
+      formFields: request.fields,
+    );
 
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
+    NetworkLogger.logResponse(method: 'POST', url: uri, response: response);
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = json.decode(response.body);
       return data['url'] as String?;
@@ -469,7 +610,9 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
     for (final item in _addedItems) {
       try {
-        final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/logistic-goods');
+        final uri = Uri.parse(
+          '${AppConfig.apiBaseUrl}${LogisticsEndpoints.goods}',
+        );
         final request = http.MultipartRequest('POST', uri);
         request.headers.addAll(headers);
         request.fields['userId'] = userId;
@@ -482,8 +625,15 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
         if (item.savedImageUrl != null) {
           request.fields['imageUrl'] = item.savedImageUrl!;
         }
+        NetworkLogger.logRequest(
+          method: 'POST',
+          url: uri,
+          headers: request.headers,
+          formFields: request.fields,
+        );
         final streamed = await request.send();
         final resp = await http.Response.fromStream(streamed);
+        NetworkLogger.logResponse(method: 'POST', url: uri, response: resp);
         debugPrint('Saved item "${item.name}": ${resp.statusCode}');
       } catch (e) {
         debugPrint('Error saving item "${item.name}": $e');
@@ -494,60 +644,64 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
   // ─── POST full logistics booking to MongoDB ───────────
   Future<String> _saveLogisticsBooking({
     required String goodTypeName,
-    Map<String, dynamic>? pickupAddress,
-    Map<String, dynamic>? receivedAddress,
   }) async {
     final authService = ref.read(authServiceProvider);
     await authService.waitForSession();
     final user = authService.currentUser;
     final userId = user?.uid as String? ?? 'guest';
-    final userPhone = (user is MockUser) ? user.phoneNumber ?? '' : user?.phoneNumber ?? '';
-    
+    final userPhone =
+        (user is MockUser) ? user.phoneNumber ?? '' : user?.phoneNumber ?? '';
+
     // Attempt to get name from the provider first (most reliable Mongo data)
     String userName = ref.read(userProfileProvider).value ?? '';
     if (userName.isEmpty || userName == 'Transglobal User') {
-       userName = (user is MockUser) ? user.displayName ?? 'User' : user?.displayName ?? 'User';
+      userName = (user is MockUser)
+          ? user.displayName ?? 'User'
+          : user?.displayName ?? 'User';
     }
-    
+
     final apiService = ref.read(apiServiceProvider);
     final payload = {
       'userId': userId,
       'userName': userName,
       'userPhone': userPhone,
       'pickup': {
-        'name':    _pickup!['name'],
+        'name': _pickup!['name'],
         'address': _pickup!['address'],
-        'lat':     _parseDouble(_pickup!['lat']),
-        'lng':     _parseDouble(_pickup!['lng']),
+        'lat': _parseDouble(_pickup!['lat']),
+        'lng': _parseDouble(_pickup!['lng']),
       },
       'dropoff': {
-        'name':    _dropoff!['name'],
+        'name': _dropoff!['name'],
         'address': _dropoff!['address'],
-        'lat':     _parseDouble(_dropoff!['lat']),
-        'lng':     _parseDouble(_dropoff!['lng']),
+        'lat': _parseDouble(_dropoff!['lat']),
+        'lng': _parseDouble(_dropoff!['lng']),
       },
-      'distanceKm':     _distance,
-      'vehicleType':    _selectedVehicle ?? 'General',
-      'vehiclePrice':   _vehiclePrice,
-      'items': _addedItems.map((item) => {
-        'itemName': item.name,
-        'type':     item.type,
-        'length':   item.length,
-        'height':   item.height,
-        'width':    item.width,
-        'unit':     item.unit,
-      }).toList(),
-      'helperCount':    _helperCount,
-      'helperCost':     _helperCost,
+      'distanceKm': _distance,
+      'vehicleType': _selectedMode,
+      'mode': _selectedMode,
+      'selectedVehicle': _selectedVehicle,
+      'bookingType': _resolvedBookingType,
+      'vehiclePrice': _vehiclePrice,
+      'items': _addedItems
+          .map((item) => {
+                'itemName': item.name,
+                'type': item.type,
+                'length': item.length,
+                'height': item.height,
+                'width': item.width,
+                'unit': item.unit,
+              })
+          .toList(),
+      'helperCount': _helperCount,
+      'helperCost': _helperCost,
       'discountAmount': _discountAmount,
-      'totalPrice':     _totalPrice,
-      'appliedCoupon':  _appliedCoupon,
-      'pickupAddress':  pickupAddress,
-      'receivedAddress': receivedAddress,
+      'totalPrice': _apiFare ?? _totalPrice,
+      'appliedCoupon': _appliedCoupon,
     };
     final data = await apiService.postWithFallback(
-      '/api/logistics/book',
-      '/api/logistics-bookings',
+      LogisticsEndpoints.book,
+      LogisticsEndpoints.bookingsLegacy,
       payload,
     );
 
@@ -571,11 +725,14 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
       backgroundColor: context.theme.scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, size: 20, color: context.colors.textPrimary),
+          icon: Icon(Icons.arrow_back_ios,
+              size: 20, color: context.colors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Book Logistics',
-            style: TextStyle(fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: context.colors.textPrimary)),
         centerTitle: true,
         backgroundColor: context.theme.scaffoldBackgroundColor,
         elevation: 0,
@@ -605,19 +762,21 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                       markers: [
                         if (_pickup != null)
                           Marker(
-                            point: LatLng(
-                                _parseDouble(_pickup!['lat']), _parseDouble(_pickup!['lng'])),
+                            point: LatLng(_parseDouble(_pickup!['lat']),
+                                _parseDouble(_pickup!['lng'])),
                             width: 60,
                             height: 60,
-                            child: const Icon(Icons.circle, color: Colors.green, size: 24),
+                            child: const Icon(Icons.circle,
+                                color: Colors.green, size: 24),
                           ),
                         if (_dropoff != null)
                           Marker(
-                            point: LatLng(
-                                _parseDouble(_dropoff!['lat']), _parseDouble(_dropoff!['lng'])),
+                            point: LatLng(_parseDouble(_dropoff!['lat']),
+                                _parseDouble(_dropoff!['lng'])),
                             width: 60,
                             height: 60,
-                            child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                            child: const Icon(Icons.location_on,
+                                color: Colors.red, size: 40),
                           ),
                       ],
                     ),
@@ -642,7 +801,9 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           hint: 'Search Pickup Location',
                           isPickup: true,
                         ),
-                        if (_showSuggestions && _activeSearchingPickup && _searchResults.isNotEmpty)
+                        if (_showSuggestions &&
+                            _activeSearchingPickup &&
+                            _searchResults.isNotEmpty)
                           _buildSuggestionsList(true),
                         const SizedBox(height: 16),
                         _buildSearchField(
@@ -654,9 +815,42 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           hint: 'Search Drop Location',
                           isPickup: false,
                         ),
-                        if (_showSuggestions && !_activeSearchingPickup && _searchResults.isNotEmpty)
+                        if (_showSuggestions &&
+                            !_activeSearchingPickup &&
+                            _searchResults.isNotEmpty)
                           _buildSuggestionsList(false),
                       ],
+                    ),
+                  ),
+
+                  // ── Transport Mode ───────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: Text(
+                      'Select Mode',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: context.colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: _transportModes.map((mode) {
+                        final isSelected = _selectedMode == mode;
+                        return ChoiceChip(
+                          label: Text(mode),
+                          selected: isSelected,
+                          onSelected: (_) {
+                            setState(() => _selectedMode = mode);
+                            unawaited(_calculateFareFromApi());
+                          },
+                        );
+                      }).toList(),
                     ),
                   ),
 
@@ -679,10 +873,13 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           children: vehicles.map((vehicle) {
                             final isSelected = _selectedVehicle == vehicle.name;
                             return GestureDetector(
-                              onTap: () => setState(() {
-                                _selectedVehicle = vehicle.name;
-                                _selectedVehicleData = vehicle;
-                              }),
+                              onTap: () {
+                                setState(() {
+                                  _selectedVehicle = vehicle.name;
+                                  _selectedVehicleData = vehicle;
+                                });
+                                unawaited(_calculateFareFromApi());
+                              },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 width: 140,
@@ -696,7 +893,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                   border: Border.all(
                                     color: isSelected
                                         ? context.theme.primaryColor
-                                        : context.theme.dividerColor.withAlpha(25),
+                                        : context.theme.dividerColor
+                                            .withAlpha(25),
                                     width: isSelected ? 2 : 1,
                                   ),
                                 ),
@@ -710,7 +908,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                         width: 50,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) =>
-                                            const Icon(Icons.broken_image, size: 50),
+                                            const Icon(Icons.broken_image,
+                                                size: 50),
                                       ),
                                     ),
                                     const SizedBox(height: 8),
@@ -725,7 +924,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                     Text(vehicle.capacity,
                                         style: TextStyle(
                                             fontSize: 10,
-                                            color: context.colors.textSecondary)),
+                                            color:
+                                                context.colors.textSecondary)),
                                     const SizedBox(height: 6),
                                     Text(
                                         '₹${vehicle.basePrice.toInt()} + ₹${vehicle.pricePerKm.toInt()}/km + ₹${vehicle.pricePerPiece.toInt()}/pc',
@@ -740,7 +940,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           }).toList(),
                         ),
                       ),
-                      loading: () => const Center(child: CircularProgressIndicator()),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
                       error: (err, _) => Text('Error: $err'),
                     ),
                   ),
@@ -763,13 +964,17 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                             title: Text(good.name),
                             value: good.id,
                             groupValue: _selectedGoodType,
-                            onChanged: (val) => setState(() => _selectedGoodType = val),
+                            onChanged: (val) {
+                              setState(() => _selectedGoodType = val);
+                              _scheduleFareRecalculation();
+                            },
                             contentPadding: EdgeInsets.zero,
                             activeColor: context.theme.primaryColor,
                           );
                         }).toList(),
                       ),
-                      loading: () => const Center(child: CircularProgressIndicator()),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
                       error: (err, _) => Text('Error loading goods: $err'),
                     ),
                   ),
@@ -787,7 +992,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                 color: context.colors.textPrimary)),
                         if (_addedItems.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: context.theme.primaryColor,
                               borderRadius: BorderRadius.circular(20),
@@ -819,7 +1025,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               color: context.theme.primaryColor.withAlpha(15),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color: context.theme.primaryColor.withAlpha(50)),
+                                  color:
+                                      context.theme.primaryColor.withAlpha(50)),
                             ),
                             child: Row(
                               children: [
@@ -827,14 +1034,17 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
                                     child: Image.memory(item.imageBytes!,
-                                        width: 48, height: 48, fit: BoxFit.cover),
+                                        width: 48,
+                                        height: 48,
+                                        fit: BoxFit.cover),
                                   )
                                 else
                                   Container(
                                     width: 48,
                                     height: 48,
                                     decoration: BoxDecoration(
-                                      color: context.theme.primaryColor.withAlpha(30),
+                                      color: context.theme.primaryColor
+                                          .withAlpha(30),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Icon(Icons.inventory_2,
@@ -843,23 +1053,30 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(item.name,
                                           style: TextStyle(
                                               fontWeight: FontWeight.bold,
-                                              color: context.colors.textPrimary)),
+                                              color:
+                                                  context.colors.textPrimary)),
                                       Text(
                                           '${item.type} · ${item.length}×${item.height}×${item.width} ${item.unit}',
                                           style: TextStyle(
                                               fontSize: 12,
-                                              color: context.colors.textSecondary)),
+                                              color: context
+                                                  .colors.textSecondary)),
                                     ],
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                  onPressed: () => setState(() => _addedItems.removeAt(idx)),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.red),
+                                  onPressed: () {
+                                    setState(() => _addedItems.removeAt(idx));
+                                    unawaited(_calculateFareFromApi());
+                                  },
                                 ),
                               ],
                             ),
@@ -892,7 +1109,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                             controller: _itemNameController,
                             decoration: InputDecoration(
                               labelText: 'Item Name',
-                              prefixIcon: const Icon(Icons.inventory_2_outlined),
+                              prefixIcon:
+                                  const Icon(Icons.inventory_2_outlined),
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12)),
                               filled: true,
@@ -906,15 +1124,19 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               Expanded(
                                 child: TextField(
                                   controller: _lengthController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
                                   inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                                    FilteringTextInputFormatter.allow(
+                                        RegExp(r'^\d+\.?\d{0,2}')),
                                   ],
                                   decoration: InputDecoration(
                                     labelText: 'Length (${_selectedUnit})',
                                     prefixIcon: const Icon(Icons.straighten),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12)),
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
                                     filled: true,
                                   ),
                                 ),
@@ -923,15 +1145,19 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               Expanded(
                                 child: TextField(
                                   controller: _heightController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
                                   inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                                    FilteringTextInputFormatter.allow(
+                                        RegExp(r'^\d+\.?\d{0,2}')),
                                   ],
                                   decoration: InputDecoration(
                                     labelText: 'Height (${_selectedUnit})',
                                     prefixIcon: const Icon(Icons.height),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12)),
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
                                     filled: true,
                                   ),
                                 ),
@@ -940,15 +1166,19 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               Expanded(
                                 child: TextField(
                                   controller: _widthController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
                                   inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                                    FilteringTextInputFormatter.allow(
+                                        RegExp(r'^\d+\.?\d{0,2}')),
                                   ],
                                   decoration: InputDecoration(
                                     labelText: 'Width (${_selectedUnit})',
                                     prefixIcon: const Icon(Icons.width_normal),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12)),
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
                                     filled: true,
                                   ),
                                 ),
@@ -958,7 +1188,9 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           const SizedBox(height: 16),
 
                           // Unit Selection
-                          const Text('Dimension Unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const Text('Dimension Unit',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 8),
                           Row(
                             children: _units.map((unit) {
@@ -969,19 +1201,26 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                   label: Text(unit),
                                   selected: isSelected,
                                   onSelected: (selected) {
-                                    if (selected) setState(() => _selectedUnit = unit);
+                                    if (selected) {
+                                      setState(() => _selectedUnit = unit);
+                                      _scheduleFareRecalculation();
+                                    }
                                   },
-                                  selectedColor: context.theme.primaryColor.withAlpha(50),
+                                  selectedColor:
+                                      context.theme.primaryColor.withAlpha(50),
                                   labelStyle: TextStyle(
-                                    color: isSelected ? context.theme.primaryColor : context.colors.textSecondary,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected
+                                        ? context.theme.primaryColor
+                                        : context.colors.textSecondary,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                   ),
                                 ),
                               );
                             }).toList(),
                           ),
                           const SizedBox(height: 16),
-
 
                           // Add Item Button
                           SizedBox(
@@ -1004,8 +1243,10 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                     fontWeight: FontWeight.bold),
                               ),
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: context.theme.primaryColor),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: BorderSide(
+                                    color: context.theme.primaryColor),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12)),
                               ),
@@ -1046,7 +1287,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           Text(
                             '₹${_helperCostPerPerson.toInt()} per helper · Loading & unloading assistance',
                             style: TextStyle(
-                                fontSize: 13, color: context.colors.textSecondary),
+                                fontSize: 13,
+                                color: context.colors.textSecondary),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -1061,20 +1303,29 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               ),
                               Container(
                                 decoration: BoxDecoration(
-                                  color: context.theme.primaryColor.withAlpha(20),
+                                  color:
+                                      context.theme.primaryColor.withAlpha(20),
                                   borderRadius: BorderRadius.circular(24),
                                   border: Border.all(
-                                      color: context.theme.primaryColor.withAlpha(50)),
+                                      color: context.theme.primaryColor
+                                          .withAlpha(50)),
                                 ),
                                 child: Row(
                                   children: [
                                     IconButton(
                                       onPressed: _helperCount > 0
-                                          ? () => setState(() => _helperCount--)
+                                          ? () {
+                                              setState(() => _helperCount--);
+                                              unawaited(
+                                                  _calculateFareFromApi());
+                                            }
                                           : null,
                                       icon: const Icon(Icons.remove),
-                                      color: _helperCount > 0 ? context.theme.primaryColor : Colors.grey,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      color: _helperCount > 0
+                                          ? context.theme.primaryColor
+                                          : Colors.grey,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
                                       constraints: const BoxConstraints(),
                                     ),
                                     Text(
@@ -1085,10 +1336,14 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                           color: context.colors.textPrimary),
                                     ),
                                     IconButton(
-                                      onPressed: () => setState(() => _helperCount++),
+                                      onPressed: () {
+                                        setState(() => _helperCount++);
+                                        unawaited(_calculateFareFromApi());
+                                      },
                                       icon: const Icon(Icons.add),
                                       color: context.theme.primaryColor,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
                                       constraints: const BoxConstraints(),
                                     ),
                                   ],
@@ -1099,7 +1354,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                           if (_helperCount > 0) ...[
                             const SizedBox(height: 12),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
                                 color: Colors.orange.withAlpha(25),
                                 borderRadius: BorderRadius.circular(10),
@@ -1125,42 +1381,6 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                     ),
                   ),
 
-                  // ── Pickup Address Selector ──────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 28, 16, 8),
-                    child: _buildAddressSelector(
-                      title: 'Pickup Address',
-                      subtitle: 'Select saved home/office address',
-                      selected: _selectedPickupAddress,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AddressBookScreen(
-                            onSelect: (addr) => setState(() => _selectedPickupAddress = addr),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // ── Delivery Address Selector ──────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: _buildAddressSelector(
-                      title: 'Delivery Address',
-                      subtitle: 'Select saved destination address',
-                      selected: _selectedDeliveryAddress,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AddressBookScreen(
-                            onSelect: (addr) => setState(() => _selectedDeliveryAddress = addr),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 120),
                 ],
               ),
@@ -1172,7 +1392,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: context.theme.cardColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(32)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withAlpha(77),
@@ -1193,16 +1414,38 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                         children: [
                           Text('Estimated Total',
                               style: TextStyle(
-                                  color: context.colors.textSecondary, fontSize: 12)),
+                                  color: context.colors.textSecondary,
+                                  fontSize: 12)),
                           if (_distance > 0)
                             Text('Distance: ${_distance.toStringAsFixed(1)} km',
                                 style: TextStyle(
-                                    color: context.colors.textSecondary, fontSize: 12)),
+                                    color: context.colors.textSecondary,
+                                    fontSize: 12)),
                           Text('₹${_totalPrice.toInt()}',
                               style: TextStyle(
                                   fontSize: 28,
                                   fontWeight: FontWeight.bold,
                                   color: context.colors.textPrimary)),
+                          if (_isFareLoading)
+                            const Text(
+                              'Calculating live fare...',
+                              style:
+                                  TextStyle(fontSize: 11, color: Colors.orange),
+                            )
+                          else if (_apiFare != null)
+                            const Text(
+                              'Live API fare applied',
+                              style:
+                                  TextStyle(fontSize: 11, color: Colors.green),
+                            )
+                          else if (_fareError != null)
+                            Text(
+                              _fareError!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.redAccent,
+                              ),
+                            ),
                           // Breakdown
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1213,11 +1456,13 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: context.colors.textSecondary)),
-                              if (_addedItems.isNotEmpty && _selectedVehicleData != null)
+                              if (_addedItems.isNotEmpty &&
+                                  _selectedVehicleData != null)
                                 Text(
                                     'Items (${_addedItems.length}): +₹${(_selectedVehicleData!.pricePerPiece * _addedItems.length).toInt()}',
                                     style: const TextStyle(
-                                        fontSize: 11, color: Colors.blueAccent)),
+                                        fontSize: 11,
+                                        color: Colors.blueAccent)),
                               if (_helperCount > 0)
                                 Text(
                                     'Helpers (${_helperCount}): +₹${_helperCost.toInt()}',
@@ -1262,7 +1507,9 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               size: 18,
                             ),
                             label: Text(
-                              _appliedCoupon != null ? 'Change Coupon' : 'Apply Coupon',
+                              _appliedCoupon != null
+                                  ? 'Change Coupon'
+                                  : 'Apply Coupon',
                               style: TextStyle(
                                 color: _appliedCoupon != null
                                     ? Colors.green
@@ -1281,7 +1528,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                             _dropoff != null &&
                             _addedItems.isNotEmpty)
                         ? () async {
-                            final bookingValidationError = _validateBookingInputs();
+                            final bookingValidationError =
+                                _validateBookingInputs();
                             if (bookingValidationError != null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text(bookingValidationError)),
@@ -1291,19 +1539,26 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
 
                             String goodTypeName = 'General';
                             ref.read(typeGoodsProvider).whenData((goods) {
-                              final sel =
-                                  goods.where((g) => g.id == _selectedGoodType).toList();
+                              final sel = goods
+                                  .where((g) => g.id == _selectedGoodType)
+                                  .toList();
                               if (sel.isNotEmpty) goodTypeName = sel.first.name;
                             });
 
                             try {
+                              await _calculateFareFromApi();
+                              if (_apiFare == null) {
+                                throw Exception(
+                                  'Unable to fetch fare from API. Please check details and try again.',
+                                );
+                              }
                               setState(() => _isSavingGood = true);
                               if (!mounted) return;
                               showDialog(
                                 context: context,
                                 barrierDismissible: false,
-                                builder: (ctx) =>
-                                    const Center(child: CircularProgressIndicator()),
+                                builder: (ctx) => const Center(
+                                    child: CircularProgressIndicator()),
                               );
 
                               await _saveAllItemsAndBook(goodTypeName);
@@ -1311,30 +1566,32 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                               // Save the full booking to MongoDB
                               await _saveLogisticsBooking(
                                 goodTypeName: goodTypeName,
-                                pickupAddress: _buildValidatedPickupAddressPayload(),
-                                receivedAddress: _buildValidatedReceivedAddressPayload(),
                               );
 
                               if (mounted) {
-                                Navigator.pop(context); // Close the loading dialog
-                                
+                                Navigator.pop(
+                                    context); // Close the loading dialog
+
                                 // Show success snackbar
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('🎉 Logistics booking successful! Redirecting to your bookings...'),
+                                    content: Text(
+                                        '🎉 Logistics booking successful! Redirecting to your bookings...'),
                                     backgroundColor: Colors.green,
                                     duration: Duration(seconds: 3),
                                   ),
                                 );
 
                                 // Wait for 3 seconds as requested
-                                await Future.delayed(const Duration(seconds: 3));
+                                await Future.delayed(
+                                    const Duration(seconds: 3));
 
                                 if (mounted) {
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const MyLogisticsBookingsScreen(),
+                                      builder: (context) =>
+                                          const MyLogisticsBookingsScreen(),
                                     ),
                                   );
                                 }
@@ -1347,7 +1604,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                                 );
                               }
                             } finally {
-                              if (mounted) setState(() => _isSavingGood = false);
+                              if (mounted)
+                                setState(() => _isSavingGood = false);
                             }
                           }
                         : null,
@@ -1412,17 +1670,24 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: TextStyle(fontSize: 11, color: context.colors.textSecondary ?? Colors.grey)),
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: context.colors.textSecondary ?? Colors.grey)),
                   TextField(
                     controller: controller,
                     focusNode: focusNode,
                     onChanged: (val) {
                       if (_debounce?.isActive ?? false) _debounce!.cancel();
-                      _debounce = Timer(const Duration(milliseconds: 500), () => _fetchSuggestions(val));
+                      _debounce = Timer(const Duration(milliseconds: 500),
+                          () => _fetchSuggestions(val));
                     },
                     decoration: InputDecoration(
                       hintText: hint,
-                      hintStyle: TextStyle(fontSize: 14, color: (context.colors.textSecondary ?? Colors.grey).withAlpha(100)),
+                      hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: (context.colors.textSecondary ?? Colors.grey)
+                              .withAlpha(100)),
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
@@ -1432,7 +1697,10 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 4),
                     ),
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.colors.textPrimary ?? Colors.black),
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.textPrimary ?? Colors.black),
                   ),
                 ],
               ),
@@ -1447,11 +1715,17 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                   } else {
                     _dropoff = null;
                   }
-                  setState(() => _searchResults = []);
+                  setState(() {
+                    _searchResults = [];
+                    _routePoints = [];
+                    _distance = 0.0;
+                    _apiFare = null;
+                  });
                 },
               )
             else
-              Icon(Icons.chevron_right, color: context.colors.textSecondary, size: 20),
+              Icon(Icons.chevron_right,
+                  color: context.colors.textSecondary, size: 20),
           ],
         ),
       ],
@@ -1470,15 +1744,19 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
           final suggestion = _searchResults[index];
           return ListTile(
             leading: const Icon(Icons.location_on_outlined, size: 20),
-            title: Text(suggestion['name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            subtitle: Text(suggestion['address'], style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+            title: Text(suggestion['name'],
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            subtitle: Text(suggestion['address'],
+                style: const TextStyle(fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
             onTap: () => _selectSuggestion(suggestion, isPickup),
           );
         },
       ),
     );
   }
-
 
   void _showCouponBottomSheet() {
     showModalBottomSheet(
@@ -1511,7 +1789,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
                       });
                       Navigator.pop(ctx);
                     },
-                    child: const Text('Remove', style: TextStyle(color: Colors.red)),
+                    child: const Text('Remove',
+                        style: TextStyle(color: Colors.red)),
                   ),
               ],
             ),
@@ -1535,7 +1814,8 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
           color: context.theme.primaryColor.withAlpha(25),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(Icons.confirmation_number, color: context.theme.primaryColor),
+        child:
+            Icon(Icons.confirmation_number, color: context.theme.primaryColor),
       ),
       title: Text(code, style: const TextStyle(fontWeight: FontWeight.bold)),
       subtitle: Text(desc),
@@ -1553,85 +1833,6 @@ class _LogisticsBookingScreenState extends ConsumerState<LogisticsBookingScreen>
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: const Text('Apply'),
-      ),
-    );
-  }
-
-  Widget _buildAddressSelector({
-    required String title,
-    required String subtitle,
-    required AddressEntry? selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected != null 
-                ? context.theme.primaryColor 
-                : context.theme.primaryColor.withOpacity(0.3),
-            width: selected != null ? 2.0 : 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: context.theme.primaryColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                selected?.icon ?? Icons.location_on_rounded,
-                color: context.theme.primaryColor,
-                size: 26,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    selected?.label ?? title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: context.colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    selected?.fullAddress ?? subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.colors.textSecondary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              selected != null ? Icons.check_circle_rounded : Icons.arrow_forward_ios_rounded,
-              size: 20,
-              color: context.theme.primaryColor,
-            ),
-          ],
-        ),
       ),
     );
   }

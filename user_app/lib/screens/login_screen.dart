@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
-import '../services/api_service.dart';
-import '../providers/app_providers.dart';
 import 'home_screen.dart';
-import 'name_input_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -18,13 +14,15 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _mobileController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
-  bool _otpSent = false;
-  String? _verificationId;
+  bool _isSignup = false;
+  bool _mobileMode = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -50,50 +48,67 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _otpController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _mobileController.dispose();
+    _passwordController.dispose();
     _animationController.dispose();
     super.dispose();
   }
 
-  Future<void> _sendOtp() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
 
     try {
       final authService = ref.read(authServiceProvider);
+      Map<String, dynamic> response;
+      if (_mobileMode) {
+        if (_isSignup) {
+          response = await authService.mobileSignup(
+            name: _nameController.text.trim(),
+            mobileNumber: _normalizePhone(_mobileController.text),
+            password: _passwordController.text.trim(),
+          );
+        } else {
+          response = await authService.mobileLogin(
+            mobileNumber: _normalizePhone(_mobileController.text),
+            password: _passwordController.text.trim(),
+          );
+        }
+      } else {
+        if (_isSignup) {
+          response = await authService.signup(
+            name: _nameController.text.trim(),
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+            mobileNumber: _normalizePhone(_mobileController.text),
+          );
+        } else {
+          response = await authService.login(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
+        }
+      }
 
-      await authService.verifyPhoneNumber(
-        phoneNumber: '+91${_phoneController.text}',
-        onCodeSent: (verificationId, resendToken) {
-          if (mounted) {
-            setState(() {
-              _verificationId = verificationId;
-              _otpSent = true;
-              _isLoading = false;
-            });
-            _showSnackBar(
-              kDemoMode
-                  ? 'Demo Mode: Enter any 6 digits'
-                  : 'OTP sent successfully!',
-              isSuccess: true,
-            );
-          }
-        },
-        onVerificationFailed: (e) {
-          if (mounted) {
-            setState(() => _isLoading = false);
-            _showSnackBar('Error: ${e.message}', isSuccess: false);
-          }
-        },
-        onVerificationCompleted: (credential) async {
-          await authService.signInWithCredential(credential);
-        },
-        onCodeAutoRetrievalTimeout: (verificationId) {
-          _verificationId = verificationId;
-        },
-      );
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (response['success'] == true) {
+        _showSnackBar(
+          _isSignup ? 'Registration successful' : 'Login successful',
+          isSuccess: true,
+        );
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else {
+        _showSnackBar(
+          (response['message'] ?? 'Authentication failed').toString(),
+          isSuccess: false,
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -102,76 +117,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  Future<void> _verifyOtp() async {
-    if (_verificationId == null || _otpController.text.length != 6) {
-      _showSnackBar('Please enter a 6-digit OTP', isSuccess: false);
-      return;
+  String _normalizePhone(String input) {
+    final digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('91') && digits.length > 10) {
+      return '+$digits';
     }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final authService = ref.read(authServiceProvider);
-      await authService.signInWithPhoneCredential(
-        _verificationId!,
-        _otpController.text,
-      );
-
-      await authService.waitForSession();
-      final loginToken = await authService.getIdToken();
-      if (kDebugMode) {
-        debugPrint('[USER AUTH] Login token: ${loginToken ?? "null"}');
-      }
-
-      if (mounted) {
-        if (kDemoMode) {
-          ref.read(demoUserProvider.notifier).login();
-        }
-
-        // Save phone number to DB after OTP verification
-        try {
-          final apiService = ref.read(apiServiceProvider);
-          final mobileNumber = '+91${_phoneController.text}';
-          final uid = authService.currentUser?.uid;
-
-          final response = await apiService.postWithFallback(
-            '/api/auth/register-phone',
-            '/api/user/register-phone',
-            {
-            'mobileNumber': mobileNumber,
-            'uid': uid,
-            },
-          );
-
-          final isNewUser = response['isNewUser'] == true;
-          final existingName = response['user']?['name'] ?? '';
-
-          if (isNewUser || existingName.isEmpty) {
-            // First time user — navigate to Name Input Screen (mandatory)
-            if (mounted) {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) => NameInputScreen(mobileNumber: mobileNumber),
-                ),
-              );
-            }
-            return;
-          }
-        } catch (syncError) {
-          debugPrint('Failed to register phone with backend: $syncError');
-        }
-
-        // Existing user with name — go directly to home
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _showSnackBar('Invalid OTP', isSuccess: false);
-      }
-    }
+    return '+91$digits';
   }
 
   void _showSnackBar(String message, {required bool isSuccess}) {
@@ -275,9 +226,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 // Title
                                 Center(
                                   child: Text(
-                                    _otpSent
-                                        ? 'Verify OTP'
-                                        : 'Login or Sign up',
+                                    _isSignup ? 'Create Account' : 'Welcome Back',
                                     style: TextStyle(
                                       fontSize: 28,
                                       fontWeight: FontWeight.bold,
@@ -294,9 +243,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 20),
                                     child: Text(
-                                      _otpSent
-                                          ? 'Enter the 6-digit code sent to\n+91 ${_phoneController.text}'
-                                          : 'Enter your mobile number to proceed. We will send you an OTP to verify.',
+                                      _mobileMode
+                                          ? (_isSignup
+                                              ? 'Use mobile number to create your account.'
+                                              : 'Login quickly using mobile number and password.')
+                                          : (_isSignup
+                                              ? 'Register with name, email, mobile and password.'
+                                              : 'Login using your email and password.'),
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: context.colors.textSecondary,
@@ -309,119 +262,95 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                                 const SizedBox(height: 40),
 
-                                if (!_otpSent) ...[
-                                  // Phone Number Label
-                                  Text(
-                                    'Enter your phone number',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: context.colors.textPrimary,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _modeToggle('Email', !_mobileMode, () {
+                                        setState(() => _mobileMode = false);
+                                      }),
                                     ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _modeToggle('Mobile', _mobileMode, () {
+                                        setState(() => _mobileMode = true);
+                                      }),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                if (_isSignup) ...[
+                                  _buildInput(
+                                    controller: _nameController,
+                                    hint: 'Full name',
+                                    icon: Icons.person_outline,
+                                    validator: (v) =>
+                                        (v == null || v.trim().isEmpty) ? 'Name required' : null,
                                   ),
                                   const SizedBox(height: 12),
-
-                                  // Phone Input
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: context.theme.cardColor,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: context.theme.dividerColor
-                                            .withOpacity(0.1),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        // Country Code
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 18,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            border: Border(
-                                              right: BorderSide(
-                                                color: context
-                                                    .theme.dividerColor
-                                                    .withOpacity(0.1),
-                                              ),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '+91',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 15,
-                                              color: context.colors.textPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                        // Phone Field
-                                        Expanded(
-                                          child: TextFormField(
-                                            controller: _phoneController,
-                                            keyboardType: TextInputType.phone,
-                                            maxLength: 10,
-                                            inputFormatters: [
-                                              FilteringTextInputFormatter
-                                                  .digitsOnly,
-                                            ],
-                                            decoration: InputDecoration(
-                                              hintText:
-                                                  'Enter your phone number',
-                                              hintStyle: TextStyle(
-                                                color: context
-                                                    .colors.textSecondary
-                                                    ?.withOpacity(0.5),
-                                              ),
-                                              counterText: '',
-                                              border: InputBorder.none,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 16,
-                                                vertical: 18,
-                                              ),
-                                            ),
-                                            style: TextStyle(
-                                              color: context.colors.textPrimary,
-                                            ),
-                                            validator: (value) {
-                                              if (value == null ||
-                                                  value.length != 10) {
-                                                return 'Enter a valid 10-digit number';
-                                              }
-                                              return null;
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ] else ...[
-                                  // OTP Input
-                                  _buildOtpInput(),
-
-                                  const SizedBox(height: 16),
-
-                                  // Change phone number
-                                  Center(
-                                    child: TextButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _otpSent = false;
-                                          _otpController.clear();
-                                        });
-                                      },
-                                      child: Text(
-                                        'Change phone number',
-                                        style: TextStyle(
-                                          color: context.colors.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
                                 ],
+                                if (!_mobileMode) ...[
+                                  _buildInput(
+                                    controller: _emailController,
+                                    hint: 'Email address',
+                                    icon: Icons.email_outlined,
+                                    keyboardType: TextInputType.emailAddress,
+                                    validator: (v) {
+                                      if (v == null || v.trim().isEmpty) return 'Email required';
+                                      if (!v.contains('@')) return 'Valid email required';
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (_isSignup) ...[
+                                    _buildInput(
+                                      controller: _mobileController,
+                                      hint: 'Mobile number (10 digits)',
+                                      icon: Icons.phone_outlined,
+                                      keyboardType: TextInputType.phone,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                        LengthLimitingTextInputFormatter(10),
+                                      ],
+                                      validator: (v) {
+                                        if (v == null || v.length != 10) {
+                                          return 'Enter 10-digit mobile number';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                ] else ...[
+                                  _buildInput(
+                                    controller: _mobileController,
+                                    hint: 'Mobile number (10 digits)',
+                                    icon: Icons.phone_outlined,
+                                    keyboardType: TextInputType.phone,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(10),
+                                    ],
+                                    validator: (v) {
+                                      if (v == null || v.length != 10) {
+                                        return 'Enter 10-digit mobile number';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                _buildInput(
+                                  controller: _passwordController,
+                                  hint: 'Password',
+                                  icon: Icons.lock_outline,
+                                  obscure: true,
+                                  validator: (v) {
+                                    if (v == null || v.length < 6) {
+                                      return 'Password must be at least 6 chars';
+                                    }
+                                    return null;
+                                  },
+                                ),
 
                                 const SizedBox(height: 32),
 
@@ -432,7 +361,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   child: ElevatedButton(
                                     onPressed: _isLoading
                                         ? null
-                                        : (_otpSent ? _verifyOtp : _sendOtp),
+                                        : _submit,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor:
                                           context.theme.primaryColor,
@@ -452,7 +381,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                             ),
                                           )
                                         : Text(
-                                            _otpSent ? 'Verify' : 'Continue',
+                                            _isSignup ? 'Create Account' : 'Login',
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w600,
@@ -463,6 +392,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 ),
 
                                 const SizedBox(height: 36),
+                                Center(
+                                  child: TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _isSignup = !_isSignup;
+                                      });
+                                    },
+                                    child: Text(
+                                      _isSignup
+                                          ? 'Already have an account? Login'
+                                          : 'New user? Create account',
+                                      style: TextStyle(
+                                        color: context.theme.primaryColor,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
                                 Center(
                                   child: Text(
                                     'Need help?',
@@ -489,53 +437,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildOtpInput() {
-    return Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: context.theme.cardColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: context.theme.dividerColor.withOpacity(0.1),
-            ),
-          ),
-          child: TextField(
-            controller: _otpController,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 16,
-              color: context.colors.textPrimary,
-            ),
-            decoration: InputDecoration(
-              hintText: '• • • • • •',
-              hintStyle: TextStyle(
-                fontSize: 24,
-                letterSpacing: 8,
-                color: context.colors.textSecondary?.withOpacity(0.5),
-              ),
-              counterText: '',
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 20,
-              ),
-            ),
-            onChanged: (value) {
-              setState(() {});
-            },
-          ),
+  Widget _modeToggle(String label, bool active, VoidCallback onTap) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        backgroundColor:
+            active ? context.theme.primaryColor.withOpacity(0.1) : Colors.transparent,
+        side: BorderSide(
+          color: active ? context.theme.primaryColor : context.theme.dividerColor,
         ),
-        const SizedBox(height: 12),
-        Text(
-          'Enter 6-digit OTP',
-          style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: active ? context.theme.primaryColor : context.colors.textSecondary,
+          fontWeight: FontWeight.w600,
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildInput({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required String? Function(String?) validator,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    bool obscure = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.theme.dividerColor.withOpacity(0.1)),
+      ),
+      child: TextFormField(
+        controller: controller,
+        validator: validator,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
+        obscureText: obscure,
+        decoration: InputDecoration(
+          hintText: hint,
+          border: InputBorder.none,
+          prefixIcon: Icon(icon),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        ),
+      ),
     );
   }
 }

@@ -2,15 +2,15 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/id_generator.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import 'database_service.dart';
-import '../core/config.dart';
+import 'auth_api_service.dart';
 
 // Demo mode flag - set to false when you have real Firebase configured
 // Google Sign-In always uses real Firebase (bypasses demo mode)
@@ -55,6 +55,7 @@ class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: const <String>['email'],
   );
+  final AuthApiService _authApi = AuthApiService();
 
   static final MockUser _mockUser = MockUser(
     uid: IdGenerator.generateDriverId(),
@@ -292,18 +293,35 @@ class AuthService {
 
   // ─── Sign Out ──────────────────────────────────────────────────────────────
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
-    await FacebookAuth.instance.logOut();
+    try {
+      await _googleSignIn.signOut();
+    } catch (e) {
+      debugPrint('[AUTH] Google signOut skipped: $e');
+    }
+
+    try {
+      await FacebookAuth.instance.logOut();
+    } on MissingPluginException catch (e) {
+      // Keep logout working even if Facebook plugin isn't registered at runtime.
+      debugPrint('[AUTH] Facebook signOut plugin missing: $e');
+    } catch (e) {
+      debugPrint('[AUTH] Facebook signOut skipped: $e');
+    }
+
+    try {
+      if (!kDemoMode) {
+        await auth.signOut();
+      }
+    } catch (e) {
+      debugPrint('[AUTH] Firebase signOut skipped: $e');
+    }
+
     await _persistLoginState(false);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     await prefs.remove('user_data');
     _localUser = null;
     _authStateController.add(null);
-
-    if (!kDemoMode) {
-      await auth.signOut();
-    }
   }
 
   Future<void> resetPassword(String email) async {
@@ -319,6 +337,24 @@ class AuthService {
   }
 
   // ─── Custom Backend Auth ──────────────────────────────────────────────────
+  Future<void> _applyCustomAuthSession(Map<String, dynamic> response) async {
+    await _persistLoginState(true);
+    final prefs = await SharedPreferences.getInstance();
+    final token = (response['token'] ?? '').toString();
+    if (token.isNotEmpty) {
+      await prefs.setString('auth_token', token);
+    }
+
+    final userData = (response['user'] as Map<String, dynamic>? ?? <String, dynamic>{});
+    await prefs.setString('user_data', json.encode(userData));
+    _localUser = MockUser(
+      uid: (userData['id'] ?? userData['_id'] ?? userData['uid'] ?? '').toString(),
+      email: userData['email']?.toString(),
+      displayName: userData['name']?.toString(),
+    );
+    _authStateController.add(_localUser);
+  }
+
   Future<Map<String, dynamic>> signUpCustom({
     required String name,
     required String email,
@@ -327,22 +363,17 @@ class AuthService {
     required String panCard,
   }) async {
     try {
-      final response =
-          await _signUpApi(name, email, password, aadharCard, panCard);
+      final token = await getIdToken();
+      final response = await _authApi.signUpDriverWithEmail(
+        name: name,
+        email: email,
+        password: password,
+        aadharCard: aadharCard,
+        panCard: panCard,
+        bearerToken: token,
+      );
       if (response['success']) {
-        await _persistLoginState(true);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', response['token'] ?? '');
-
-        // Save user data and update state
-        final userData = response['user'];
-        await prefs.setString('user_data', json.encode(userData));
-        _localUser = MockUser(
-          uid: userData['id'] ?? userData['_id'] ?? '',
-          email: userData['email'],
-          displayName: userData['name'],
-        );
-        _authStateController.add(_localUser);
+        await _applyCustomAuthSession(response);
       }
       return response;
     } catch (e) {
@@ -350,24 +381,19 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> signInCustom(
-      String email, String password) async {
+  Future<Map<String, dynamic>> signUpWithMobileCustom({
+    required String name,
+    required String mobileNumber,
+    required String password,
+  }) async {
     try {
-      final response = await _signInApi(email, password);
+      final response = await _authApi.signUpDriverWithMobile(
+        name: name,
+        mobileNumber: mobileNumber,
+        password: password,
+      );
       if (response['success']) {
-        await _persistLoginState(true);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', response['token']);
-
-        // Save user data and update state
-        final userData = response['user'];
-        await prefs.setString('user_data', json.encode(userData));
-        _localUser = MockUser(
-          uid: userData['id'] ?? userData['_id'] ?? '',
-          email: userData['email'],
-          displayName: userData['name'],
-        );
-        _authStateController.add(_localUser);
+        await _applyCustomAuthSession(response);
       }
       return response;
     } catch (e) {
@@ -375,40 +401,63 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> _signUpApi(String name, String email,
-      String password, String aadhar, String pan) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/register');
-    final response = await _post(url, {
-      'name': name,
-      'email': email,
-      'password': password,
-      'aadharCard': aadhar,
-      'panCard': pan,
-    });
-    return response;
+  Future<Map<String, dynamic>> signInCustom(String email, String password) async {
+    try {
+      final response = await _authApi.signInDriverWithEmail(
+        email: email,
+        password: password,
+      );
+      if (response['success']) {
+        await _applyCustomAuthSession(response);
+      }
+      return response;
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
   }
 
-  Future<Map<String, dynamic>> _signInApi(String email, String password) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/login');
-    final response = await _post(url, {
-      'email': email,
-      'password': password,
-    });
-    return response;
+  Future<Map<String, dynamic>> signInWithMobileCustom({
+    required String mobileNumber,
+    required String password,
+  }) async {
+    try {
+      final response = await _authApi.signInDriverWithMobile(
+        mobileNumber: mobileNumber,
+        password: password,
+      );
+      if (response['success']) {
+        await _applyCustomAuthSession(response);
+      }
+      return response;
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
   }
 
-  Future<Map<String, dynamic>> _post(Uri url, Map<String, dynamic> body) async {
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(body),
-    );
-    final data = json.decode(response.body);
-    return {
-      'success': response.statusCode == 200 || response.statusCode == 201,
-      'message': data['message'],
-      'token': data['token'],
-      'user': data['driver'] ?? data['user'],
-    };
+  Future<Map<String, dynamic>> signInWithGoogleCustom() async {
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        return {'success': false, 'message': 'Google sign-in was cancelled.'};
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        return {'success': false, 'message': 'Google ID token not available.'};
+      }
+
+      final response = await _authApi.signInDriverWithGoogle(
+        googleIdToken: idToken,
+      );
+      if (response['success']) {
+        await _applyCustomAuthSession(response);
+      }
+      return response;
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
   }
+
 }

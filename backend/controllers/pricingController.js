@@ -1,4 +1,5 @@
 const PricingConfig = require('../models/PricingConfig');
+const { calculateDynamicFare } = require('../utils/pricingCalculator');
 
 // ─── GET /api/admin/pricing ──────────────────────────────
 // Get all pricing configs
@@ -78,76 +79,32 @@ exports.calculateFare = async (req, res) => {
             helperCount = 0,
             isFragile = false,
             isBulky = false,
-            city = 'All',
+            city,
+            bookingType, // 'logistics' or 'ride'
         } = req.body;
 
-        // Find active config
-        let config = await PricingConfig.findOne({ isActive: true, city });
-        if (!config) config = await PricingConfig.findOne({ isActive: true, city: 'All' });
-        if (!config) {
-            return res.status(404).json({ success: false, message: 'No active pricing config found.' });
-        }
-
-        const lp = config.logistics;
-
-        // 1. Base + distance
-        let fare = (lp.baseFare || 0) + (distanceKm * (lp.perKmCharge || 0));
-
-        // 2. Weight-based pricing
-        if (weightKg > 0 && lp.weightTiers?.length > 0) {
-            const tier = lp.weightTiers.find(t => weightKg >= t.minKg && weightKg <= t.maxKg);
-            if (tier) fare += weightKg * tier.ratePerKg;
-        }
-
-        // 3. Volume-based
-        if (volumeCubicCm > 0) {
-            fare += volumeCubicCm * (lp.volumeRatePerCubicCm || 0);
-        }
-
-        // 4. Mode multiplier
-        const modeKey = mode;
-        const modeMultiplier = lp.modeMultipliers?.[modeKey] ?? 1.0;
-        fare *= modeMultiplier;
-
-        // 5. Helpers
-        fare += helperCount * (lp.helperCostPerPerson || 0);
-
-        // 6. Fragile / bulky
-        if (isFragile) fare += (lp.fragileHandlingCharge || 0);
-        if (isBulky) fare += (lp.bulkyItemSurcharge || 0);
-
-        // 7. Night charge
-        const hour = new Date().getHours();
-        const isNight = hour >= config.nightStartHour || hour < config.nightEndHour;
-        if (isNight && config.nightChargeMultiplier > 1) {
-            fare *= config.nightChargeMultiplier;
-        }
-
-        // 8. Toll
-        fare += (config.tollCharges || 0);
-
-        // 9. Platform fee
-        fare += fare * ((config.platformFeePercent || 0) / 100);
-
-        // 10. GST
-        const gstAmount = fare * ((config.gstPercent || 0) / 100);
-        const totalFare = fare + gstAmount;
+        // Use the centralized pricing calculator utility
+        const fareBreakdown = await calculateDynamicFare({
+            distanceKm,
+            durationMin,
+            mode,
+            weightKg,
+            volumeCubicCm,
+            helperCount,
+            isFragile,
+            isBulky,
+            city,
+            bookingType,
+        });
 
         return res.status(200).json({
             success: true,
-            data: {
-                baseFare: lp.baseFare,
-                distanceCharge: distanceKm * (lp.perKmCharge || 0),
-                helperCharge: helperCount * (lp.helperCostPerPerson || 0),
-                modeMultiplier,
-                nightSurcharge: isNight ? fare * (config.nightChargeMultiplier - 1) : 0,
-                tollCharges: config.tollCharges,
-                gstAmount: Math.round(gstAmount),
-                subtotal: Math.round(fare),
-                totalFare: Math.round(totalFare),
-            }
+            data: fareBreakdown
         });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
     }
 };

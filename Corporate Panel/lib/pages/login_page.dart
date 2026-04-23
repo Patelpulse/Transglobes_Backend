@@ -14,11 +14,30 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final _companyNameController = TextEditingController();
+  final _gstinController = TextEditingController();
   final _emailController = TextEditingController();
+  final _mobileController = TextEditingController();
+  final _contactPhoneController = TextEditingController();
+  final _addressController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isSubmitting = false;
   bool _isGoogleLoading = false;
+  bool _isSignupMode = false;
+  bool _useMobileAuth = false;
+
+  @override
+  void dispose() {
+    _companyNameController.dispose();
+    _gstinController.dispose();
+    _emailController.dispose();
+    _mobileController.dispose();
+    _contactPhoneController.dispose();
+    _addressController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
@@ -38,30 +57,75 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleLogin() async {
-    // Basic validation
-    if (_emailController.text.isNotEmpty &&
-        _passwordController.text.isNotEmpty) {
-      setState(() => _isSubmitting = true);
-      final authProvider = context.read<CorporateAuthProvider>();
-      final success = await authProvider.login(
-        _emailController.text,
-        _passwordController.text,
-      );
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
+    final password = _passwordController.text.trim();
+    final email = _emailController.text.trim();
+    final mobile = _mobileController.text.trim();
+    final companyName = _companyNameController.text.trim();
+    final gstin = _gstinController.text.trim();
+    final contactPhone = _contactPhoneController.text.trim();
+    final address = _addressController.text.trim();
 
-      if (success) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const DashboardPage()),
+    if (password.isEmpty ||
+        (_useMobileAuth ? mobile.isEmpty : email.isEmpty) ||
+        (_isSignupMode &&
+            (companyName.isEmpty ||
+                gstin.isEmpty ||
+                contactPhone.isEmpty ||
+                address.isEmpty))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all required fields')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    final authProvider = context.read<CorporateAuthProvider>();
+    final bool success;
+
+    if (_isSignupMode) {
+      if (_useMobileAuth) {
+        success = await authProvider.signupWithMobile(
+          companyName: companyName,
+          gstin: gstin,
+          mobileNumber: mobile,
+          contactPhone: contactPhone,
+          address: address,
+          password: password,
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(authProvider.error ?? 'Login failed')),
+        success = await authProvider.signupWithEmail(
+          companyName: companyName,
+          gstin: gstin,
+          email: email,
+          contactPhone: contactPhone,
+          address: address,
+          password: password,
         );
       }
     } else {
+      if (_useMobileAuth) {
+        success = await authProvider.loginWithMobile(
+          mobileNumber: mobile,
+          password: password,
+        );
+      } else {
+        success = await authProvider.loginWithEmail(
+          email: email,
+          password: password,
+        );
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (success) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const DashboardPage()),
+      );
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter valid credentials')),
+        SnackBar(content: Text(authProvider.error ?? 'Authentication failed')),
       );
     }
   }
@@ -162,21 +226,101 @@ class _LoginPageState extends State<LoginPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Welcome Back',
+                            _isSignupMode
+                                ? 'Create Corporate Account'
+                                : 'Welcome Back',
                             style: GoogleFonts.outfit(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: AppTheme.primaryBlue,
                             ),
                           ),
-                          const SizedBox(height: 32),
-                          TextField(
-                            controller: _emailController,
-                            decoration: const InputDecoration(
-                              hintText: 'Email Address',
-                              prefixIcon: Icon(LucideIcons.mail, size: 20),
-                            ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Text('Sign In'),
+                                  selected: !_isSignupMode,
+                                  onSelected: (_) {
+                                    setState(() => _isSignupMode = false);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Text('Sign Up'),
+                                  selected: _isSignupMode,
+                                  onSelected: (_) {
+                                    setState(() => _isSignupMode = true);
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Text('Email'),
+                                  selected: !_useMobileAuth,
+                                  onSelected: (_) {
+                                    setState(() => _useMobileAuth = false);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Text('Mobile'),
+                                  selected: _useMobileAuth,
+                                  onSelected: (_) {
+                                    setState(() => _useMobileAuth = true);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          if (_isSignupMode) ...[
+                            TextField(
+                              controller: _companyNameController,
+                              decoration: const InputDecoration(
+                                hintText: 'Company Name',
+                                prefixIcon:
+                                    Icon(LucideIcons.building2, size: 20),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _gstinController,
+                              decoration: const InputDecoration(
+                                hintText: 'GSTIN',
+                                prefixIcon:
+                                    Icon(LucideIcons.badgeCheck, size: 20),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (_useMobileAuth)
+                            TextField(
+                              controller: _mobileController,
+                              decoration: const InputDecoration(
+                                hintText: 'Mobile Number',
+                                prefixIcon:
+                                    Icon(LucideIcons.smartphone, size: 20),
+                              ),
+                            )
+                          else
+                            TextField(
+                              controller: _emailController,
+                              decoration: const InputDecoration(
+                                hintText: 'Email Address',
+                                prefixIcon: Icon(LucideIcons.mail, size: 20),
+                              ),
+                            ),
                           const SizedBox(height: 20),
                           TextField(
                             controller: _passwordController,
@@ -197,20 +341,26 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () {},
-                              child: Text(
-                                'Forgot Password?',
-                                style: TextStyle(
-                                  color: AppTheme.electricBlue,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                          if (_isSignupMode) ...[
+                            const SizedBox(height: 20),
+                            TextField(
+                              controller: _contactPhoneController,
+                              decoration: const InputDecoration(
+                                hintText: 'Contact Phone',
+                                prefixIcon: Icon(LucideIcons.phone, size: 20),
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 20),
+                            TextField(
+                              controller: _addressController,
+                              minLines: 2,
+                              maxLines: 3,
+                              decoration: const InputDecoration(
+                                hintText: 'Company Address',
+                                prefixIcon: Icon(LucideIcons.mapPin, size: 20),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 32),
                           ElevatedButton(
                             onPressed: _isSubmitting ? null : _handleLogin,
@@ -221,7 +371,9 @@ class _LoginPageState extends State<LoginPage> {
                                     child: CircularProgressIndicator(
                                         strokeWidth: 2),
                                   )
-                                : const Text('SIGN IN'),
+                                : Text(_isSignupMode
+                                    ? 'CREATE ACCOUNT'
+                                    : 'SIGN IN'),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -260,6 +412,17 @@ class _LoginPageState extends State<LoginPage> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isSignupMode
+                                ? 'Google signup requires company details setup on first login.'
+                                : 'Use Google if your corporate account is linked.',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 11,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),

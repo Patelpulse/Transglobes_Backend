@@ -15,6 +15,7 @@ import '../services/location_service.dart';
 import '../services/ride_service.dart';
 import '../services/api_service.dart';
 import '../models/ride_model.dart';
+import '../core/api_endpoints.dart';
 
 class RideTrackingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -1032,7 +1033,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
                       try {
                         await ref.read(rideServiceProvider).updateRideStatus(widget.rideId, _rawStatus); 
                         // In a real app we'd call the payRide API
-                        await ref.read(apiServiceProvider).put('/api/ride/rides/${widget.rideId}/pay', {});
+                        await ref.read(apiServiceProvider).put(RideEndpoints.payRide(widget.rideId), {});
                         if (mounted) {
                           setState(() {
                             _paymentStatus = 'paid';

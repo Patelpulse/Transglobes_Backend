@@ -1,18 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_database/firebase_database.dart'; // Keep for location streaming if needed
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import '../models/driver_model.dart';
 import '../core/config.dart';
+import '../core/network_logger.dart';
 
 final databaseServiceProvider = Provider((ref) => DatabaseService());
 
 class DatabaseService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
-
   Map<String, String> _getHeaders(String? token,
       {String? uid, bool isMultipart = false}) {
     final headers = <String, String>{};
@@ -20,12 +16,7 @@ class DatabaseService {
       headers['Content-Type'] = 'application/json';
     }
 
-    // Auto-detect local for bypass
-    final bool isLocal =
-        AppConfig.apiBaseUrl.toLowerCase().contains('localhost') ||
-            AppConfig.apiBaseUrl.toLowerCase().contains('127.0.0.1');
-    final String finalToken =
-        isLocal ? 'dev-token-bypass' : (token ?? 'dev-token-bypass');
+    final String finalToken = token ?? 'dev-token-bypass';
 
     headers['Authorization'] = 'Bearer $finalToken';
     if (finalToken == 'dev-token-bypass' && uid != null) {
@@ -37,14 +28,28 @@ class DatabaseService {
   Future<bool> saveDriverToBackend(dynamic user, [String? token]) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
+      final requestBody = json.encode({
+        'uid': user.uid,
+        'email': user.email ?? '',
+        'name': user.displayName ?? 'Driver',
+      });
+      final headers = _getHeaders(token, uid: user.uid);
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
+        headers: headers,
+        body: requestBody,
+      );
       final response = await http.post(
         url,
-        headers: _getHeaders(token, uid: user.uid),
-        body: json.encode({
-          'uid': user.uid,
-          'email': user.email ?? '',
-          'name': user.displayName ?? 'Driver',
-        }),
+        headers: headers,
+        body: requestBody,
+      );
+      NetworkLogger.logResponse(
+        method: 'POST',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -63,24 +68,38 @@ class DatabaseService {
   Future<void> saveDriverProfile(DriverModel driver, [String? token]) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/sync');
+      final requestBody = json.encode({
+        'uid': driver.firebaseId,
+        'name': driver.name,
+        'email': driver.email,
+        'mobileNumber': driver.phoneNumber,
+        'aadharCardNumber': driver.aadharCardNumber,
+        'drivingLicenseNumber': driver.drivingLicenseNumber,
+        'panCardNumber': driver.panCardNumber,
+        'dob': driver.dob,
+        'vehicleId': driver.vehicleId,
+        'vehicleModel': driver.vehicleModel,
+        'vehicleYear': driver.vehicleYear,
+        'vehicleNumberPlate': driver.vehicleNumberPlate,
+      });
+      final headers = _getHeaders(token, uid: driver.firebaseId);
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
+        headers: headers,
+        body: requestBody,
+      );
 
       final response = await http.post(
         url,
-        headers: _getHeaders(token, uid: driver.firebaseId),
-        body: json.encode({
-          'uid': driver.firebaseId,
-          'name': driver.name,
-          'email': driver.email,
-          'mobileNumber': driver.phoneNumber,
-          'aadharCardNumber': driver.aadharCardNumber,
-          'drivingLicenseNumber': driver.drivingLicenseNumber,
-          'panCardNumber': driver.panCardNumber,
-          'dob': driver.dob,
-          'vehicleId': driver.vehicleId,
-          'vehicleModel': driver.vehicleModel,
-          'vehicleYear': driver.vehicleYear,
-          'vehicleNumberPlate': driver.vehicleNumberPlate,
-        }),
+        headers: headers,
+        body: requestBody,
+      );
+      NetworkLogger.logResponse(
+        method: 'POST',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
       );
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -98,16 +117,51 @@ class DatabaseService {
     required Map<String, dynamic> updateData,
   }) async {
     try {
-      final url =
-          Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile/update');
-      final response = await http.put(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: json.encode(updateData),
+      final authProfileUrl = Uri.parse('${AppConfig.apiBaseUrl}/api/auth/profile');
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+      final requestBody = json.encode(updateData);
+      NetworkLogger.logRequest(
+        method: 'PUT',
+        url: authProfileUrl,
+        headers: headers,
+        body: requestBody,
       );
+      var response = await http.put(
+        authProfileUrl,
+        headers: headers,
+        body: requestBody,
+      );
+      NetworkLogger.logResponse(
+        method: 'PUT',
+        url: authProfileUrl,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+
+      if (response.statusCode != 200) {
+        final legacyUrl =
+            Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile/update');
+        NetworkLogger.logRequest(
+          method: 'PUT',
+          url: legacyUrl,
+          headers: headers,
+          body: requestBody,
+        );
+        response = await http.put(
+          legacyUrl,
+          headers: headers,
+          body: requestBody,
+        );
+        NetworkLogger.logResponse(
+          method: 'PUT',
+          url: legacyUrl,
+          statusCode: response.statusCode,
+          responseBody: response.body,
+        );
+      }
 
       if (response.statusCode != 200) {
         throw Exception('Failed to update profile: ${response.body}');
@@ -135,6 +189,13 @@ class DatabaseService {
       var request = http.MultipartRequest('POST', url);
 
       request.headers.addAll(_getHeaders(token, uid: uid, isMultipart: true));
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
+        headers: request.headers,
+        body:
+            '{"multipart":true,"photo":${photoFile != null},"aadharCard":${aadharFile != null},"drivingLicense":${licenseFile != null},"signature":${signatureFile != null},"panCard":${panFile != null},"rcBook":${rcBookFile != null},"insurance":${insuranceFile != null}}',
+      );
 
       if (photoFile != null) {
         final bytes = await photoFile.readAsBytes();
@@ -187,6 +248,12 @@ class DatabaseService {
       final streamedResponse =
           await request.send().timeout(const Duration(seconds: 120));
       final response = await http.Response.fromStream(streamedResponse);
+      NetworkLogger.logResponse(
+        method: 'POST',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
 
       if (response.statusCode != 200) {
         throw Exception('Failed to upload documents: ${response.body}');
@@ -200,16 +267,54 @@ class DatabaseService {
   // Get driver profile from backend
   Future<DriverModel?> getDriverProfile(String uid, String token) async {
     try {
-      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile');
-      final response = await http
+      final authProfileUrl = Uri.parse('${AppConfig.apiBaseUrl}/api/auth/profile');
+      final authHeaders = _getHeaders(token, uid: uid);
+      NetworkLogger.logRequest(
+        method: 'GET',
+        url: authProfileUrl,
+        headers: authHeaders,
+      );
+      var response = await http
           .get(
-            url,
-            headers: _getHeaders(token, uid: uid),
+            authProfileUrl,
+            headers: authHeaders,
           )
           .timeout(const Duration(seconds: 15));
+      NetworkLogger.logResponse(
+        method: 'GET',
+        url: authProfileUrl,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+
+      if (response.statusCode != 200) {
+        final legacyUrl = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/profile');
+        final legacyHeaders = _getHeaders(token, uid: uid);
+        NetworkLogger.logRequest(
+          method: 'GET',
+          url: legacyUrl,
+          headers: legacyHeaders,
+        );
+        response = await http
+            .get(
+              legacyUrl,
+              headers: legacyHeaders,
+            )
+            .timeout(const Duration(seconds: 15));
+        NetworkLogger.logResponse(
+          method: 'GET',
+          url: legacyUrl,
+          statusCode: response.statusCode,
+          responseBody: response.body,
+        );
+      }
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return DriverModel.fromJson(data['driver']);
+        final profileData = data['driver'] ?? data['user'] ?? data['profile'];
+        if (profileData is Map<String, dynamic>) {
+          return DriverModel.fromJson(profileData);
+        }
       }
       return null;
     } catch (e) {
@@ -222,12 +327,20 @@ class DatabaseService {
   Future<bool> isOnboardingComplete(String uid, String token) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/status');
+      final headers = _getHeaders(token, uid: uid);
+      NetworkLogger.logRequest(method: 'GET', url: url, headers: headers);
       final response = await http
           .get(
             url,
-            headers: _getHeaders(token, uid: uid),
+            headers: headers,
           )
           .timeout(const Duration(seconds: 15));
+      NetworkLogger.logResponse(
+        method: 'GET',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         // If they are in the DB (isRegistered), we consider initial registration "complete"
@@ -244,13 +357,27 @@ class DatabaseService {
   Future<Map<String, dynamic>> sendOTP(String email) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/otp/send');
+      final requestBody = json.encode({'email': email});
+      final headers = {'Content-Type': 'application/json'};
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
+        headers: headers,
+        body: requestBody,
+      );
       final response = await http
           .post(
             url,
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({'email': email}),
+            headers: headers,
+            body: requestBody,
           )
           .timeout(const Duration(seconds: 15));
+      NetworkLogger.logResponse(
+        method: 'POST',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
       if (response.statusCode != 200) {
         final error = json.decode(response.body);
         throw Exception(error['message'] ?? 'Failed to send OTP');
@@ -265,13 +392,27 @@ class DatabaseService {
   Future<bool> verifyOTP(String email, String otp, String token) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/otp/verify');
+      final headers = _getHeaders(token);
+      final requestBody = json.encode({'email': email, 'otp': otp});
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
+        headers: headers,
+        body: requestBody,
+      );
       final response = await http
           .post(
             url,
-            headers: _getHeaders(token),
-            body: json.encode({'email': email, 'otp': otp}),
+            headers: headers,
+            body: requestBody,
           )
           .timeout(const Duration(seconds: 15));
+      NetworkLogger.logResponse(
+        method: 'POST',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
       if (response.statusCode == 200) {
         return true;
       } else {
@@ -293,16 +434,30 @@ class DatabaseService {
   }) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/register');
+      final headers = {'Content-Type': 'application/json'};
+      final requestBody = json.encode({
+        'name': name,
+        'email': email,
+        'password': password,
+        'aadharCard': aadharCard,
+        'panCard': panCard,
+      });
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
+        headers: headers,
+        body: requestBody,
+      );
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'name': name,
-          'email': email,
-          'password': password,
-          'aadharCard': aadharCard,
-          'panCard': panCard,
-        }),
+        headers: headers,
+        body: requestBody,
+      );
+      NetworkLogger.logResponse(
+        method: 'POST',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
       );
 
       final data = json.decode(response.body);
@@ -328,7 +483,14 @@ class DatabaseService {
       final url = Uri.parse(
         '${AppConfig.apiBaseUrl}/api/driver/check-email',
       ).replace(queryParameters: {'email': email.trim()});
+      NetworkLogger.logRequest(method: 'GET', url: url);
       final response = await http.get(url);
+      NetworkLogger.logResponse(
+        method: 'GET',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return data['exists'] ?? false;

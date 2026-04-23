@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config.dart';
+import '../core/network_logger.dart';
 import 'auth_service.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
@@ -25,11 +26,10 @@ class ApiService {
 
   Future<dynamic> get(String endpoint) async {
     final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: headers,
-    );
-    return _handleResponse(response);
+    final uri = Uri.parse('$baseUrl$endpoint');
+    NetworkLogger.logRequest(method: 'GET', url: uri, headers: headers);
+    final response = await http.get(uri, headers: headers);
+    return _handleResponse(response, method: 'GET', url: uri);
   }
 
   Future<dynamic> getWithFallback(
@@ -46,12 +46,20 @@ class ApiService {
 
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
-    final response = await http.post(
-      Uri.parse('$baseUrl$endpoint'),
+    final uri = Uri.parse('$baseUrl$endpoint');
+    final encodedBody = jsonEncode(body);
+    NetworkLogger.logRequest(
+      method: 'POST',
+      url: uri,
       headers: headers,
-      body: jsonEncode(body),
+      body: encodedBody,
     );
-    return _handleResponse(response);
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: encodedBody,
+    );
+    return _handleResponse(response, method: 'POST', url: uri);
   }
 
   Future<dynamic> postWithFallback(
@@ -69,12 +77,20 @@ class ApiService {
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
-    final response = await http.put(
-      Uri.parse('$baseUrl$endpoint'),
+    final uri = Uri.parse('$baseUrl$endpoint');
+    final encodedBody = jsonEncode(body);
+    NetworkLogger.logRequest(
+      method: 'PUT',
+      url: uri,
       headers: headers,
-      body: jsonEncode(body),
+      body: encodedBody,
     );
-    return _handleResponse(response);
+    final response = await http.put(
+      uri,
+      headers: headers,
+      body: encodedBody,
+    );
+    return _handleResponse(response, method: 'PUT', url: uri);
   }
 
   Future<dynamic> putWithFallback(
@@ -92,12 +108,20 @@ class ApiService {
 
   Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
-    final response = await http.patch(
-      Uri.parse('$baseUrl$endpoint'),
+    final uri = Uri.parse('$baseUrl$endpoint');
+    final encodedBody = jsonEncode(body);
+    NetworkLogger.logRequest(
+      method: 'PATCH',
+      url: uri,
       headers: headers,
-      body: jsonEncode(body),
+      body: encodedBody,
     );
-    return _handleResponse(response);
+    final response = await http.patch(
+      uri,
+      headers: headers,
+      body: encodedBody,
+    );
+    return _handleResponse(response, method: 'PATCH', url: uri);
   }
 
   Future<dynamic> patchWithFallback(
@@ -115,14 +139,23 @@ class ApiService {
 
   Future<dynamic> delete(String endpoint) async {
     final headers = await _getHeaders();
-    final response = await http.delete(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: headers,
-    );
-    return _handleResponse(response);
+    final uri = Uri.parse('$baseUrl$endpoint');
+    NetworkLogger.logRequest(method: 'DELETE', url: uri, headers: headers);
+    final response = await http.delete(uri, headers: headers);
+    return _handleResponse(response, method: 'DELETE', url: uri);
   }
 
-  dynamic _handleResponse(http.Response response) {
+  dynamic _handleResponse(
+    http.Response response, {
+    required String method,
+    required Uri url,
+  }) {
+    NetworkLogger.logResponse(
+      method: method,
+      url: url,
+      statusCode: response.statusCode,
+      responseBody: response.body,
+    );
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return null;
       return jsonDecode(response.body);

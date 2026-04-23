@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'auth_service.dart';
 import '../core/config.dart';
+import '../core/network_logger.dart';
 
 final notificationServiceProvider = Provider((ref) => NotificationService(ref));
 
@@ -73,16 +73,31 @@ class NotificationService {
 
     try {
       final idToken = await user.getIdToken();
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/driver/fcm-token');
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $idToken',
+      };
+      final requestBody = jsonEncode({
+        'uid': user.uid,
+        'fcmToken': token,
+      });
+      NetworkLogger.logRequest(
+        method: 'POST',
+        url: url,
+        headers: headers,
+        body: requestBody,
+      );
       final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/api/driver/fcm-token'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: jsonEncode({
-          'uid': user.uid,
-          'fcmToken': token,
-        }),
+        url,
+        headers: headers,
+        body: requestBody,
+      );
+      NetworkLogger.logResponse(
+        method: 'POST',
+        url: url,
+        statusCode: response.statusCode,
+        responseBody: response.body,
       );
 
       if (response.statusCode == 200) {

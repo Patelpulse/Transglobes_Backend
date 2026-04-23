@@ -4,8 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AppConfig {
   static String get appName => dotenv.env['APP_NAME'] ?? 'RideShare';
 
-  static const String _defaultBackendUrl = 'https://api.transgloble.com';
-  static const String _localBackendUrl = 'http://localhost:8082';
+  static const String _defaultBackendUrl = 'http://72.61.172.182:2020';
   static const String _overrideApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '',
@@ -15,22 +14,13 @@ class AppConfig {
     defaultValue: '',
   );
 
-  static bool get _isLocalhostWeb {
-    if (!kIsWeb) return false;
-    final host = Uri.base.host.toLowerCase();
-    return host == 'localhost' ||
-        host == '127.0.0.1' ||
-        host == '0.0.0.0' ||
-        host == '::1';
-  }
-
-  static const String _vpsBackendUrl = 'http://72.61.172.182:8085';
+  static const String _vpsBackendUrl = 'http://72.61.172.182:2020';
 
   static bool get _isVpsWeb {
     if (!kIsWeb) return false;
     final h = Uri.base.host.toLowerCase();
     final p = Uri.base.port;
-    return h == '72.61.172.182' && p == 8085;
+    return h == '72.61.172.182' && p == 2020;
   }
   
   static String get apiBaseUrl {
@@ -39,9 +29,6 @@ class AppConfig {
     }
     if (_isVpsWeb) {
       return _vpsBackendUrl;
-    }
-    if (_isLocalhostWeb) {
-      return _localBackendUrl;
     }
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
@@ -57,9 +44,6 @@ class AppConfig {
     }
     if (_isVpsWeb) {
       return _vpsBackendUrl;
-    }
-    if (_isLocalhostWeb) {
-      return _localBackendUrl;
     }
     final envUrl = dotenv.env['SOCKET_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {

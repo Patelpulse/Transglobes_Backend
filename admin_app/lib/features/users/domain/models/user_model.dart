@@ -30,11 +30,26 @@ class AppUser extends Equatable {
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map) {
+    final rawName = (map['name'] ?? '').toString().trim();
+    final rawEmail = (map['email'] ?? '').toString().trim();
+    final rawMobile = (map['mobileNumber'] ?? '').toString().trim();
+
+    String displayName = rawName;
+    if (displayName.isEmpty) {
+      if (rawEmail.isNotEmpty && rawEmail.contains('@')) {
+        displayName = rawEmail.split('@').first;
+      } else if (rawMobile.isNotEmpty) {
+        displayName = 'User ${rawMobile.length >= 4 ? rawMobile.substring(rawMobile.length - 4) : rawMobile}';
+      } else {
+        displayName = 'Unknown User';
+      }
+    }
+
     return AppUser(
       id: map['_id']?.toString() ?? map['uid']?.toString() ?? '',
-      name: map['name'] ?? '',
-      email: map['email'] ?? '',
-      mobileNumber: map['mobileNumber']?.toString(),
+      name: displayName,
+      email: rawEmail,
+      mobileNumber: rawMobile.isEmpty ? null : rawMobile,
       type: map['type'] == 'business' ? UserType.business : UserType.personal,
       status: _parseStatus(map['status']),
       lastActive: _formatTime(map['lastActive'] ?? map['updatedAt']),

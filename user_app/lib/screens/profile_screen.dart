@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../services/auth_service.dart';
-import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -67,37 +66,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final apiService = ref.read(apiServiceProvider);
       final authService = ref.read(authServiceProvider);
       await authService.waitForSession();
       final phoneNumber = _phoneController.text.trim();
-      final lookupPhone = (_originalPhone ?? phoneNumber).trim();
-      final userId = authService.currentUser?.uid;
-
-      if (lookupPhone.isEmpty && (userId == null || userId.isEmpty)) {
-        throw Exception('No user identifier available to update profile');
+      final fallbackPhone = (_originalPhone ?? '').trim();
+      final effectivePhone = phoneNumber.isNotEmpty ? phoneNumber : fallbackPhone;
+      if (effectivePhone.isEmpty) {
+        throw Exception('Mobile number is required to update profile');
       }
-
-      final body = {
-        'name': _nameController.text.trim(),
-        if (userId != null && userId.isNotEmpty) 'uid': userId,
-      };
-      if (phoneNumber.isNotEmpty) {
-        body['mobileNumber'] = phoneNumber;
-      }
-      if (lookupPhone.isNotEmpty) {
-        body['currentMobileNumber'] = lookupPhone;
-      }
-
-      if (lookupPhone.isNotEmpty) {
-        final encodedPhone = Uri.encodeComponent(lookupPhone);
-        await apiService.put('/api/user/profile/$encodedPhone', body);
-      } else {
-        await apiService.put('/api/user/profile', body);
-      }
-
-      if (authService.currentUser is MockUser) {
-        await authService.syncWebSessionUser(phoneNumber: phoneNumber, displayName: _nameController.text.trim());
+      final response = await authService.updateProfile(
+        name: _nameController.text.trim(),
+        mobileNumber: effectivePhone,
+      );
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Profile update failed');
       }
 
       if (mounted) {
@@ -121,7 +103,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
         setState(() {
           _isEditing = false;
-          _originalPhone = phoneNumber;
+          _originalPhone = effectivePhone;
         });
       }
     } catch (e) {

@@ -3,8 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import '../core/config.dart';
+import '../core/api_endpoints.dart';
 import 'package:google_polyline_algorithm/google_polyline_algorithm.dart' as poly;
 import 'auth_service.dart';
+import 'network_logger.dart';
 
 class LocationService {
   static Future<Position?> getCurrentLocation() async {
@@ -26,12 +28,18 @@ class LocationService {
       final apiKey = AppConfig.googleMapsApiKey;
       final baseUrl = AppConfig.apiBaseUrl;
       final url = kIsWeb
-          ? Uri.parse('$baseUrl/api/maps/geocode?latlng=$lat,$lng&key=$apiKey')
+          ? Uri.parse('$baseUrl${MapsEndpoints.geocode(lat: '$lat', lng: '$lng', apiKey: apiKey)}')
           : Uri.parse('https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey');
       final headers = kIsWeb
           ? await AuthService().buildAuthHeaders(includeContentType: false)
           : null;
+      NetworkLogger.logRequest(
+        method: 'GET',
+        url: url,
+        headers: headers,
+      );
       final response = await http.get(url, headers: headers);
+      NetworkLogger.logResponse(method: 'GET', url: url, response: response);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['results'] != null && data['results'].isNotEmpty) {
@@ -52,13 +60,19 @@ class LocationService {
       final dest = "${end.latitude},${end.longitude}";
       
       final url = kIsWeb
-          ? Uri.parse('$baseUrl/api/maps/directions?origin=$origin&destination=$dest&key=$apiKey')
+          ? Uri.parse('$baseUrl${MapsEndpoints.directions(origin: origin, destination: dest, apiKey: apiKey)}')
           : Uri.parse('https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$dest&key=$apiKey');
           
       final headers = kIsWeb
           ? await AuthService().buildAuthHeaders(includeContentType: false)
           : null;
+      NetworkLogger.logRequest(
+        method: 'GET',
+        url: url,
+        headers: headers,
+      );
       final response = await http.get(url, headers: headers);
+      NetworkLogger.logResponse(method: 'GET', url: url, response: response);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'OK' && data['routes'].isNotEmpty) {

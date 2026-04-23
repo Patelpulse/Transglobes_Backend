@@ -17,11 +17,15 @@ void main() async {
   await dotenv.load(fileName: "assets/.env");
 
   try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    // On some Android launches/hot restarts, the default app may already exist.
+    if (e.code != 'duplicate-app') {
+      rethrow;
     }
+    debugPrint('[FIREBASE] Default app already initialized, continuing.');
   } on UnsupportedError catch (e) {
     debugPrint('[FIREBASE] Skipping init on this platform: $e');
   }

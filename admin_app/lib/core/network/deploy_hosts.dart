@@ -1,14 +1,14 @@
 import 'package:flutter/foundation.dart';
 
-/// Public VPS hostname. Transglobe is on **:8085** (port 80 is used by another vhost).
+/// Public VPS hostname.
 const String kVpsPublicHost = '72.61.172.182';
 
-const int kVpsPublicPort = 8085;
+const int kVpsPublicPort = 2020;
 
 /// API base origin (no trailing path). Append `/api/...` for REST.
 const String kVpsApiOrigin = 'http://$kVpsPublicHost:$kVpsPublicPort';
 
-/// True when opened from Transglobe’s nginx vhost (must include `:8085`, not plain `:80`).
+/// True when opened from Transglobe API host.
 bool get isVpsDeployedWeb =>
     kIsWeb &&
     Uri.base.host.toLowerCase() == kVpsPublicHost &&

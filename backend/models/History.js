@@ -91,7 +91,26 @@ const historySchema = new mongoose.Schema({
     logisticItems: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'LogisticGood'
-    }]
+    }],
+    // Fare breakdown for transparency
+    fareBreakdown: {
+        configId: { type: mongoose.Schema.Types.ObjectId, ref: 'PricingConfig' },
+        configName: { type: String },
+        baseFare: { type: Number, default: 0 },
+        distanceCharge: { type: Number, default: 0 },
+        weightCharge: { type: Number, default: 0 },
+        volumeCharge: { type: Number, default: 0 },
+        helperCharge: { type: Number, default: 0 },
+        fragileCharge: { type: Number, default: 0 },
+        bulkyCharge: { type: Number, default: 0 },
+        modeMultiplier: { type: Number, default: 1.0 },
+        nightSurcharge: { type: Number, default: 0 },
+        tollCharges: { type: Number, default: 0 },
+        platformFee: { type: Number, default: 0 },
+        gstAmount: { type: Number, default: 0 },
+        subtotal: { type: Number, default: 0 },
+        totalFare: { type: Number, default: 0 },
+    },
 }, { timestamps: true });
 
 

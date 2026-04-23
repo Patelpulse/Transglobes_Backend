@@ -16,15 +16,15 @@ class AuthScreen extends ConsumerStatefulWidget {
 class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
   bool _isLogin = true;
-  bool _showEmailForm = false; // toggle for "Continue with Email"
+  bool _useMobileAuth = false;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _mobileController = TextEditingController();
   final _aadharController = TextEditingController();
   final _panController = TextEditingController();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
-  bool _isFacebookLoading = false;
   String? _errorMessage;
 
   @override
@@ -32,24 +32,32 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _mobileController.dispose();
     _aadharController.dispose();
     _panController.dispose();
     super.dispose();
   }
 
   bool _isValid() {
-    final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    if (!_isValidEmail(email) || password.length < 6) return false;
+    if (password.length < 6) return false;
 
-    if (!_isLogin) {
-      final name = _nameController.text.trim();
-      final aadhar = _aadharController.text.trim();
-      final pan = _panController.text.trim();
-      if (name.isEmpty || !_isValidAadhar(aadhar) || !_isValidPan(pan)) {
-        return false;
-      }
+    if (_isLogin) {
+      return _useMobileAuth
+          ? _isValidMobile(_mobileController.text.trim())
+          : _isValidEmail(_emailController.text.trim());
     }
+
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return false;
+    if (_useMobileAuth) return _isValidMobile(_mobileController.text.trim());
+
+    final email = _emailController.text.trim();
+    final aadhar = _aadharController.text.trim();
+    final pan = _panController.text.trim();
+    if (!_isValidEmail(email)) return false;
+    if (aadhar.length < 8 || pan.length < 6) return false;
+
     return true;
   }
 
@@ -57,23 +65,29 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     return email.contains('@') && email.contains('.');
   }
 
-  bool _isValidAadhar(String value) {
-    return RegExp(r'^\d{12}$').hasMatch(value.trim());
+  bool _isValidMobile(String value) {
+    return RegExp(r'^\d{10}$').hasMatch(value.trim());
   }
 
-  bool _isValidPan(String value) {
-    // Keep PAN validation practical for onboarding: accept any 10-char
-    // uppercase alphanumeric value to avoid blocking legitimate entries.
-    return RegExp(r'^[A-Z0-9]{10}$').hasMatch(value.trim().toUpperCase());
+  String _extractUserId(Map<String, dynamic> response) {
+    final user = response['user'];
+    if (user is Map<String, dynamic>) {
+      return (user['id'] ?? user['_id'] ?? user['uid'] ?? '').toString();
+    }
+    return '';
   }
 
-  // Handles both login and registration using Firebase Auth
+  // Handles login and registration using backend APIs
   Future<void> _submit() async {
     if (!_isValid()) {
       setState(() {
         _errorMessage = _isLogin
-            ? 'Please enter a valid email and password (at least 6 characters).'
-            : 'Please enter a valid name, email, 12-digit Aadhaar, 10-character PAN, and password.';
+            ? (_useMobileAuth
+                ? 'Please enter valid 10-digit mobile and password.'
+                : 'Please enter valid email and password.')
+            : (_useMobileAuth
+                ? 'Please enter valid name, mobile and password.'
+                : 'Please enter valid name, email, password, Aadhaar and PAN.');
       });
       return;
     }
@@ -86,14 +100,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       final authService = ref.read(authServiceProvider);
       final dbService = ref.read(databaseServiceProvider);
 
-      final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
       if (_isLogin) {
-        final response = await authService.signInCustom(email, password);
+        final response = _useMobileAuth
+            ? await authService.signInWithMobileCustom(
+                mobileNumber: _mobileController.text.trim(),
+                password: password,
+              )
+            : await authService.signInCustom(
+                _emailController.text.trim(),
+                password,
+              );
         if (response['success']) {
           final isComplete = await dbService.isOnboardingComplete(
-              response['user']['id'], response['token']);
+            _extractUserId(response),
+            (response['token'] ?? '').toString(),
+          );
           if (mounted) {
             setState(() => _isLoading = false);
             if (isComplete) {
@@ -109,31 +132,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           });
         }
       } else {
-        // Sign Up
         final name = _nameController.text.trim();
-        final aadhar = _aadharController.text.trim();
-        final pan = _panController.text.trim().toUpperCase();
-
-        // 1. Proactive check if email is already in Mongo
-        final exists = await dbService.checkEmailAvailability(email);
-        if (exists) {
-          setState(() {
-            _isLogin = true; // Switch to login tab
-            _showEmailForm = true; // Show the email/password fields
-            _errorMessage =
-                "Email registered previously. Please enter your password to login.";
-            _isLoading = false;
-          });
-          return;
-        }
-
-        final response = await authService.signUpCustom(
-          name: name,
-          email: email,
-          password: password,
-          aadharCard: aadhar,
-          panCard: pan,
-        );
+        final response = _useMobileAuth
+            ? await authService.signUpWithMobileCustom(
+                name: name,
+                mobileNumber: _mobileController.text.trim(),
+                password: password,
+              )
+            : await authService.signUpCustom(
+                name: name,
+                email: _emailController.text.trim(),
+                password: password,
+                aadharCard: _aadharController.text.trim(),
+                panCard: _panController.text.trim(),
+              );
 
         if (response['success']) {
           if (mounted) {
@@ -144,18 +156,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 backgroundColor: AppTheme.neonGreen,
               ),
             );
-            Navigator.pushReplacementNamed(context, AppRouter.onboarding);
+            final isComplete = await dbService.isOnboardingComplete(
+              _extractUserId(response),
+              (response['token'] ?? '').toString(),
+            );
+            if (isComplete) {
+              Navigator.pushReplacementNamed(context, AppRouter.home);
+            } else {
+              Navigator.pushReplacementNamed(context, AppRouter.onboarding);
+            }
           }
         } else {
           final message = (response['message'] ?? '').toString();
           final normalizedMessage = message.toLowerCase();
           if (normalizedMessage.contains('already registered') ||
+              normalizedMessage.contains('already in use') ||
               normalizedMessage.contains('already exists')) {
+            final isMobileIssue = normalizedMessage.contains('mobile');
             setState(() {
+              _errorMessage = isMobileIssue
+                  ? 'Mobile number already registered. Please use another mobile number.'
+                  : 'Email already registered. Please login with your credentials.';
               _isLogin = true;
-              _showEmailForm = true;
-              _errorMessage =
-                  'Email registered previously. Please enter your password to login.';
               _isLoading = false;
             });
             return;
@@ -177,7 +199,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     }
   }
 
-  // ── Google Sign-In ─────────────────────────────────────────────────────────
+  // ── Google Sign-In (Backend Driver API) ───────────────────────────────────
   Future<void> _signInWithGoogle() async {
     setState(() {
       _isGoogleLoading = true;
@@ -186,30 +208,29 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     try {
       final authService = ref.read(authServiceProvider);
       final dbService = ref.read(databaseServiceProvider);
-      final userCredential = await authService.signInWithGoogle();
-      final token = await authService.getIdToken();
+      final response = await authService.signInWithGoogleCustom();
+      if (!(response['success'] == true)) {
+        throw Exception((response['message'] ?? 'Google sign-in failed').toString());
+      }
+      final isComplete = await dbService.isOnboardingComplete(
+        _extractUserId(response),
+        (response['token'] ?? '').toString(),
+      );
 
       if (mounted) {
-        final user = userCredential.user;
-        if (user != null) {
-          // Save Google user to backend database
-          final isComplete = await dbService.saveDriverToBackend(user, token);
-
-          if (mounted) {
-            if (isComplete) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content:
-                      Text('Welcome back, ${user.displayName ?? 'Driver'}! 🎉'),
-                  backgroundColor: AppTheme.neonGreen,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pushReplacementNamed(context, AppRouter.home);
-            } else {
-              Navigator.pushReplacementNamed(context, AppRouter.onboarding);
-            }
-          }
+        final user = (response['user'] as Map<String, dynamic>?) ?? const {};
+        final userName = (user['name'] ?? 'Driver').toString();
+        if (isComplete) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Welcome back, $userName! 🎉'),
+              backgroundColor: AppTheme.neonGreen,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          Navigator.pushReplacementNamed(context, AppRouter.home);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRouter.onboarding);
         }
       }
     } catch (e) {
@@ -220,52 +241,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       }
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
-    }
-  }
-
-  // ── Facebook Sign-In ───────────────────────────────────────────────────────
-  Future<void> _signInWithFacebook() async {
-    setState(() {
-      _isFacebookLoading = true;
-      _errorMessage = null;
-    });
-    try {
-      final authService = ref.read(authServiceProvider);
-      final dbService = ref.read(databaseServiceProvider);
-      final userCredential = await authService.signInWithFacebook();
-      final token = await authService.getIdToken();
-
-      if (mounted) {
-        final user = userCredential.user;
-        if (user != null) {
-          // Save Facebook user to backend database
-          final isComplete = await dbService.saveDriverToBackend(user, token);
-
-          if (mounted) {
-            if (isComplete) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content:
-                      Text('Welcome back, ${user.displayName ?? 'Driver'}! 🎉'),
-                  backgroundColor: AppTheme.neonGreen,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pushReplacementNamed(context, AppRouter.home);
-            } else {
-              Navigator.pushReplacementNamed(context, AppRouter.onboarding);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _isFacebookLoading = false);
     }
   }
 
@@ -379,251 +354,130 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                     _isLogin,
                                     () => setState(() {
                                           _isLogin = true;
-                                          _showEmailForm = false;
                                         })),
                                 _tab(
                                     'Sign Up',
                                     !_isLogin,
                                     () => setState(() {
                                           _isLogin = false;
-                                          _showEmailForm = false;
                                         })),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 32),
-
-                          // ── Sign Up CTA (not login tab) ────────────────────────────────
-                          if (!_isLogin) ...[
-                            Column(
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.darkSurface,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
                               children: [
-                                _buildTextField(
-                                  'Full Name',
-                                  _nameController,
-                                  Icons.person_outline,
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildTextField(
+                                _tab(
                                   'Email',
-                                  _emailController,
-                                  Icons.email_outlined,
-                                  onChanged: (_) => setState(() {}),
+                                  !_useMobileAuth,
+                                  () => setState(() => _useMobileAuth = false),
                                 ),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  'Aadhar Number',
-                                  _aadharController,
-                                  Icons.credit_card_outlined,
-                                  keyboardType: TextInputType.number,
-                                  maxLength: 12,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
-                                    LengthLimitingTextInputFormatter(12),
-                                  ],
-                                  onChanged: (_) => setState(() {}),
+                                _tab(
+                                  'Mobile',
+                                  _useMobileAuth,
+                                  () => setState(() => _useMobileAuth = true),
                                 ),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  'PAN Card Number',
-                                  _panController,
-                                  Icons.badge_outlined,
-                                  keyboardType: TextInputType.text,
-                                  maxLength: 10,
-                                  textCapitalization:
-                                      TextCapitalization.characters,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(
-                                        RegExp(r'[a-zA-Z0-9]')),
-                                    LengthLimitingTextInputFormatter(10),
-                                    TextInputFormatter.withFunction(
-                                      (oldValue, newValue) => newValue.copyWith(
-                                        text: newValue.text.toUpperCase(),
-                                        selection: newValue.selection,
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          if (!_isLogin) ...[
+                            _buildTextField(
+                              'Full Name',
+                              _nameController,
+                              Icons.person_outline,
+                              onChanged: (_) => setState(() {}),
+                              textCapitalization: TextCapitalization.words,
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          if (!_useMobileAuth) ...[
+                            _buildTextField(
+                              'Email',
+                              _emailController,
+                              Icons.email_outlined,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          if (_useMobileAuth) ...[
+                            _buildTextField(
+                              'Mobile Number',
+                              _mobileController,
+                              Icons.phone_outlined,
+                              keyboardType: TextInputType.number,
+                              maxLength: 10,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(10),
+                              ],
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                          if (!_isLogin && !_useMobileAuth) ...[
+                            _buildTextField(
+                              'Aadhaar Number',
+                              _aadharController,
+                              Icons.badge_outlined,
+                              keyboardType: TextInputType.text,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 14),
+                            _buildTextField(
+                              'PAN Number',
+                              _panController,
+                              Icons.credit_card_outlined,
+                              keyboardType: TextInputType.text,
+                              textCapitalization: TextCapitalization.characters,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          _buildTextField(
+                            'Password',
+                            _passwordController,
+                            Icons.lock_outline,
+                            isPassword: true,
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: _isLoading || !_isValid() ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.neonGreen,
+                                foregroundColor: AppTheme.darkBg,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                disabledBackgroundColor: AppTheme.darkDivider,
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: AppTheme.darkBg,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      _isLogin ? 'LOGIN' : 'CREATE ACCOUNT',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
                                       ),
                                     ),
-                                  ],
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Aadhaar: 12 digits, PAN: 10 chars (e.g. ABCDE1234F)',
-                                    style: const TextStyle(
-                                      color: AppTheme.darkTextSecondary,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  'Password',
-                                  _passwordController,
-                                  Icons.lock_outline,
-                                  isPassword: true,
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 24),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading || !_isValid()
-                                        ? null
-                                        : _submit,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppTheme.neonGreen,
-                                      foregroundColor: AppTheme.darkBg,
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16)),
-                                      disabledBackgroundColor:
-                                          AppTheme.darkDivider,
-                                    ),
-                                    child: _isLoading
-                                        ? const SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                                color: AppTheme.darkBg,
-                                                strokeWidth: 2))
-                                        : const Text('CREATE ACCOUNT',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 16)),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                const Row(
-                                  children: [
-                                    Expanded(
-                                        child: Divider(
-                                            color: AppTheme.darkDivider)),
-                                    Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(horizontal: 16),
-                                      child: Text('OR',
-                                          style: TextStyle(
-                                              color: AppTheme.darkTextSecondary,
-                                              fontSize: 12)),
-                                    ),
-                                    Expanded(
-                                        child: Divider(
-                                            color: AppTheme.darkDivider)),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: OutlinedButton(
-                                    onPressed: _isGoogleLoading
-                                        ? null
-                                        : _signInWithGoogle,
-                                    style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(
-                                          color: AppTheme.neonGreen,
-                                          width: 1.5),
-                                      backgroundColor: AppTheme.darkSurface,
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16)),
-                                    ),
-                                    child: _isGoogleLoading
-                                        ? const SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                                color: AppTheme.neonGreen,
-                                                strokeWidth: 2))
-                                        : Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              _googleIcon(),
-                                              const SizedBox(width: 12),
-                                              const Text(
-                                                'CONTINUE WITH GOOGLE',
-                                                style: TextStyle(
-                                                    color: AppTheme.neonGreen,
-                                                    fontWeight: FontWeight.w800,
-                                                    fontSize: 14),
-                                              ),
-                                            ],
-                                          ),
-                                  ),
-                                ),
-                              ],
                             ),
-                          ],
-
-                          // ── Email Form (animated, shown when _showEmailForm = true) ────
-                          AnimatedCrossFade(
-                            crossFadeState: (_isLogin && _showEmailForm)
-                                ? CrossFadeState.showFirst
-                                : CrossFadeState.showSecond,
-                            duration: const Duration(milliseconds: 300),
-                            firstChild: Column(
-                              children: [
-                                _buildTextField(
-                                  'Email',
-                                  _emailController,
-                                  Icons.email_outlined,
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  'Password',
-                                  _passwordController,
-                                  Icons.lock_outline,
-                                  isPassword: true,
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () {},
-                                    child: const Text('Forgot Password?',
-                                        style: TextStyle(
-                                            color: AppTheme.neonGreen)),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading || !_isValid()
-                                        ? null
-                                        : _submit,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppTheme.neonGreen,
-                                      foregroundColor: AppTheme.darkBg,
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16)),
-                                      disabledBackgroundColor:
-                                          AppTheme.darkDivider,
-                                    ),
-                                    child: _isLoading
-                                        ? const SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                                color: AppTheme.darkBg,
-                                                strokeWidth: 2))
-                                        : const Text('LOGIN',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 16)),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-                            ),
-                            secondChild: const SizedBox.shrink(),
                           ),
 
                           // ── Error Message ──────────────────────────────────────────────
@@ -656,137 +510,67 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           ],
 
                           // ── Divider ────────────────────────────────────────────────────
-                          if (_isLogin) ...[
-                            const Row(
-                              children: [
-                                Expanded(
-                                    child:
-                                        Divider(color: AppTheme.darkDivider)),
-                                Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 16),
-                                  child: Text('OR',
-                                      style: TextStyle(
-                                          color: AppTheme.darkTextSecondary,
-                                          fontSize: 12)),
+                          const SizedBox(height: 20),
+                          const Row(
+                            children: [
+                              Expanded(child: Divider(color: AppTheme.darkDivider)),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  'OR',
+                                  style: TextStyle(
+                                    color: AppTheme.darkTextSecondary,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                                Expanded(
-                                    child:
-                                        Divider(color: AppTheme.darkDivider)),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
+                              ),
+                              Expanded(child: Divider(color: AppTheme.darkDivider)),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
 
-                            // ── Google Sign-In Button ──────────────────────────────────
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: OutlinedButton(
-                                onPressed:
-                                    _isGoogleLoading ? null : _signInWithGoogle,
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(
-                                      color:
-                                          AppTheme.darkDivider.withOpacity(0.6),
-                                      width: 1.5),
-                                  backgroundColor: AppTheme.darkSurface,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16)),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: OutlinedButton(
+                              onPressed: _isGoogleLoading ? null : _signInWithGoogle,
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: AppTheme.darkDivider.withOpacity(0.6),
+                                  width: 1.5,
                                 ),
-                                child: _isGoogleLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                            color: AppTheme.neonGreen,
-                                            strokeWidth: 2))
-                                    : Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          _googleIcon(),
-                                          const SizedBox(width: 12),
-                                          const Text(
-                                            'Continue with Google',
-                                            style: TextStyle(
-                                              color: AppTheme.darkTextPrimary,
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                backgroundColor: AppTheme.darkSurface,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: _isGoogleLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: AppTheme.neonGreen,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        _googleIcon(),
+                                        const SizedBox(width: 12),
+                                        const Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            color: AppTheme.darkTextPrimary,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                        ],
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            // ── Continue with Email Button (toggle) ────────────────────
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: OutlinedButton(
-                                onPressed: () => setState(
-                                    () => _showEmailForm = !_showEmailForm),
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(
-                                      color: _showEmailForm
-                                          ? AppTheme.neonGreen.withOpacity(0.6)
-                                          : AppTheme.darkDivider
-                                              .withOpacity(0.6),
-                                      width: 1.5),
-                                  backgroundColor: _showEmailForm
-                                      ? AppTheme.neonGreen.withOpacity(0.08)
-                                      : AppTheme.darkSurface,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      _showEmailForm
-                                          ? Icons.keyboard_arrow_up
-                                          : Icons.email_outlined,
-                                      color: _showEmailForm
-                                          ? AppTheme.neonGreen
-                                          : AppTheme.darkTextPrimary,
-                                      size: 22,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      _showEmailForm
-                                          ? 'Hide Email Form'
-                                          : 'Continue with Email',
-                                      style: TextStyle(
-                                        color: _showEmailForm
-                                            ? AppTheme.neonGreen
-                                            : AppTheme.darkTextPrimary,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                             ),
-                            const SizedBox(height: 24),
-
-                            // ── Other social buttons ───────────────────────────────────
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _socialButton(Icons.apple, () {}),
-                                const SizedBox(width: 16),
-                                _socialButton(
-                                  Icons.facebook,
-                                  _isFacebookLoading
-                                      ? null
-                                      : _signInWithFacebook,
-                                  isLoading: _isFacebookLoading,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 32),
-                          ],
+                          ),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
@@ -861,28 +645,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppTheme.neonGreen, width: 1.5),
         ),
-      ),
-    );
-  }
-
-  Widget _socialButton(IconData icon, VoidCallback? onTap,
-      {bool isLoading = false}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.darkSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.darkDivider),
-        ),
-        child: isLoading
-            ? const SizedBox(
-                height: 28,
-                width: 28,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppTheme.darkTextPrimary))
-            : Icon(icon, color: AppTheme.darkTextPrimary, size: 28),
       ),
     );
   }

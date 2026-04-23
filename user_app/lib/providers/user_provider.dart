@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
 import '../models/user_model.dart';
@@ -16,48 +15,18 @@ class UserProfileNotifier extends AsyncNotifier<UserModel?> {
   Future<UserModel?> _fetchProfile() async {
     try {
       final authService = ref.read(authServiceProvider);
+      final profileRes = await authService.fetchProfile();
+      if (profileRes['success'] == true && profileRes['user'] != null) {
+        return UserModel.fromJson(
+          Map<String, dynamic>.from(profileRes['user'] as Map),
+        );
+      }
+
       final user = authService.currentUser;
-      final userId = user?.uid;
-      final phoneNumber = user?.phoneNumber ?? '';
-
-      if (phoneNumber.isNotEmpty) {
-        final apiService = ref.read(apiServiceProvider);
-        final encodedPhone = Uri.encodeComponent(phoneNumber);
-        final response = await apiService.getWithFallback(
-          '/api/auth/profile?mobileNumber=$encodedPhone',
-          '/api/user/profile/$encodedPhone',
-        );
-
-        if (response != null && response['user'] != null) {
-          final userData = Map<String, dynamic>.from(response['user']);
-          // Ensure firebaseId is set from current user if missing
-          if (userData['firebaseId'] == null && userId != null) {
-            userData['firebaseId'] = userId;
-          }
-          return UserModel.fromJson(userData);
-        }
-      }
-
-      if (userId != null) {
-        final apiService = ref.read(apiServiceProvider);
-        final response = await apiService.getWithFallback(
-          '/api/auth/profile?uid=${Uri.encodeQueryComponent(userId)}',
-          '/api/user/profile?uid=${Uri.encodeQueryComponent(userId)}',
-        );
-
-        if (response != null && response['user'] != null) {
-          final userData = Map<String, dynamic>.from(response['user']);
-          if (userData['firebaseId'] == null) {
-            userData['firebaseId'] = userId;
-          }
-          return UserModel.fromJson(userData);
-        }
-      }
-      
       if (user != null) {
         return UserModel(
           id: '', 
-          firebaseId: user.uid,
+          firebaseId: user.uid ?? '',
           email: user.email ?? '',
           name: user.displayName,
           phoneNumber: user.phoneNumber,
