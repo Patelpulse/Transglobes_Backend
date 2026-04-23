@@ -4,6 +4,7 @@ const History = require("../models/History");
 const User = require("../models/User"); // used for populating name
 const LogisticsBooking = require("../models/LogisticsBooking"); // Add this
 const { notifyAllDrivers } = require('../utils/notificationService');
+const { calculateDynamicFare } = require('../utils/pricingCalculator');
 
 const Review = require("../models/Review");
 
@@ -308,11 +309,11 @@ exports.createRideRequest = async (req, res) => {
     try {
         const { mobileNumber, locations, rideMode, paymentMode, fare, distance, vehicleType, typeOfGood, helperCount, logisticItems } = req.body;
 
-        // Verify we have required fields
-        if (!locations || !locations.pickup || !locations.dropoff || !rideMode || !fare) {
+        // Verify we have required fields (fare is now optional, will be calculated)
+        if (!locations || !locations.pickup || !locations.dropoff || !rideMode) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: locations, rideMode, and fare are mandatory"
+                message: "Missing required fields: locations and rideMode are mandatory"
             });
         }
 
@@ -391,6 +392,38 @@ exports.createRideRequest = async (req, res) => {
             await user.save();
         }
 
+        // ─── Calculate Dynamic Fare for Ride ───────────────────────────
+        let calculatedFare = fare; // Use provided fare if exists
+        let fareBreakdown = null;
+
+        if (!fare || fare === 0) {
+            try {
+                // Extract distance in km from the distance string (e.g., "5.2 km" -> 5.2)
+                const distanceKm = distance ? parseFloat(String(distance).replace(/[^\d.]/g, '')) : 0;
+
+                fareBreakdown = await calculateDynamicFare({
+                    distanceKm: distanceKm,
+                    durationMin: 0, // Can be calculated from estimated time if available
+                    mode: vehicleType || rideMode,
+                    helperCount: helperCount || 0,
+                    city: 'All', // Can be extracted from pickup location if needed
+                    bookingType: 'ride',
+                });
+
+                calculatedFare = fareBreakdown.totalFare;
+                console.log('[RIDE] Dynamic fare calculated:', fareBreakdown);
+            } catch (pricingError) {
+                console.error('[RIDE] Pricing calculation failed:', pricingError);
+                // If pricing fails and no fare provided, return error
+                if (!fare) {
+                    return res.status(500).json({
+                        success: false,
+                        message: pricingError.message || 'Failed to calculate fare. Please try again.',
+                    });
+                }
+            }
+        }
+
         const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
         const newRide = await History.create({
@@ -399,7 +432,8 @@ exports.createRideRequest = async (req, res) => {
             rideMode,
             paymentMode: paymentMode || "cash",
             distance: distance || "",
-            fare: fare,
+            fare: calculatedFare,
+            fareBreakdown: fareBreakdown,
             otp,
             vehicleType,
             typeOfGood,
@@ -426,7 +460,8 @@ exports.createRideRequest = async (req, res) => {
         res.status(201).json({
             success: true,
             message: "Ride request created successfully",
-            data: newRide
+            data: newRide,
+            fareBreakdown: fareBreakdown,
         });
 
     } catch (error) {

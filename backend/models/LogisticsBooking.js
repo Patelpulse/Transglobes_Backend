@@ -15,6 +15,8 @@ const itemSchema = new mongoose.Schema({
     height:   { type: Number, default: 0 },
     width:    { type: Number, default: 0 },
     unit:     { type: String, default: 'cm' },
+    weight:   { type: Number, default: 0 }, // Weight in kg
+    quantity: { type: Number, default: 1 }, // Quantity of this item
 }, { _id: false });
 
 const addressSchema = new mongoose.Schema({
@@ -144,6 +146,26 @@ const logisticsBookingSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Driver',
     }],
+
+    // Fare breakdown for transparency
+    fareBreakdown: {
+        configId: { type: mongoose.Schema.Types.ObjectId, ref: 'PricingConfig' },
+        configName: { type: String },
+        baseFare: { type: Number, default: 0 },
+        distanceCharge: { type: Number, default: 0 },
+        weightCharge: { type: Number, default: 0 },
+        volumeCharge: { type: Number, default: 0 },
+        helperCharge: { type: Number, default: 0 },
+        fragileCharge: { type: Number, default: 0 },
+        bulkyCharge: { type: Number, default: 0 },
+        modeMultiplier: { type: Number, default: 1.0 },
+        nightSurcharge: { type: Number, default: 0 },
+        tollCharges: { type: Number, default: 0 },
+        platformFee: { type: Number, default: 0 },
+        gstAmount: { type: Number, default: 0 },
+        subtotal: { type: Number, default: 0 },
+        totalFare: { type: Number, default: 0 },
+    },
 
 }, { timestamps: true });
 

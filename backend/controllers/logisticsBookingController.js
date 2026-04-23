@@ -1,5 +1,12 @@
 const LogisticsBooking = require('../models/LogisticsBooking');
 const { validateTransition, calculateCancellationCharge } = require('../utils/bookingLifecycle');
+const { 
+    calculateDynamicFare, 
+    calculateTotalWeight, 
+    calculateTotalVolume, 
+    hasFragileItems, 
+    hasBulkyItems 
+} = require('../utils/pricingCalculator');
 
 const normalizeLocation = (location, fallbackName, fallbackAddress) => {
     if (!location && !fallbackName && !fallbackAddress) {
@@ -171,26 +178,65 @@ exports.createBooking = async (req, res) => {
             });
         }
 
+        // ─── Calculate Dynamic Pricing ───────────────────────────
+        const totalWeight = calculateTotalWeight(normalizedItems);
+        const totalVolume = calculateTotalVolume(normalizedItems);
+        const isFragile = hasFragileItems(normalizedItems);
+        const isBulky = hasBulkyItems(normalizedItems);
+        const normalizedHelperCount = Number(helperCount ?? 0);
+        const normalizedDistanceKm = Number(distanceKm ?? 0);
+
+        let fareBreakdown;
+        try {
+            fareBreakdown = await calculateDynamicFare({
+                distanceKm: normalizedDistanceKm,
+                mode: normalizedVehicleType,
+                weightKg: totalWeight,
+                volumeCubicCm: totalVolume,
+                helperCount: normalizedHelperCount,
+                isFragile,
+                isBulky,
+                city: pickupAddress?.city || 'All',
+                bookingType: 'logistics',
+            });
+
+            console.log('[LOGISTICS] Dynamic fare calculated:', fareBreakdown);
+        } catch (pricingError) {
+            console.error('[LOGISTICS] Pricing calculation failed:', pricingError);
+            return res.status(500).json({
+                success: false,
+                message: pricingError.message || 'Failed to calculate fare. Please try again.',
+            });
+        }
+
+        // Apply discount if provided
+        const normalizedDiscountAmount = Number(discountAmount ?? 0);
+        const finalTotalPrice = Math.max(0, fareBreakdown.totalFare - normalizedDiscountAmount);
+        const calculatedHelperCost = fareBreakdown.helperCharge;
+        const calculatedVehiclePrice = fareBreakdown.subtotal - fareBreakdown.helperCharge;
+
         const booking = new LogisticsBooking({
             userId,
             userName:       userName       ?? "Guest User",
             userPhone:      userPhone      ?? "",
             pickup:         normalizedPickup,
             dropoff:        normalizedDropoff,
-            distanceKm:     distanceKm     ?? 0,
+            distanceKm:     normalizedDistanceKm,
             vehicleType:    normalizedVehicleType,
-            vehiclePrice:   normalizedVehiclePrice,
+            vehiclePrice:   calculatedVehiclePrice,
             items:          normalizedItems,
-            helperCount:    helperCount    ?? 0,
-            helperCost:     helperCost     ?? 0,
+            helperCount:    normalizedHelperCount,
+            helperCost:     calculatedHelperCost,
             additionalCharges: additionalCharges ?? 0,
-            discountAmount: discountAmount ?? 0,
-            totalPrice:     normalizedTotalPrice,
+            discountAmount: normalizedDiscountAmount,
+            totalPrice:     finalTotalPrice,
             appliedCoupon:  appliedCoupon  ?? null,
             pickupAddress:  normalizedPickupAddress,
             receivedAddress: normalizedReceivedAddress,
             segments:       segments       ?? [],
             status: 'pending',
+            // Store fare breakdown for transparency
+            fareBreakdown: fareBreakdown,
         });
 
         await booking.save();
@@ -200,6 +246,7 @@ exports.createBooking = async (req, res) => {
             message: 'Logistics booking created successfully!',
             bookingId: booking._id,
             data: booking,
+            fareBreakdown: fareBreakdown,
         });
 
     } catch (error) {
